@@ -1,0 +1,16 @@
+---
+description: Professional quality bar — latest docs, no sugarcoat, test-before-next
+alwaysApply: true
+---
+
+# Quality bar (no shortcuts)
+
+- End product = Windows agent + API + manager web. Not extension-only. Not website-only.
+- Before coding a feature: read official docs for that library’s **current major version** (FastAPI / PySide6 / React / SQLAlchemy). Do not invent APIs from memory.
+- One feature/module at a time. Do not start the next until the current one is **verified working** (manual test checklist in `docs/12-engineering-quality.md`).
+- Prefer boring, proven patterns over novelty. No half-finished UI.
+- No sugarcoating in status: say broken / blocked / done with evidence.
+- Follow `07-engineering-standards.mdc`: one module fully tested before next; split large files; document behavior changes.
+- Keystroke **counts only**. No stealth after Sign Out. No keylogger.
+- Screenshots: random-in-interval while signed in; stop on break/sign-out (defaults in `docs/11-questions-explained-and-market-defaults.md`).
+- If `STATUS.md` is not approved, docs only — no app code.

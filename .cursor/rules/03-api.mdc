@@ -1,0 +1,15 @@
+---
+description: FastAPI backend conventions for EMS
+globs: apps/api/**/*.py
+alwaysApply: false
+---
+
+# API
+
+- FastAPI + SQLAlchemy 2 + Alembic. PostgreSQL in staging/prod; SQLite allowed only for local tests.
+- Version routes `/api/v1/`.
+- WebSocket `/ws/live` for manager presence (online, last activity, last screenshot thumb).
+- Punches: `sign_in`, `break_in`, `break_out`, `sign_out` — server `created_at` UTC.
+- Reject punch sequences that skip required states unless manager override (audit log).
+- Pagination on events, screenshots, reports.
+- Background job for PDF generation; do not block request threads on matplotlib.

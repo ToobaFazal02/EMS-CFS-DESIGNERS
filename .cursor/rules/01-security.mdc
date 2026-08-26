@@ -1,0 +1,17 @@
+---
+description: Security, privacy, and workplace-monitoring constraints for EMS
+alwaysApply: true
+---
+
+# Security
+
+- Auth on every manager/API route. Agents authenticate with per-device credentials, not a shared password.
+- CSRF on cookie session web POSTs; Bearer JWT or device tokens for the agent API.
+- Parameterized SQL / ORM only. Escape all HTML output.
+- Uploads: screenshots JPEG/WebP only, size cap, random names, no execution in storage dirs.
+- Secrets in `.env` never committed. No production keys in docs.
+- Server timestamps win over PC clock for attendance. Client clock is advisory only.
+- Local agent DB is an **outbox**, not editable source of truth after sync.
+- Employees can see their own day's status; they cannot rewrite signed punches after sync.
+- TLS in production. Bind admin to LAN/VPN if hosted on-prem.
+- Log access to screenshots (who viewed, when).

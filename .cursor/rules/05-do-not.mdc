@@ -1,0 +1,14 @@
+---
+description: Forbidden features and architecture mistakes
+alwaysApply: true
+---
+
+# Do not
+
+- Do not build a PHP/Laragon-only solution for the recorder
+- Do not store keystrokes, passwords, or WhatsApp/chat content
+- Do not add hidden “stealth mode” that hides the agent from the employee
+- Do not live-stream full desktop video in v1 (screenshots + events only)
+- Do not couple this repo to `cfs-designers` PHP portfolio code
+- Do not commit TimesheetV2.exe or employee screenshot samples
+- Do not start Phase 2 (payroll, GPS, mobile clock-in) inside Phase 1

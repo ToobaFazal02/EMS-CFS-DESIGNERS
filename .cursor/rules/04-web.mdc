@@ -1,0 +1,16 @@
+---
+description: Manager web dashboard conventions
+globs: apps/web/**/*.{ts,tsx,css}
+alwaysApply: false
+---
+
+# Web admin
+
+- React + TypeScript + Vite. No extra UI kits unless already in package.json.
+- Live page: employee cards (online/offline, since, last window title, click rate, last thumb).
+- Day view: punch timeline + 30-min activity bars + screenshot strip.
+- Theme = **black / yellow-gold / white** per `docs/14-ui-theme.md` (client voice 20 Aug).
+- Agent: corner **LIVE** red blink while tracking (`docs/21-client-voice-2026-08-20-plan.md`).
+- Frontend quality per `docs/15-frontend-quality.md`.
+- Reports: daily + monthly; responsive per `docs/19-responsive.md`.
+- Sign-out stops PC tracking only; manager keeps history.

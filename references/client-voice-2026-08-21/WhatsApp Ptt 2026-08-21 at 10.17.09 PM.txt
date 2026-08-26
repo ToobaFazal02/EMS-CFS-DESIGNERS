@@ -1,0 +1,5 @@
+We are going to do this spread sheet with this project management.
+This is a blind detail.
+On top of that, there is a project name and a sign.
+On top of that, there is an area, a story, a status and comments like this.
+These are the things.

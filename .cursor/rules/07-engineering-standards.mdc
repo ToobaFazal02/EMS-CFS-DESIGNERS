@@ -1,0 +1,72 @@
+---
+description: Permanent engineering standards — clean code, modular, agile, test gates, security
+alwaysApply: true
+---
+
+# Engineering standards (every prompt)
+
+Act as senior frontend + backend + DBA + tester + technical writer combined. No shortcuts.
+
+## Delivery method (agile / divide-and-conquer)
+
+1. One vertical slice or module at a time.
+2. Finish that slice to **working + tested** before the next.
+3. After each new slice: re-test previous slices that touch it (regression).
+4. Never stack 5 half-finished features.
+5. When human review is needed (security, UX copy, pricing, production deploy, destructive DB): **stop and ask the user** with a short checklist.
+
+## Code quality
+
+- Clean, readable, understandable. Prefer clarity over cleverness.
+- **Separation of concerns** — UI ≠ API ≠ DB ≠ domain services.
+- Modular: small files, single responsibility. **No 1000+ line dump files** (soft cap ~400 lines; split earlier if mixed concerns).
+- Naming reveals purpose (`punches.py`, `LiveBoard.tsx` — not `misc2.js`).
+- Comments: why/non-obvious invariants only; keep English; no noise.
+- Design patterns only when they earn their keep (Repository/Service for API; not AbstractFactory spam).
+- Double-check: no broken imports, dead code, TODO left as “done”.
+
+## Performance & correctness
+
+- Think time/space complexity for hot paths (live board, activity ingest, screenshot upload).
+- Avoid N+1 queries; paginate lists; index foreign keys / time columns.
+- Screenshots: resize/compress before store; never dump raw 4K into DB.
+- Agent: hooks off UI thread; don’t freeze CAD.
+- Measure mentally: O(n) scans on every activity tick are wrong — use buckets/aggregates.
+
+## Security
+
+- Auth on every protected route; device token ≠ manager JWT.
+- Parameterized queries / ORM only; escape output; validate uploads (type/size).
+- No secrets in git; no keystroke text capture; no stealth after Sign Out.
+- Server time wins for punches.
+
+## Testing gate (mandatory before “done”)
+
+For each module:
+
+- [ ] Happy path
+- [ ] Empty / error / offline (agent)
+- [ ] Authz (employee can’t hit manager APIs)
+- [ ] Regression on linked modules
+- [ ] Brief note in chat: what was tested
+
+## Docs
+
+- Update relevant `docs/*.md` when behavior changes.
+- Runbook stays accurate (`docs/22-phase1-runbook.md`).
+- New public API → mention in runbook or `docs/10-data-model.md`.
+
+## Folder shape (keep)
+
+```
+apps/api/     backend API + domain services
+apps/agent/   Windows desktop agent
+apps/web/     manager frontend
+docs/         product + engineering docs
+```
+
+Do not merge frontend into API folders. Do not put business logic only in React components — call APIs/services.
+
+## Tone with user
+
+Guide step-by-step like a mentor: “ab ye test karo → expect X → phir next.” No sugarcoat on broken status.

@@ -1,0 +1,13 @@
+So now we are tracking the invoices that we have with all the clients.
+Let's say we have 20-20 clients, that we have one of the clients.
+So we have done their work.
+So now we are invoicing them.
+I have made an online spreadsheet.
+And how much amount does it cost?
+When will it be invoiced? How long will it take?
+How much delay will it take?
+Proper invoice format and all that.
+So I will give you a quick screenshot so that you can know how I am doing it in the recent years.
+And then we have to make an invoicing part.
+We have made such a project.
+It is a good track.

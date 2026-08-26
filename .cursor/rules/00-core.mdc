@@ -1,0 +1,18 @@
+---
+description: Core EMS product truth, execution gate, and non-negotiables
+alwaysApply: true
+---
+
+# EMS core
+
+This repo is **CFS Designers** platform (workforce + projects + payments). UI name: **CFS Designers** (not “EMS CFS”). Folder may still be `ems-cfs-designers`.
+
+Before any task: read `STATUS.md` and `docs/INDEX.md`. If `EXECUTION_APPROVED` is `no`, only docs/rules/prompts may change. No app implementation.
+
+Product = Windows agent + manager web + API. Website-only cannot capture clicks, window titles, or screenshots.
+
+- Keystroke **counts only** — never typed text
+- Agent must show it is recording (no silent spyware)
+- CAD screenshots are confidential — on-prem by default
+- Invent nothing that `docs/08-open-questions-client.md` still marks open
+- Minimum change that solves the asked task; no drive-by refactors

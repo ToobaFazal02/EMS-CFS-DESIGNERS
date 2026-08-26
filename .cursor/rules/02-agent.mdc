@@ -1,0 +1,16 @@
+---
+description: Windows desktop agent conventions (PySide6, hooks, outbox)
+globs: apps/agent/**/*.py
+alwaysApply: false
+---
+
+# Agent
+
+- PySide6 UI: Sign In, Break In, Break Out, Sign Out; **LIVE red blink** in corner while tracking; BREAK state amber; clear last sync.
+- Capture: mouse click count, key press count, foreground window title, screenshots on interval; idle after ~3 min no input.
+- Never hook clipboard or record key characters.
+- SQLite outbox + retry. Offline must keep recording; sync when API reachable.
+- Screenshot: scale down, JPEG quality cap; skip while idle by default.
+- Fail closed on disk full: stop new screenshots, keep punch events.
+- Run from tray; survive CAD fullscreen; do not steal focus every minute.
+- Theme black/yellow per `docs/14-ui-theme.md`. Windows 10/11 only for v1.

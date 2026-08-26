@@ -1,0 +1,18 @@
+---
+description: Validation and error handling — never allow silent bad input
+alwaysApply: true
+---
+
+# Validation & errors (every feature)
+
+- Validate **all** user inputs (dates, year/month, IDs, uploads) on **API and UI**.
+- **No future report dates/months** — reject with clear 400 + user-visible message (both CSV and Excel).
+- Empty states: never blank black boxes without label (e.g. “No screenshot yet”).
+- After success actions (enroll, punch): UI state must change (button label / badge). Enrolled PC shows “PC enrolled — Name”, not “Enroll this PC” again.
+- API errors: JSON `{detail: "..."}`; web shows alert or inline error — never silent fail.
+- Agent: show enrolled vs not enrolled clearly; LIVE red blink only when `working` (text stays “LIVE”, intensity blinks).
+- Agent launch: prefer **Run as Administrator** (`Run-As-Administrator.bat`) per client voice note.
+- Reports: professional Excel includes charts; day PDF includes activity graph when bucket data exists.
+- Never show raw HTTP/httpx stack traces to users — map API `detail` to plain English dialogs.
+- Punches (Sign In/Out, Break): confirm on server before changing local LIVE state; on rejection show the API message.
+- One PC = one enrolled employee; window title shows linked name so managers don’t mix people.
