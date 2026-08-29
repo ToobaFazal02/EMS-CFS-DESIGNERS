@@ -16,14 +16,14 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { CurrencySelect } from "../components/CurrencySelect";
 import { formatMoney, guessCurrencyFromLocation, normalizeCurrencyCode } from "../components/currencies";
 
-const PHASES: { id: string; label: string }[] = [
-  { id: "intake", label: "Intake" },
-  { id: "preliminary_design", label: "Preliminary Design" },
-  { id: "preliminary_engineering", label: "Preliminary Engineering" },
-  { id: "final_engineering", label: "Final Engineering" },
-  { id: "stamped_drawings", label: "Stamped Drawings" },
-  { id: "field_files", label: "Field Files" },
-  { id: "run_files", label: "Run Files" },
+const PHASES: { id: string; label: string; short: string }[] = [
+  { id: "intake", label: "Intake", short: "Intake" },
+  { id: "preliminary_design", label: "Preliminary Design", short: "Prelim Design" },
+  { id: "preliminary_engineering", label: "Preliminary Engineering", short: "Prelim Eng." },
+  { id: "final_engineering", label: "Final Engineering", short: "Final Eng." },
+  { id: "stamped_drawings", label: "Stamped Drawings", short: "Stamped" },
+  { id: "field_files", label: "Field Files", short: "Field Files" },
+  { id: "run_files", label: "Run Files", short: "Run Files" },
 ];
 
 function isoDate(v: string | null | undefined): string {
@@ -369,7 +369,7 @@ export function ProjectsPage() {
       ) : null}
 
       {manager ? (
-      <form className="toolbar" onSubmit={onAddClient}>
+      <form className="toolbar client-add-bar" onSubmit={onAddClient}>
         <div className="field">
           <label>
             New client <span className="req">*</span>
@@ -546,7 +546,7 @@ export function ProjectsPage() {
               return (
                 <section className="kanban-col" key={ph.id} style={{ borderTopColor: colColor }}>
                   <header>
-                    <span className="kanban-col-title">{ph.label}</span>
+                    <span className="kanban-col-title" title={ph.label}>{ph.short}</span>
                     <span className="kanban-count" style={{ background: `${colColor}33`, color: colColor }}>
                       {col.length}
                     </span>
@@ -688,7 +688,18 @@ export function ProjectsPage() {
                   <td>{p.assignee_name || "—"}</td>
                   <td>{p.area_sqft ?? "—"}</td>
                   <td>{p.storeys ?? "—"}</td>
-                  <td>{PHASES.find((x) => x.id === p.phase)?.label || p.phase}</td>
+                  <td>
+                    <span
+                      className="pill phase-pill"
+                      style={{
+                        background: `${PHASE_COLOR[p.phase] || "var(--accent)"}22`,
+                        color: PHASE_COLOR[p.phase] || "var(--accent)",
+                        border: `1px solid ${PHASE_COLOR[p.phase] || "var(--accent)"}55`,
+                      }}
+                    >
+                      {PHASES.find((x) => x.id === p.phase)?.label || p.phase}
+                    </span>
+                  </td>
                   <td>
                     <span
                       className={`pill ${
@@ -699,7 +710,13 @@ export function ProjectsPage() {
                             : "pill-muted"
                       }`}
                     >
-                      {p.work_state}
+                      {p.work_state === "working"
+                        ? "In progress"
+                        : p.work_state === "waiting"
+                          ? "Waiting"
+                          : p.work_state === "done"
+                            ? "Submitted"
+                            : p.work_state}
                     </span>
                   </td>
                   <td>{p.comments || "—"}</td>

@@ -35,7 +35,7 @@ Office server (or one dedicated mini-PC on LAN)
 
 ## Retention (professional default)
 
-- Screenshots: **30 days**, then auto-delete  
+- Screenshots: **60 days**, then auto-delete  
 - Punches / hours: **1+ years** (payroll disputes)  
 - Nightly backup: DB dump + screenshots zip to external disk  
 
@@ -48,4 +48,4 @@ Office server (or one dedicated mini-PC on LAN)
 
 ## Scale
 
-12 employees ≈ hundreds of MB screenshots/day at 5‑min interval — fine on a 1 TB office disk with 30‑day retention. 50 employees = same design, bigger disk / shorter retention if needed. No redesign required for “mazeed employees”.
+12 employees ≈ hundreds of MB screenshots/day at 5‑min interval — fine on a 50 GB VPS disk with 60‑day retention. 50 employees = same design, bigger disk / shorter retention if needed. No redesign required for “mazeed employees”.

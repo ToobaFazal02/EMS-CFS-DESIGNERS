@@ -42,6 +42,10 @@ class ChangeEmailIn(BaseModel):
     current_password: str
 
 
+class ChangeDisplayNameIn(BaseModel):
+    full_name: str = Field(..., min_length=2, max_length=120)
+
+
 class EmployeeOut(BaseModel):
     id: str
     code: str
@@ -136,6 +140,7 @@ class DaySummaryOut(BaseModel):
 class ClientIn(BaseModel):
     name: str
     location: str = ""
+    phone: str = ""
     notes: str = ""
 
 
@@ -143,6 +148,7 @@ class ClientOut(BaseModel):
     id: str
     name: str
     location: str = ""
+    phone: str = ""
     notes: str = ""
     active: bool = True
 
@@ -190,17 +196,57 @@ class ProjectOut(BaseModel):
     gate: str = "ok"
 
 
+class InvoiceLineItemIn(BaseModel):
+    description: str = Field(..., min_length=1, max_length=500)
+    scope: str = Field("", max_length=200)
+    qty: float = Field(default=1.0, gt=0, le=99999)
+    unit_price: float = Field(default=0.0, ge=0, le=1_000_000_000)
+    area: str = Field("", max_length=80)
+    rate: str = Field("", max_length=80)
+    comments: str = Field("", max_length=500)
+    unpaid: bool = False
+
+
+class InvoiceSettingsIn(BaseModel):
+    issuer_name: str = Field("", max_length=120)
+    issuer_address: str = Field("", max_length=300)
+    issuer_phone: str = Field("", max_length=40)
+    issuer_email: str = Field("", max_length=120)
+    bank_title: str = Field("USD Account Details:", max_length=80)
+    bank_intro: str = Field("", max_length=4000)
+    bank_account_name: str = Field("", max_length=120)
+    bank_account_number: str = Field("", max_length=60)
+    bank_account_type: str = Field("", max_length=80)
+    bank_routing: str = Field("", max_length=40)
+    bank_swift: str = Field("", max_length=20)
+    bank_name_address: str = Field("", max_length=2000)
+    contact_name: str = Field("", max_length=120)
+    contact_email: str = Field("", max_length=120)
+    footer_thanks: str = Field("THANK YOU FOR YOUR BUSINESS!", max_length=200)
+    header_color: str = Field("#548235", max_length=20)
+    highlight_color: str = Field("#c9a227", max_length=20)
+
+
+class InvoiceSettingsOut(InvoiceSettingsIn):
+    updated_at: Optional[datetime] = None
+
+
 class InvoiceIn(BaseModel):
     client_id: str
     project_id: Optional[str] = None
     number: str
-    amount: float
+    amount: float = 0
     currency: str = "USD"
     invoice_date: Optional[datetime] = None
     follow_up_at: Optional[datetime] = None
     status: str = "pending"
-    client_comments: str = ""
+    client_comments: str = Field("", max_length=4000)
     kind: str = "deposit"
+    bill_to_name: str = Field("", max_length=120)
+    bill_to_location: str = Field("", max_length=200)
+    bill_to_phone: str = Field("", max_length=40)
+    line_items: list[InvoiceLineItemIn] = Field(default_factory=list)
+    invoice_notes: str = Field("", max_length=4000)
 
 
 class InvoiceOut(BaseModel):
@@ -218,4 +264,9 @@ class InvoiceOut(BaseModel):
     status: str
     client_comments: str = ""
     kind: str = "deposit"
+    bill_to_name: str = ""
+    bill_to_location: str = ""
+    bill_to_phone: str = ""
+    line_items: list[InvoiceLineItemIn] = Field(default_factory=list)
+    invoice_notes: str = ""
     delayed_days: int = 0

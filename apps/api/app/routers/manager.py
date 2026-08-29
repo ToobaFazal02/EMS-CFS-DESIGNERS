@@ -1,8 +1,7 @@
 import csv
 import io
 from collections import defaultdict
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
@@ -13,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import ALGORITHM, get_current_user, is_manager, require_manager
 from app.config import get_settings
-from app.db import SessionLocal, get_db
+from app.db import get_db
 from app.live import live_hub
 from app.models import (
     ActivityBucket,
@@ -439,8 +438,9 @@ async def daily_pdf(
     emp = await db.get(Employee, employee_id)
     if not emp:
         raise HTTPException(status_code=404, detail="Employee not found")
-    day = datetime.strptime(date, "%Y-%m-%d")
-    reject_future_day(day.date())
+    d = parse_day_or_400(date)
+    reject_future_day(d)
+    day = datetime(d.year, d.month, d.day)
     start, end = day_bounds_utc(day)
     punches = await _punches_spanning(db, employee_id, start, end)
     buckets = list(
@@ -534,6 +534,9 @@ async def daily_pdf(
         overview_note=overview_note,
     )
     disposition = "inline" if inline else "attachment"
+    # Staff may view only — never force a download attachment
+    if user.role == Role.employee:
+        disposition = "inline"
     return FileResponse(
         out_path,
         media_type="application/pdf",
@@ -552,8 +555,9 @@ async def attendance_csv(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[Employee, Depends(require_manager)],
 ) -> StreamingResponse:
-    day = datetime.strptime(date, "%Y-%m-%d")
-    reject_future_day(day.date())
+    d = parse_day_or_400(date)
+    reject_future_day(d)
+    day = datetime(d.year, d.month, d.day)
     start, end = day_bounds_utc(day)
     emps = list(
         (await db.execute(select(Employee).where(Employee.role == Role.employee, Employee.active == True))).scalars().all()  # noqa: E712
@@ -604,8 +608,9 @@ async def attendance_xlsx(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[Employee, Depends(require_manager)],
 ) -> Response:
-    day = datetime.strptime(date, "%Y-%m-%d")
-    reject_future_day(day.date())
+    d = parse_day_or_400(date)
+    reject_future_day(d)
+    day = datetime(d.year, d.month, d.day)
     start, end = day_bounds_utc(day)
     emps = list(
         (await db.execute(select(Employee).where(Employee.role == Role.employee, Employee.active == True))).scalars().all()  # noqa: E712

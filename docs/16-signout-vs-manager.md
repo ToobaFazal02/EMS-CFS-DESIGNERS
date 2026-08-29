@@ -12,7 +12,7 @@
   - screenshots jo pehle capture ho chuki thin
   - activity, PDF, monthly reports
 - “Tracking band” ≠ “data delete” ≠ “manager blind”.
-- Data **office server** pe rehta hai jab tak retention allow kare (shots ~30 days; attendance longer).
+- Data **server** pe rehta hai jab tak retention allow kare (shots **60 days**; attendance longer).
 
 ## Simple line for client
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useNavigate } from "react-router-dom";
 import { fetchLive, login, type LiveEmployee } from "./api";
+import { LoginStage3D } from "./components/LoginStage3D";
 import { useToast } from "./components/ToastProvider";
 import { AccountPage } from "./pages/AccountPage";
 import { DayPage } from "./pages/DayPage";
@@ -12,12 +13,14 @@ import { ReportsPage } from "./pages/ReportsPage";
 function LoginPage() {
   const nav = useNavigate();
   const toast = useToast();
-  const [email, setEmail] = useState("admin@cfsdesigners.com");
-  const [password, setPassword] = useState("Admin123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setBusy(true);
     try {
       const data = await login(email, password);
       localStorage.setItem("ems_token", data.access_token);
@@ -30,65 +33,79 @@ function LoginPage() {
       else nav("/");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
     <div className="login-wrap">
-      <form className="login-card" onSubmit={onSubmit}>
-        <h1>
-          <span style={{ color: "var(--accent)" }}>CFS Designers</span>
-        </h1>
-        <p className="muted">Sign in to CFS Designers</p>
-        <div className="field">
-          <label htmlFor="email">Email</label>
-          <input id="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" />
-        </div>
-        <div className="field">
-          <label htmlFor="password">Password</label>
-          <div className="password-wrap">
+      <div className="login-shell">
+        <LoginStage3D />
+        <form className="login-card login-card-3d" onSubmit={onSubmit}>
+          <h1>
+            <span className="login-brand">CFS Designers</span>
+          </h1>
+          <p className="login-sub">Sign in to continue</p>
+          <div className="field">
+            <label htmlFor="email">Email</label>
             <input
-              id="password"
-              type={showPass ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              required
+              placeholder="name@cfsdesigners.com"
             />
-            <button
-              type="button"
-              className="password-toggle"
-              onClick={() => setShowPass((v) => !v)}
-              aria-label={showPass ? "Hide password" : "Show password"}
-              title={showPass ? "Hide password" : "Show password"}
-            >
-              {showPass ? (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path
-                    d="M3 3l18 18M10.5 10.7a2.5 2.5 0 003.3 3.3M9.9 5.6A10.5 10.5 0 0112 5.5c5 0 9.3 3.1 11 7.5a12.3 12.3 0 01-4.1 4.9M6.1 6.1A12.2 12.2 0 001 13c1.7 4.4 6 7.5 11 7.5 1.4 0 2.8-.2 4.1-.7"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              ) : (
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path
-                    d="M1 12s4-7.5 11-7.5S23 12 23 12s-4 7.5-11 7.5S1 12 1 12z"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinejoin="round"
-                  />
-                  <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
-                </svg>
-              )}
-            </button>
           </div>
-        </div>
-        <button type="submit" style={{ width: "100%", marginTop: 12 }}>
-          Sign in
-        </button>
-      </form>
+          <div className="field">
+            <label htmlFor="password">Password</label>
+            <div className="password-wrap">
+              <input
+                id="password"
+                type={showPass ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => setShowPass((v) => !v)}
+                aria-label={showPass ? "Hide password" : "Show password"}
+                title={showPass ? "Hide password" : "Show password"}
+              >
+                {showPass ? (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path
+                      d="M3 3l18 18M10.5 10.7a2.5 2.5 0 003.3 3.3M9.9 5.6A10.5 10.5 0 0112 5.5c5 0 9.3 3.1 11 7.5a12.3 12.3 0 01-4.1 4.9M6.1 6.1A12.2 12.2 0 001 13c1.7 4.4 6 7.5 11 7.5 1.4 0 2.8-.2 4.1-.7"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                ) : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+                    <path
+                      d="M1 12s4-7.5 11-7.5S23 12 23 12s-4 7.5-11 7.5S1 12 1 12z"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinejoin="round"
+                    />
+                    <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+          <button type="submit" className="login-submit" disabled={busy} style={{ width: "100%", marginTop: 12 }}>
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
@@ -98,12 +115,26 @@ function isManagerRole(): boolean {
   return r === "admin" || r === "manager";
 }
 
+function roleLabel(role: string): string {
+  if (role === "admin") return "Admin";
+  if (role === "manager") return "Manager";
+  if (role === "employee") return "Staff";
+  return role;
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
-  const name = localStorage.getItem("ems_name") || "User";
+  const [name, setName] = useState(() => localStorage.getItem("ems_name") || "User");
   const role = localStorage.getItem("ems_role") || "";
   const myId = localStorage.getItem("ems_employee_id") || "";
   const manager = isManagerRole();
   const nav = useNavigate();
+
+  useEffect(() => {
+    const sync = () => setName(localStorage.getItem("ems_name") || "User");
+    window.addEventListener("ems-profile", sync);
+    return () => window.removeEventListener("ems-profile", sync);
+  }, []);
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -134,7 +165,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         <div className="user-chip">
           <span className="user-chip-name">
             {name}
-            {role ? <span className="muted"> · {role}</span> : null}
+            {!manager && role ? <span className="user-chip-role"> · {roleLabel(role)}</span> : null}
           </span>
           <button
             className="secondary"
@@ -195,7 +226,7 @@ function LivePage() {
     let ws: WebSocket | null = null;
     try {
       const proto = location.protocol === "https:" ? "wss" : "ws";
-      ws = new WebSocket(`${proto}://${location.hostname}:8000/api/v1/ws/live?token=${encodeURIComponent(token)}`);
+      ws = new WebSocket(`${proto}://${location.host}/api/v1/ws/live?token=${encodeURIComponent(token)}`);
       ws.onmessage = () => refresh(false);
     } catch {
       /* poll only */

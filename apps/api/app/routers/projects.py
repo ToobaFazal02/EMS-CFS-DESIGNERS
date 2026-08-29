@@ -1,7 +1,8 @@
+import json
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -154,7 +155,7 @@ async def list_clients(
     _: Annotated[Employee, Depends(require_manager)],
 ) -> list[ClientOut]:
     rows = (await db.execute(select(Client).where(Client.active == True).order_by(Client.name))).scalars().all()  # noqa: E712
-    return [ClientOut(id=c.id, name=c.name, location=c.location or "", notes=c.notes or "", active=c.active) for c in rows]
+    return [ClientOut(id=c.id, name=c.name, location=c.location or "", phone=c.phone or "", notes=c.notes or "", active=c.active) for c in rows]
 
 
 @router.post("/clients", response_model=ClientOut)
@@ -171,11 +172,11 @@ async def create_client(
     location = (body.location or "").strip()
     if not location:
         raise HTTPException(status_code=400, detail="Client location is required (e.g. USA, AUS)")
-    c = Client(name=name, location=location, notes=body.notes or "")
+    c = Client(name=name, location=location, phone=(body.phone or "").strip()[:40], notes=body.notes or "")
     db.add(c)
     await db.commit()
     await db.refresh(c)
-    return ClientOut(id=c.id, name=c.name, location=c.location, notes=c.notes, active=c.active)
+    return ClientOut(id=c.id, name=c.name, location=c.location, phone=c.phone or "", notes=c.notes, active=c.active)
 
 
 @router.get("/projects", response_model=list[ProjectOut])
@@ -214,7 +215,7 @@ async def create_project(
             raise HTTPException(status_code=400, detail="Client not found")
     if body.assignee_id:
         emp = await db.get(Employee, body.assignee_id)
-        if not emp or emp.role != Role.employee:
+        if not emp:
             raise HTTPException(status_code=400, detail="Assignee not found")
     value = float(body.contract_value or 0)
     deposit_pct = float(body.deposit_pct or 50)
@@ -255,9 +256,7 @@ async def create_project(
                 actor_id=user.id,
                 action="payment_gate_override",
                 entity="project",
-                payload_json=(
-                    f'{{"phase":"{phase}","reason":"{(body.override_reason or "create")[:200]}"}}'
-                ),
+                payload_json=json.dumps({"phase": phase, "reason": (body.override_reason or "create")[:200]}),
             )
         )
     db.add(p)
@@ -288,7 +287,7 @@ async def update_project(
             raise HTTPException(status_code=400, detail="Client not found")
     if body.assignee_id:
         emp = await db.get(Employee, body.assignee_id)
-        if not emp or emp.role != Role.employee:
+        if not emp:
             raise HTTPException(status_code=400, detail="Assignee not found")
 
     p.contract_value = float(body.contract_value or 0)
@@ -309,10 +308,7 @@ async def update_project(
                 actor_id=user.id,
                 action="payment_gate_override",
                 entity="project",
-                payload_json=(
-                    f'{{"project_id":"{p.id}","phase":"{body.phase}",'
-                    f'"reason":"{(body.override_reason or "")[:200]}"}}'
-                ),
+                payload_json=json.dumps({"project_id": p.id, "phase": body.phase, "reason": (body.override_reason or "")[:200]}),
             )
         )
 
@@ -353,7 +349,7 @@ async def delete_project(
             actor_id=user.id,
             action="project_delete",
             entity="project",
-            payload_json=f'{{"project_id":"{project_id}","name":"{name[:120]}"}}',
+            payload_json=json.dumps({"project_id": project_id, "name": name[:120]}),
         )
     )
     await db.commit()

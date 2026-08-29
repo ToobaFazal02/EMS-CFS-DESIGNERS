@@ -19,7 +19,7 @@ Full plain-language explanation: `docs/11-questions-explained-and-market-default
 
 | # | Topic | Default |
 |---|---|---|
-| 9 | Retention | **30 days** screenshots |
+| 9 | Retention | **60 days** screenshots |
 | 10 | Google Sheet | Replace as source of truth; optional CSV export |
 | 11 | Projects | Infer from window title + optional tag |
 | 12 | Autostart agent | **Yes** on Windows logon |

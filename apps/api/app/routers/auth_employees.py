@@ -18,6 +18,7 @@ from app.auth import (
 from app.db import get_db
 from app.models import Device, Employee, Role
 from app.schemas import (
+    ChangeDisplayNameIn,
     ChangeEmailIn,
     ChangePasswordIn,
     EmployeeCreate,
@@ -211,6 +212,23 @@ async def change_my_email(
     user.email = email
     await db.commit()
     return {"ok": True, "email": email}
+
+
+@router.post("/me/change-display-name")
+async def change_my_display_name(
+    body: ChangeDisplayNameIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[Employee, Depends(require_manager)],
+) -> dict:
+    """Admin/manager sets the name shown in the header after login."""
+    name = " ".join((body.full_name or "").split())
+    if len(name) < 2:
+        raise HTTPException(status_code=400, detail="Enter a display name (at least 2 characters)")
+    if len(name) > 120:
+        raise HTTPException(status_code=400, detail="Display name is too long")
+    user.full_name = name
+    await db.commit()
+    return {"ok": True, "full_name": name}
 
 
 @router.post("/employees/{employee_id}/enroll", response_model=EnrollStartOut)

@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -24,10 +25,24 @@ async def lifespan(_: FastAPI):
             await ensure_samples()
         except Exception as exc:  # noqa: BLE001 — startup must not crash
             print("Sample seed skipped:", exc)
+    from app.services.retention import retention_loop
+
+    retain_task = asyncio.create_task(retention_loop())
     yield
+    retain_task.cancel()
+    try:
+        await retain_task
+    except asyncio.CancelledError:
+        pass
 
 
-app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app = FastAPI(
+    title=settings.app_name,
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,

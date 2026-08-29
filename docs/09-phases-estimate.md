@@ -11,7 +11,7 @@ Specs, Cursor rules, stack, questions.
 - Agent: punches, clicks, key counts, window titles, screenshots, offline sync
 - API + Postgres
 - Admin: live board + day view + attendance table + PDF/CSV
-- Device enroll, 12 users, 30-day retention default
+- Device enroll, 12 users, 60-day screenshot retention default
 - **Duration:** 3–4 weeks one senior (or 5–6 if part-time)
 - **Quote band (PK, 2026):** PKR **250,000–400,000** once scope is locked  
   (This is above a TimesheetV2 clone because live + screenshots + multi-user + anti-tamper are extra.)

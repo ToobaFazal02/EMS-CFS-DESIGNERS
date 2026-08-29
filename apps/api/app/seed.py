@@ -115,7 +115,7 @@ async def _ensure_admin_and_staff(db) -> Employee | None:
     if not admin:
         admin = Employee(
             code="ADMIN",
-            full_name="CFS Admin",
+            full_name="Office Administrator",
             email="admin@cfsdesigners.com",
             password_hash=hash_password("Admin123!"),
             role=Role.admin,
@@ -128,6 +128,8 @@ async def _ensure_admin_and_staff(db) -> Employee | None:
             admin.password_hash = hash_password("Admin123!")
         if admin.role not in (Role.admin, Role.manager):
             admin.role = Role.admin
+        if (admin.full_name or "").strip() in ("", "CFS Admin", "Admin", "admin"):
+            admin.full_name = "Office Administrator"
 
     samples = [
         ("101", "Waheed Ullah", "waheed@cfsdesigners.com"),

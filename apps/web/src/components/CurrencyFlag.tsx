@@ -7,14 +7,17 @@ type Props = {
 };
 
 export function CurrencyFlag({ currencyCode, size = "sm", className = "" }: Props) {
-  const w = size === "md" ? 48 : 40;
+  // flagcdn.com only supports w20, w40, w80 etc. — never w48
+  const urlW = size === "md" ? 40 : 20;
+  const displayW = size === "md" ? 22 : 18;
+  const displayH = size === "md" ? 16 : 13;
   const cc = (currencyCode || "USD").toUpperCase();
   return (
     <img
       className={`currency-flag currency-flag-${size}${className ? ` ${className}` : ""}`}
-      src={currencyFlagUrl(cc, w)}
-      width={size === "md" ? 24 : 20}
-      height={size === "md" ? 18 : 15}
+      src={currencyFlagUrl(cc, urlW)}
+      width={displayW}
+      height={displayH}
       alt=""
       loading="lazy"
       decoding="async"

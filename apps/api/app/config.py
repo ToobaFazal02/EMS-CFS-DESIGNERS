@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./ems_data/ems.db"
     access_token_expire_minutes: int = 720
     data_dir: str = "./ems_data"
-    screenshot_retention_days: int = 30
+    screenshot_retention_days: int = 60
     idle_seconds: int = 180
     overtime_hours_per_day: float = 8.0
     cors_origins: str = "http://127.0.0.1:5173,http://localhost:5173"

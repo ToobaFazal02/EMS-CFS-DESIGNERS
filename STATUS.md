@@ -15,6 +15,7 @@
 - Auto-seed admin + SAMPLE clients/projects/invoices on API start
 - Screenshot audit only on day lightbox (`audit=1`)
 - Re-enroll revokes old device tokens
+- Screenshot files auto-delete after **60 days**
 - Functional audit: `AUDIT.bat` → **20/20 pass**
 
 ## Explicitly deferred (need you / later machine)

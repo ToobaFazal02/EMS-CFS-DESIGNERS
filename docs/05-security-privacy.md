@@ -41,5 +41,5 @@
 
 ## Compliance-ish (pragmatic)
 
-- Retention job deletes screenshot files and DB rows past N days.
+- Retention job (API startup + daily) deletes screenshot files and DB rows past **60 days** (`SCREENSHOT_RETENTION_DAYS`).
 - Export/delete employee data on written request (admin procedure, not a public portal in v1).

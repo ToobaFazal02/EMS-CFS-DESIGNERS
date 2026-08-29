@@ -43,13 +43,22 @@ async function apiError(r: Response, fallback: string): Promise<string> {
 }
 
 export async function login(email: string, password: string) {
-  const r = await fetch(`${API}/api/v1/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!r.ok) throw new Error((await r.json()).detail || "Login failed");
-  return r.json();
+  let r: Response;
+  try {
+    r = await fetch(`${API}/api/v1/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch {
+    throw new Error("Cannot reach API. Start the API (port 8000), then try again.");
+  }
+  if (!r.ok) throw new Error(await apiError(r, "Login failed — check email/password or start the API."));
+  try {
+    return await r.json();
+  } catch {
+    throw new Error("API returned an empty response. Is the API running on port 8000?");
+  }
 }
 
 export async function fetchLive(): Promise<LiveEmployee[]> {
@@ -110,6 +119,16 @@ export async function changeMyEmail(email: string, current_password: string) {
   return r.json() as Promise<{ ok: boolean; email: string }>;
 }
 
+export async function changeMyDisplayName(full_name: string) {
+  const r = await fetch(`${API}/api/v1/me/change-display-name`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ full_name }),
+  });
+  if (!r.ok) throw new Error(await apiError(r, "Could not update display name"));
+  return r.json() as Promise<{ ok: boolean; full_name: string }>;
+}
+
 export async function startEnroll(employeeId: string) {
   const r = await fetch(`${API}/api/v1/employees/${employeeId}/enroll`, {
     method: "POST",
@@ -145,7 +164,40 @@ export type ClientRow = {
   id: string;
   name: string;
   location: string;
+  phone?: string;
   notes?: string;
+};
+
+export type InvoiceLineItem = {
+  description: string;
+  scope?: string;
+  qty: number;
+  unit_price: number;
+  area?: string;
+  rate?: string;
+  comments?: string;
+  unpaid?: boolean;
+};
+
+export type InvoiceSettings = {
+  issuer_name: string;
+  issuer_address: string;
+  issuer_phone: string;
+  issuer_email: string;
+  bank_title: string;
+  bank_intro: string;
+  bank_account_name: string;
+  bank_account_number: string;
+  bank_account_type: string;
+  bank_routing: string;
+  bank_swift: string;
+  bank_name_address: string;
+  contact_name: string;
+  contact_email: string;
+  footer_thanks: string;
+  header_color: string;
+  highlight_color: string;
+  updated_at?: string | null;
 };
 
 export type ProjectRow = {
@@ -186,6 +238,11 @@ export type InvoiceRow = {
   status: string;
   client_comments: string;
   kind: string;
+  bill_to_name: string;
+  bill_to_location: string;
+  bill_to_phone: string;
+  line_items: InvoiceLineItem[];
+  invoice_notes: string;
   delayed_days: number;
 };
 
@@ -269,6 +326,26 @@ export async function deleteInvoice(id: string) {
   }
   if (!r.ok) throw new Error(await apiError(r, "Delete invoice failed"));
   return r.json() as Promise<{ ok: boolean; id: string }>;
+}
+
+export async function fetchInvoiceSettings(): Promise<InvoiceSettings> {
+  const r = await fetch(`${API}/api/v1/invoice-settings`, { headers: authHeaders() });
+  if (r.status === 401) {
+    localStorage.removeItem("ems_token");
+    throw new Error("Session expired — sign in again");
+  }
+  if (!r.ok) throw new Error(await apiError(r, "Failed to load invoice template"));
+  return r.json();
+}
+
+export async function saveInvoiceSettings(body: InvoiceSettings): Promise<InvoiceSettings> {
+  const r = await fetch(`${API}/api/v1/invoice-settings`, {
+    method: "PATCH",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(await apiError(r, "Save invoice template failed"));
+  return r.json();
 }
 
 export async function deleteEmployee(id: string) {

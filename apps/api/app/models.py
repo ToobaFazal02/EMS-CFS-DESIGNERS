@@ -150,6 +150,7 @@ class Client(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     name: Mapped[str] = mapped_column(String(180), index=True)
     location: Mapped[str] = mapped_column(String(120), default="")
+    phone: Mapped[str] = mapped_column(String(40), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -207,7 +208,38 @@ class Invoice(Base):
     status: Mapped[str] = mapped_column(String(24), default=InvoiceStatus.pending.value, index=True)
     client_comments: Mapped[str] = mapped_column(Text, default="")
     kind: Mapped[str] = mapped_column(String(20), default="deposit")
+    bill_to_name: Mapped[str] = mapped_column(String(120), default="")
+    bill_to_location: Mapped[str] = mapped_column(String(200), default="")
+    bill_to_phone: Mapped[str] = mapped_column(String(40), default="")
+    line_items: Mapped[str] = mapped_column(Text, default="[]")
+    invoice_notes: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     client: Mapped[Client] = relationship()
     project: Mapped[Project | None] = relationship(back_populates="invoices")
+
+
+class InvoiceSettings(Base):
+    """Singleton row (id=default) — company + bank details printed on invoices."""
+
+    __tablename__ = "invoice_settings"
+
+    id: Mapped[str] = mapped_column(String(20), primary_key=True, default="default")
+    issuer_name: Mapped[str] = mapped_column(String(120), default="")
+    issuer_address: Mapped[str] = mapped_column(String(300), default="")
+    issuer_phone: Mapped[str] = mapped_column(String(40), default="")
+    issuer_email: Mapped[str] = mapped_column(String(120), default="")
+    bank_title: Mapped[str] = mapped_column(String(80), default="USD Account Details:")
+    bank_intro: Mapped[str] = mapped_column(Text, default="")
+    bank_account_name: Mapped[str] = mapped_column(String(120), default="")
+    bank_account_number: Mapped[str] = mapped_column(String(60), default="")
+    bank_account_type: Mapped[str] = mapped_column(String(80), default="")
+    bank_routing: Mapped[str] = mapped_column(String(40), default="")
+    bank_swift: Mapped[str] = mapped_column(String(20), default="")
+    bank_name_address: Mapped[str] = mapped_column(Text, default="")
+    contact_name: Mapped[str] = mapped_column(String(120), default="")
+    contact_email: Mapped[str] = mapped_column(String(120), default="")
+    footer_thanks: Mapped[str] = mapped_column(String(200), default="THANK YOU FOR YOUR BUSINESS!")
+    header_color: Mapped[str] = mapped_column(String(20), default="#548235")
+    highlight_color: Mapped[str] = mapped_column(String(20), default="#c9a227")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

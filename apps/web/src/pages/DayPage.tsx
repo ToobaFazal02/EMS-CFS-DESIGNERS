@@ -155,36 +155,38 @@ export function DayPage() {
         >
           View PDF
         </button>
-        <button
-          type="button"
-          onClick={async () => {
-            if (date > maxDate) {
-              toast.error(`Future dates are not allowed. Today is ${maxDate}.`);
-              return;
-            }
-            const r = await fetch(pdfHref, { headers: { Authorization: `Bearer ${token}` } });
-            if (!r.ok) {
-              let msg = `PDF failed (${r.status})`;
-              try {
-                const j = await r.json();
-                if (typeof j?.detail === "string") msg = j.detail;
-              } catch {
-                /* ignore */
+        {manager ? (
+          <button
+            type="button"
+            onClick={async () => {
+              if (date > maxDate) {
+                toast.error(`Future dates are not allowed. Today is ${maxDate}.`);
+                return;
               }
-              toast.error(msg);
-              return;
-            }
-            const blob = await r.blob();
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `daily_${date}.pdf`;
-            a.click();
-            URL.revokeObjectURL(url);
-          }}
-        >
-          Download PDF
-        </button>
+              const r = await fetch(pdfHref, { headers: { Authorization: `Bearer ${token}` } });
+              if (!r.ok) {
+                let msg = `PDF failed (${r.status})`;
+                try {
+                  const j = await r.json();
+                  if (typeof j?.detail === "string") msg = j.detail;
+                } catch {
+                  /* ignore */
+                }
+                toast.error(msg);
+                return;
+              }
+              const blob = await r.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `daily_${date}.pdf`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            Download PDF
+          </button>
+        ) : null}
       </div>
       {day ? (
         <>

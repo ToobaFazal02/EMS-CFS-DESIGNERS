@@ -7,7 +7,7 @@
 | 10–12 employees | 50 concurrent agents | 100 → Redis/queue + Postgres |
 
 - Live WS: one manager fan-out; no Kafka in v1–3.
-- Screenshots: ~1 shot / 5 min × office hours × staff; retention default **30 days**.
+- Screenshots: ~1 shot / 5 min × office hours × staff; retention default **60 days**.
 - Projects/payments: hundreds of clients/projects OK on single office server.
 
 ## Performance
