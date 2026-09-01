@@ -23,6 +23,11 @@ def today_pk() -> date:
     return now_pk().date()
 
 
+def monday_of(d: date) -> date:
+    """ISO week start (Monday) for a PKT calendar date."""
+    return d - timedelta(days=d.weekday())
+
+
 def to_pk(dt: datetime | None) -> datetime | None:
     if dt is None:
         return None

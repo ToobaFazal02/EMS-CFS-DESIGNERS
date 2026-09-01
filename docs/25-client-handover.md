@@ -1,5 +1,7 @@
 # Client handover (professional)
 
+**Updated 31 Aug 2026:** Live web is **https://ems.cfsdesigners.com**. Agent = `CFS-Agent-Install.zip` (no Python). Client voice that night: enroll staff **this week**; video of PC setup; HR/expenses later. See `docs/37-client-handover-ur-en.md` and `docs/42-client-voice-2026-08-30-plan.md`.
+
 ## What you deliver
 
 1. **Windows agent installer** (or setup ZIP) for each employee PC  

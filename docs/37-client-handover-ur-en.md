@@ -1,5 +1,13 @@
 # CFS Designers — Client handover & testing (simple)
 
+**Live (31 Aug 2026):** https://ems.cfsdesigners.com  
+**Agent zip:** operator Desktop `CFS-Agent-Install.zip`  
+**This week (client voice):** enroll employees first — `docs/42-client-voice-2026-08-30-plan.md`
+
+Do **not** send sample passwords (`Admin123!` / `Emp123!`) as live logins. Admin password is whatever was set on Account. Staff: unique temp passwords on Employees → Add staff.
+
+---
+
 ## Visual maps (open these first)
 
 | Image | Meaning |
@@ -10,15 +18,15 @@
 
 ---
 
-## Logins (pilot)
+## Logins (local demo / seed only — not live)
 
 | Who | Email | Password | Sees |
 |---|---|---|---|
-| **Admin / CEO** | `admin@cfsdesigners.com` | `Admin123!` | Live, Employees, Projects + $, Payments, Reports |
-| **Employee** | `waheed@cfsdesigners.com` (101–104 same pattern) | `Emp123!` | **My Day** + **My Projects** only — **no money** |
+| **Admin / CEO** | `admin@cfsdesigners.com` | local seed `Admin123!` only | Live, Employees, Projects + $, Payments, Reports |
+| **Employee** | `waheed@cfsdesigners.com` (101–104 same pattern) | local seed `Emp123!` only | **My Day** + **My Projects** — **no money** |
 | **Agent (PC)** | Enroll code from Employees page | — | Sign In/Out, LIVE, screenshots |
 
-Emails: `rohail@` / `waseem@` / `waleed@cfsdesigners.com` — password `Emp123!`
+Live staff emails: `firstname@cfsdesigners.com` with **unique** temp passwords. Agent = enroll once, not daily email login.
 
 ---
 
@@ -35,13 +43,11 @@ Emails: `rohail@` / `waseem@` / `waleed@cfsdesigners.com` — password `Emp123!`
 
 ## Client ko kya dena hai
 
-1. Folder ZIP: `ems-cfs-designers` (bina `node_modules`/`.venv` optional — ya full with venvs)
-2. Yeh doc + 3 images in `docs/visuals/`
-3. Demo logins upar
-4. Short video (optional): Admin flow 3 min + Agent Sign In 1 min
-5. Office install: API hamesha on (office PC), web Chrome, Agent har CAD PC pe
-
-**Client test:** unke office me API ek PC pe chalao; agents ka `api_base` us PC ka LAN IP (neeche).
+1. **CFS-Agent-Install.zip** (exe pack — no Python)
+2. Live URL + Employees enroll codes (one per PC)
+3. Short **screen recording**: install → enroll → Sign In (client asked 31 Aug)
+4. Yeh doc + images in `docs/visuals/`
+5. External clients (Willie/Harbour) do **not** get this board — internal only (`docs/39-external-clients-portal.md`)
 
 ---
 

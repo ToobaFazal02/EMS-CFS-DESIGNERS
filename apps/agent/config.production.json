@@ -1,0 +1,14 @@
+{
+  "api_base": "https://ems.cfsdesigners.com",
+  "device_token": "",
+  "screenshot_interval_seconds": 300,
+  "screenshot_blur": false,
+  "screenshot_blur_radius": 2,
+  "activity_interval_seconds": 15,
+  "idle_seconds": 180,
+  "auto_sign_out_idle_seconds": 1800,
+  "auto_sign_out_on_sleep": true,
+  "sleep_gap_seconds": 120,
+  "employee_name": "",
+  "employee_code": ""
+}

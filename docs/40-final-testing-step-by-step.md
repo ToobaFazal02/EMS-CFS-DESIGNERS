@@ -1,5 +1,7 @@
 # Final testing — step by step (Urdu + English)
 
+**Live EMS:** https://ems.cfsdesigners.com — Agent zip on Desktop. Client 30 Aug: employees on PCs first (`docs/42-client-voice-2026-08-30-plan.md`).
+
 Use this before you hand over to the client. Test on **your PC first**, then **second laptop** (optional but recommended).
 
 ---

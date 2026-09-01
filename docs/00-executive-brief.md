@@ -1,7 +1,8 @@
 # Executive brief
 
 **Client:** CFS Designers (LGS / CFS detailing; FrameCAD / Scottsdale / AutoCAD).  
-**Product name they asked for:** EMS — Employee Management System / EMS CFS Designers.  
+**Product name they asked for:** **CFS Designers** (not “EMS CFS”). Internal repo may still say `ems-cfs-designers`.  
+**Live:** https://ems.cfsdesigners.com  
 **Problem:** Hours are typed into Google Sheets and can be faked. Managers cannot see whether the employee was in ScotSteel or on YouTube.
 
 ## Three inputs we already have
@@ -26,9 +27,13 @@ Not “a website”. Not “only TimesheetV2 again”. Not a browser extension.
 
 Professional defaults (screenshots every ~5 min random, on-prem server, no video, breaks optional, stop after sign-out, employee can view own shots) are locked in `docs/11-questions-explained-and-market-defaults.md` unless client changes them.
 
+## 30–31 Aug 2026 (five voice notes)
+
+**Employees first.** Add named emails, enroll PCs, screenshots + hours from tomorrow. Projects/invoicing already built — use after a few days. **HR ≠ Admin:** HR sees attendance + projects + office expenses, **not invoices**. Hours as **8.1 / 8.2**. Branded Agent, four buttons, no daily app login. Full interpretation: `docs/42-client-voice-2026-08-30-plan.md`.
+
 ## What we will not build in v1
 
-Payroll, GPS, mobile clock, hidden stealth agent, keylogging text, live video stream, full HRIS, Chrome-extension-only tracker.
+Payroll, GPS, mobile clock, hidden stealth agent, keylogging text, live video stream, full HRIS, Chrome-extension-only tracker. **Office expenses** is a later sheet for HR — not a full accounts package.
 
 ## How we build
 

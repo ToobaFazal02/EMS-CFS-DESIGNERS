@@ -1,5 +1,7 @@
 # Phases and estimate
 
+**Historical quote bands.** Code through Phase 5 is **done**. Current work: **employee Agent rollout** (`docs/42-client-voice-2026-08-30-plan.md`). Next paid modules after that: decimal hours, HR role, office expenses.
+
 Do not start Phase 1 code until `STATUS.md` is approved **and** must-ask items in `08` have answers (or explicit “use defaults”).
 
 ## Phase 0 — this folder (done)

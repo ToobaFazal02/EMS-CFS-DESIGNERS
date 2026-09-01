@@ -4,16 +4,17 @@ import socket
 import threading
 import time
 from io import BytesIO
+from pathlib import Path
 
 from PySide6.QtCore import QObject, QTimer, Signal, Qt
 from PySide6.QtGui import QAction, QColor, QFont, QIcon, QPainter, QPalette, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMenu,
-    QMessageBox,
     QPushButton,
     QSystemTrayIcon,
     QVBoxLayout,
@@ -23,6 +24,7 @@ from PySide6.QtWidgets import (
 from ems_agent.storage import (
     ApiClient,
     Counters,
+    bundle_dir,
     enqueue,
     init_outbox,
     load_config,
@@ -254,7 +256,7 @@ class CaptureService(QObject):
                     ok = client.activity(payload)
                 elif kind == "screenshot":
                     path = payload.get("path")
-                    if path and PathExists(path):
+                    if path and Path(path).is_file():
                         ok = client.screenshot(open(path, "rb").read())
                 if ok:
                     mark_synced(oid)
@@ -267,14 +269,119 @@ class CaptureService(QObject):
         self.sync_changed.emit("Online" if online else "Offline — will retry")
 
 
-def PathExists(p: str) -> bool:
-    from pathlib import Path
-
-    return Path(p).exists()
+APP_DISPLAY_NAME = "CFS Designers Agent"
 
 
-def _tray_icon() -> QIcon:
-    """Simple gold-on-black tray glyph (no external asset)."""
+class AppDialog(QDialog):
+    """Black / gold / white dialog. Red = quit or stop. Green = go ahead."""
+
+    def __init__(
+        self,
+        parent: QWidget | None,
+        heading: str,
+        body: str = "",
+        *,
+        confirm: str = "OK",
+        cancel: str | None = "Cancel",
+        kind: str = "neutral",
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(APP_DISPLAY_NAME)
+        self.setWindowIcon(_app_icon())
+        self.setModal(True)
+        self.setFixedWidth(380)
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, False)
+        self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
+        self.setStyleSheet(
+            """
+            QDialog { background: #0A0A0A; }
+            QLabel#dlgHead { color: #FFFFFF; font-size: 15px; font-weight: 600; }
+            QLabel#dlgBody { color: #B3B3B3; font-size: 13px; }
+            QPushButton {
+                min-width: 96px; padding: 8px 18px; border-radius: 6px; font-weight: 600;
+            }
+            QPushButton#dlgCancel {
+                background: #141414; color: #F5F5F5; border: 1px solid #3A3A3A;
+            }
+            QPushButton#dlgCancel:hover { border-color: #C9A227; color: #FFFFFF; }
+            QPushButton#dlgNeutral { background: #C9A227; color: #0A0A0A; border: none; }
+            QPushButton#dlgNeutral:hover { background: #E0B93A; }
+            QPushButton#dlgDanger { background: #B42318; color: #FFFFFF; border: none; }
+            QPushButton#dlgDanger:hover { background: #D92D20; }
+            QPushButton#dlgSuccess { background: #1B7A3A; color: #FFFFFF; border: none; }
+            QPushButton#dlgSuccess:hover { background: #21964A; }
+            """
+        )
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(22, 20, 22, 18)
+        lay.setSpacing(12)
+        head = QLabel(heading)
+        head.setObjectName("dlgHead")
+        head.setWordWrap(True)
+        lay.addWidget(head)
+        if body:
+            note = QLabel(body)
+            note.setObjectName("dlgBody")
+            note.setWordWrap(True)
+            lay.addWidget(note)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addStretch(1)
+        cancel_btn = None
+        if cancel:
+            cancel_btn = QPushButton(cancel)
+            cancel_btn.setObjectName("dlgCancel")
+            cancel_btn.setCursor(Qt.PointingHandCursor)
+            cancel_btn.clicked.connect(self.reject)
+            row.addWidget(cancel_btn)
+        ok = QPushButton(confirm)
+        ok.setObjectName({"danger": "dlgDanger", "success": "dlgSuccess"}.get(kind, "dlgNeutral"))
+        ok.setCursor(Qt.PointingHandCursor)
+        ok.clicked.connect(self.accept)
+        if kind == "danger" and cancel_btn is not None:
+            cancel_btn.setDefault(True)
+            ok.setDefault(False)
+        else:
+            ok.setDefault(True)
+        row.addWidget(ok)
+        lay.addLayout(row)
+
+
+def _ask(
+    parent: QWidget | None,
+    heading: str,
+    body: str = "",
+    *,
+    confirm: str = "OK",
+    cancel: str = "Cancel",
+    kind: str = "neutral",
+) -> bool:
+    return (
+        AppDialog(parent, heading, body, confirm=confirm, cancel=cancel, kind=kind).exec()
+        == QDialog.DialogCode.Accepted
+    )
+
+
+def _notice(
+    parent: QWidget | None,
+    heading: str,
+    body: str = "",
+    *,
+    kind: str = "neutral",
+) -> None:
+    AppDialog(parent, heading, body, confirm="OK", cancel=None, kind=kind).exec()
+
+
+def _assets_dir() -> Path:
+    return bundle_dir() / "assets"
+
+
+def _app_icon() -> QIcon:
+    assets = _assets_dir()
+    for name in ("cfs-agent.ico", "cfs-logo.png"):
+        path = assets / name
+        if path.is_file():
+            return QIcon(str(path))
     size = 64
     pm = QPixmap(size, size)
     pm.fill(QColor("#0A0A0A"))
@@ -284,9 +391,9 @@ def _tray_icon() -> QIcon:
     painter.setPen(Qt.NoPen)
     painter.drawRoundedRect(4, 4, size - 8, size - 8, 12, 12)
     painter.setPen(QColor("#0A0A0A"))
-    font = QFont("Segoe UI", 28, QFont.Bold)
+    font = QFont("Georgia", 16, QFont.Bold)
     painter.setFont(font)
-    painter.drawText(pm.rect(), Qt.AlignCenter, "E")
+    painter.drawText(pm.rect(), Qt.AlignCenter, "CFS")
     painter.end()
     return QIcon(pm)
 
@@ -295,33 +402,53 @@ class MainWindow(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.svc = CaptureService()
-        self.setWindowTitle("CFS Designers — Agent")
-        self.setMinimumSize(420, 320)
+        self.setWindowTitle(APP_DISPLAY_NAME)
+        self.setWindowIcon(_app_icon())
+        self.setMinimumSize(420, 470)
+        self.setMaximumWidth(460)
+        # Keep Close + Minimize. Do not use MSWindowsFixedSizeDialogHint —
+        # on Windows that can grey out / disable the title-bar X.
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowTitleHint
+            | Qt.WindowType.WindowSystemMenuHint
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
         self._apply_theme()
         self._tray: QSystemTrayIcon | None = None
+        self._force_quit = False
 
         self.live = QLabel("OFF")
         self.live.setAlignment(Qt.AlignCenter)
-        self.live.setFixedSize(72, 72)
+        self.live.setFixedSize(68, 68)
         self.live.setStyleSheet(self._badge_style(False))
 
-        self.info = QLabel("Sign In to start tracking")
+        self.info = QLabel("Sign in to start tracking")
+        self.info.setObjectName("statusTitle")
         self.info.setWordWrap(True)
-        self.sync = QLabel("Sync: —")
-        self.sync.setStyleSheet("color: #A3A3A3;")
+        self.sync = QLabel("Connection: —")
+        self.sync.setObjectName("statusMeta")
+        self.sync.setWordWrap(True)
 
         self.enroll = QLineEdit()
-        self.enroll.setPlaceholderText("Enroll code (from manager)")
+        self.enroll.setPlaceholderText("Enroll code from your manager")
         self.btn_enroll = QPushButton("Enroll this PC")
+        self.btn_enroll.setObjectName("primary")
+        self.btn_enroll.setCursor(Qt.PointingHandCursor)
         self.btn_enroll.clicked.connect(self.do_enroll)
         self.enroll_status = QLabel("")
+        self.enroll_status.setObjectName("enrollHint")
         self.enroll_status.setWordWrap(True)
-        self.enroll_status.setStyleSheet("color: #C9A227; font-weight: 600;")
 
         self.btn_in = QPushButton("Sign In")
+        self.btn_in.setObjectName("success")
         self.btn_break_in = QPushButton("Break In")
+        self.btn_break_in.setObjectName("secondary")
         self.btn_break_out = QPushButton("Break Out")
+        self.btn_break_out.setObjectName("secondary")
         self.btn_out = QPushButton("Sign Out")
+        self.btn_out.setObjectName("danger")
         for b, t in (
             (self.btn_in, "sign_in"),
             (self.btn_break_in, "break_in"),
@@ -332,16 +459,57 @@ class MainWindow(QWidget):
             b.clicked.connect(lambda checked=False, pt=t: self.on_punch(pt))
 
         layout = QVBoxLayout(self)
-        top = QHBoxLayout()
-        top.addWidget(self.live)
-        top.addWidget(self.info, 1)
-        layout.addLayout(top)
-        layout.addWidget(self.sync)
+        layout.setContentsMargins(22, 18, 22, 18)
+        layout.setSpacing(12)
+
+        header = QWidget()
+        header_row = QHBoxLayout(header)
+        header_row.setContentsMargins(0, 0, 0, 0)
+        header_row.setSpacing(12)
+        logo = QLabel()
+        logo.setFixedSize(42, 42)
+        logo.setScaledContents(True)
+        logo_path = _assets_dir() / "cfs-logo.png"
+        if logo_path.is_file():
+            logo.setPixmap(QPixmap(str(logo_path)))
+        titles = QVBoxLayout()
+        titles.setSpacing(1)
+        titles.setContentsMargins(0, 2, 0, 0)
+        brand = QLabel("CFS Designers")
+        brand.setObjectName("brand")
+        sub = QLabel("Time tracking")
+        sub.setObjectName("subtitle")
+        titles.addWidget(brand)
+        titles.addWidget(sub)
+        header_row.addWidget(logo)
+        header_row.addLayout(titles, 1)
+        layout.addWidget(header)
+
+        rule = QWidget()
+        rule.setFixedHeight(1)
+        rule.setObjectName("goldRule")
+        layout.addWidget(rule)
+
+        status = QWidget()
+        status.setObjectName("statusCard")
+        top = QHBoxLayout(status)
+        top.setContentsMargins(14, 14, 16, 14)
+        top.setSpacing(14)
+        top.addWidget(self.live, 0, Qt.AlignmentFlag.AlignTop)
+        text_col = QVBoxLayout()
+        text_col.setSpacing(4)
+        text_col.setContentsMargins(0, 6, 0, 0)
+        text_col.addWidget(self.info)
+        text_col.addWidget(self.sync)
+        top.addLayout(text_col, 1)
+        layout.addWidget(status)
+
         layout.addWidget(self.enroll_status)
         layout.addWidget(self.enroll)
         layout.addWidget(self.btn_enroll)
         layout.addWidget(self.btn_in)
         row = QHBoxLayout()
+        row.setSpacing(8)
         row.addWidget(self.btn_break_in)
         row.addWidget(self.btn_break_out)
         layout.addLayout(row)
@@ -387,13 +555,13 @@ class MainWindow(QWidget):
         if not QSystemTrayIcon.isSystemTrayAvailable():
             return
         tray = QSystemTrayIcon(self)
-        tray.setIcon(_tray_icon())
-        tray.setToolTip("CFS Designers — Agent")
+        tray.setIcon(_app_icon())
+        tray.setToolTip(APP_DISPLAY_NAME)
         menu = QMenu()
         act_open = QAction("Open", self)
         act_open.triggered.connect(self._show_from_tray)
         act_quit = QAction("Quit", self)
-        act_quit.triggered.connect(QApplication.instance().quit)
+        act_quit.triggered.connect(self._confirm_quit)
         menu.addAction(act_open)
         menu.addSeparator()
         menu.addAction(act_quit)
@@ -414,18 +582,17 @@ class MainWindow(QWidget):
         ):
             self._show_from_tray()
 
+    def _confirm_quit(self) -> None:
+        if _ask(self, "Quit CFS Designers Agent?", confirm="Quit", kind="danger"):
+            self._force_quit = True
+            QApplication.instance().quit()
+
     def closeEvent(self, event) -> None:  # noqa: N802 — Qt API
-        if self._tray and self._tray.isVisible():
-            self.hide()
-            self._tray.showMessage(
-                "CFS Designers",
-                "Still running in the system tray. Right-click the icon → Quit to exit.",
-                QSystemTrayIcon.MessageIcon.Information,
-                3000,
-            )
-            event.ignore()
+        if self._force_quit:
+            event.accept()
             return
-        event.accept()
+        event.ignore()
+        self._confirm_quit()
 
     def _sync_server_session(self) -> None:
         token = self.svc.cfg.get("device_token") or ""
@@ -526,19 +693,46 @@ class MainWindow(QWidget):
     def _apply_theme(self) -> None:
         self.setStyleSheet(
             """
-            QWidget { background: #0A0A0A; color: #FFFFFF; font-size: 14px; }
-            QPushButton {
-                background: #C9A227; color: #0A0A0A; border: none; padding: 12px;
-                border-radius: 6px; font-weight: 600;
+            QWidget { background: #0A0A0A; color: #F5F5F5; font-size: 14px; }
+            QLabel#brand { color: #C9A227; font-size: 18px; font-weight: 700; }
+            QLabel#subtitle { color: #8A8A8A; font-size: 12px; }
+            QWidget#goldRule { background: #C9A227; }
+            QWidget#statusCard {
+                background: #141414;
+                border: 1px solid #2C2C2C;
+                border-radius: 10px;
             }
-            QPushButton:hover { background: #E0B93A; }
+            QLabel#statusTitle { color: #FFFFFF; font-size: 15px; font-weight: 600; }
+            QLabel#statusMeta { color: #8A8A8A; font-size: 12px; }
+            QLabel#enrollHint { color: #C9A227; font-size: 13px; }
+            QPushButton {
+                border: none; padding: 11px 14px;
+                border-radius: 7px; font-weight: 600;
+            }
+            QPushButton#primary { background: #C9A227; color: #0A0A0A; }
+            QPushButton#primary:hover { background: #E0B93A; }
+            QPushButton#success { background: #1B7A3A; color: #FFFFFF; }
+            QPushButton#success:hover { background: #21964A; }
+            QPushButton#danger { background: #B42318; color: #FFFFFF; }
+            QPushButton#danger:hover { background: #D92D20; }
+            QPushButton#secondary {
+                background: #161616; color: #F0E6C8;
+                border: 1px solid #6B5A22;
+            }
+            QPushButton#secondary:hover { background: #1F1A0C; border-color: #C9A227; }
+            QPushButton#ghost {
+                background: transparent; color: #D4D4D4;
+                border: 1px solid #3A3A3A;
+            }
+            QPushButton#ghost:hover { border-color: #8A8A8A; color: #FFFFFF; }
             QPushButton:disabled {
-                background: #2a2a2a; color: #9a9a9a; border: 1px solid #555555;
+                background: #1C1C1C; color: #6A6A6A; border: 1px solid #2A2A2A;
             }
             QLineEdit {
-                background: #1F1F1F; border: 1px solid #666666; padding: 10px; border-radius: 6px;
-                color: #FFFFFF;
+                background: #141414; border: 1px solid #3A3A3A; padding: 10px 12px;
+                border-radius: 7px; color: #FFFFFF;
             }
+            QLineEdit:focus { border: 1px solid #C9A227; }
             """
         )
 
@@ -603,18 +797,18 @@ class MainWindow(QWidget):
             self.btn_enroll.hide()
             self.enroll_status.setStyleSheet("color: #C9A227; font-weight: 600;")
             who = f"{name}" + (f" (#{code})" if code else "")
-            # Tooba = Windows computer name, NOT another employee
-            self.enroll_status.setText(f"Enrolled as: {who}\nThis PC name: {host}")
+            # Keep window title = app name so Windows does not show "Name - CFS Designers Agent"
+            self.enroll_status.setText(f"Enrolled as {who}\nThis PC: {host}")
             self.enroll_status.show()
-            self.setWindowTitle(f"CFS Designers — {who}")
+            self.setWindowTitle(APP_DISPLAY_NAME)
         else:
             self.enroll.show()
             self.btn_enroll.show()
             self.btn_enroll.setText("Enroll this PC")
             self.btn_enroll.setEnabled(True)
-            self.enroll_status.setText("Not enrolled — paste manager code, then Enroll this PC.")
+            self.enroll_status.setText("Not enrolled. Paste the manager code, then Enroll this PC.")
             self.enroll_status.setStyleSheet("color: #A3A3A3;")
-            self.setWindowTitle("CFS Designers — Agent")
+            self.setWindowTitle(APP_DISPLAY_NAME)
 
     def on_status(self, state: str) -> None:
         names = {
@@ -646,38 +840,26 @@ class MainWindow(QWidget):
 
     def on_punch(self, punch_type: str) -> None:
         if not self.svc.cfg.get("device_token"):
-            QMessageBox.warning(
-                self,
-                "Not enrolled",
-                "This PC is not enrolled yet.\nAsk the manager for an enroll code, then tap Enroll this PC.",
-            )
+            _notice(self, "This PC is not enrolled.", "Ask your manager for an enroll code.")
             return
         ok, err = self.svc.punch(punch_type)
         if not ok and punch_type == "sign_in" and err and "already signed in" in err.lower():
-            reply = QMessageBox.question(
+            if _ask(
                 self,
-                "Open session found",
-                "A previous session is still open on the server.\n\n"
-                "End that session and Sign In now?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.Yes,
-            )
-            if reply == QMessageBox.Yes:
+                "End the open session and sign in?",
+                confirm="Sign In",
+                kind="success",
+            ):
                 out_ok, out_err = self.svc.punch("sign_out")
                 if out_ok:
                     self._server_signed_in = False
                     ok, err = self.svc.punch("sign_in")
                 else:
-                    QMessageBox.warning(self, "Could not end session", out_err or "Tap End Session and try again.")
+                    _notice(self, "Could not end session.", out_err or "Try End Session, then Sign In.")
                     self._sync_server_session()
                     return
         if not ok:
-            QMessageBox.warning(
-                self,
-                "Action not saved",
-                err
-                or "Could not save this action on the server.\nCheck internet / API and try again.",
-            )
+            _notice(self, "Could not save.", err or "Check your connection and try again.")
             return
         if punch_type == "sign_out":
             self._server_signed_in = False
@@ -690,18 +872,12 @@ class MainWindow(QWidget):
     def do_enroll(self) -> None:
         if self.svc.cfg.get("device_token"):
             name = self.svc.cfg.get("employee_name") or "an employee"
-            QMessageBox.information(
-                self,
-                "Already enrolled",
-                f"This PC is already linked to {name}.\n\n"
-                "Do not enroll again unless the manager gave you a new Re-enroll code.\n"
-                "If you need to switch employee, ask the manager to click Re-enroll PC.",
-            )
+            _notice(self, "This PC is already enrolled.", f"Linked to {name}.")
             self._refresh_enroll_ui()
             return
         code = self.enroll.text().strip()
         if not code:
-            QMessageBox.warning(self, "Enroll", "Enter the enroll code from the manager Employees page.")
+            _notice(self, "Enter the enroll code from your manager.")
             return
         try:
             client = ApiClient(self.svc.cfg["api_base"], "")
@@ -713,21 +889,18 @@ class MainWindow(QWidget):
             self.sync.setText(f"Sync: Enrolled as {data.get('employee_name')}")
             self.enroll.clear()
             self._refresh_enroll_ui()
-            QMessageBox.information(
+            _notice(
                 self,
-                "PC enrolled",
-                f"This PC is linked to {data.get('employee_name')} ({data.get('employee_code')}).\n"
-                "You can Sign In now.",
+                "PC enrolled.",
+                f"Linked to {data.get('employee_name')} ({data.get('employee_code')}). You can sign in now.",
+                kind="success",
             )
         except Exception as e:
             msg = str(e)
             # Strip raw httpx noise if anything leaked
             if "For more information check" in msg or "httpx" in msg.lower() or "Bad Request" in msg:
-                msg = (
-                    "This enroll code is invalid or already used.\n\n"
-                    "Ask the manager for a fresh code (Enroll PC / Re-enroll PC)."
-                )
-            QMessageBox.warning(self, "Enroll failed", msg)
+                msg = "This code is invalid or already used. Ask your manager for a new one."
+            _notice(self, "Enroll failed.", msg)
 
     def _tick_activity(self) -> None:
         if self.svc.state not in ("working", "break", "idle"):
@@ -819,10 +992,45 @@ class MainWindow(QWidget):
             self.svc.sync_changed.emit("Offline — shot queued")
 
 
+def _hide_windows_console() -> None:
+    """Remove the extra black console so only the Agent UI is visible."""
+    import sys
+
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 0)
+        ctypes.windll.kernel32.FreeConsole()
+    except Exception:
+        pass
+
+
 def main() -> None:
     import sys
 
+    from PySide6.QtCore import QSharedMemory
+
+    _hide_windows_console()
+    try:
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("CFSDesigners.Agent")
+    except Exception:
+        pass
+
+    lock = QSharedMemory("CFSDesigners.Agent.SingleInstance")
+    if not lock.create(1):
+        sys.exit(0)
+
     app = QApplication(sys.argv)
+    app._instance_lock = lock  # noqa: SLF001 — keep mutex alive
+    app.setApplicationName(APP_DISPLAY_NAME)
+    app.setApplicationDisplayName(APP_DISPLAY_NAME)
+    app.setWindowIcon(_app_icon())
     app.setQuitOnLastWindowClosed(False)
     app.setFont(QFont("Segoe UI", 10))
     w = MainWindow()

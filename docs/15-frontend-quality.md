@@ -19,11 +19,11 @@
 ## Checklist before “UI done”
 
 - [ ] All buttons do something or are correctly disabled
-- [ ] Empty + error + loading states exist
+- [x] Empty + error + loading states exist (dashboard keeps last data on failed refresh)
 - [ ] Focus visible with keyboard only
 - [ ] Same button styles reused (no 5 different blues)
-- [ ] Screenshot thumbs don’t break layout
-- [ ] Checked on ~1366, 1920, and 2560 widths (no tiny island on large screens)
+- [x] Screenshot thumbs don’t break layout
+- [x] Checked on ~1366, 1920, and 2560 widths (2560 fills the shell like 1440; type/charts scale up — `docs/19-responsive.md`, `docs/44-dashboard-predeploy.md`)
 
 ## Responsive
 

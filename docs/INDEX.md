@@ -15,7 +15,10 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | `../STATUS.md` | Execution gate + current phase |
 | `00-executive-brief.md` | One-page why |
 | `02-product-vision.md` | What we are building |
-| `03-functional-requirements.md` | **All FR** (workforce + projects + payments) |
+| `03-functional-requirements.md` | **All FR** (workforce + projects + payments + later expenses) |
+| `42-client-voice-2026-08-30-plan.md` | **Latest client voice** — employees first, HR, expenses |
+| `43-lovable-dashboard-prompt.md` | Copy-paste Lovable prompt — **Dashboard tab only** |
+| `44-dashboard-predeploy.md` | **1 Sep 2026** Dashboard data + ultra-wide type + what to click before VPS |
 | `04-non-functional-requirements.md` | **All NFR** (perf, scale, security bar) |
 | `05-security-privacy.md` | Threats + controls |
 | `31-projects-payments-plan-DRAFT.md` | Projects + payments + advance % plan |
@@ -30,8 +33,10 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | `30-client-voice-2026-08-21-plan.md` | Projects + invoicing + roles + one system |
 | `31-projects-payments-plan-DRAFT.md` | Sheet columns, Design Queue, 50/50 advance, gates |
 | `32-client-voice-index.md` | **All audio transcripts mapped** |
+| `42-client-voice-2026-08-30-plan.md` | Employee-first rollout, HR vs invoices, expenses, 8.1 hours |
 | `../references/client-voice-2026-08-20-*.txt` | 20 Aug transcript |
 | `../references/client-voice-2026-08-21/*.txt` | 21 Aug (8 notes) transcripts |
+| `../references/client-voice-2026-08-30/` | 30–31 Aug (5 notes) transcripts |
 
 ---
 
@@ -56,8 +61,11 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 
 | Area | Status |
 |---|---|
-| Workforce (agent, live, reports, PDF graph) | **Done** (Phase 1–2) |
-| Rebrand → CFS Designers | **In progress** (client asked) |
-| Projects Kanban + Project Details fields | Planned (Phase 3) |
-| Payments Tracking sheet replacement | Planned (Phase 4) |
-| Payment gates (50% before start) | Planned (after client confirms %) |
+| Workforce (agent, live, reports, PDF graph) | **Done** (Phase 1–2) — **pilot enroll now** (30 Aug voice) |
+| Rebrand → CFS Designers | **Done** on live `https://ems.cfsdesigners.com` |
+| Projects Kanban + payment gates | **Built** — client said use **after** employees are live |
+| Payments Tracking | **Built** (admin only) — same: after employee week |
+| Distinct **HR** login (no invoices) | **Not built** — 30 Aug voice |
+| Office **expenses** sheet (HR) | **Not built** — 30 Aug voice |
+| Report hours as **8.1 / 8.2** | **Done** on web (day + dashboard). PDF may still use `2h 32m` |
+| Hubstaff dashboard / gear / scrollbars | **Done** — real API data, device type scale (`docs/19`, `docs/44`) |

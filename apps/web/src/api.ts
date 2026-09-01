@@ -42,28 +42,109 @@ async function apiError(r: Response, fallback: string): Promise<string> {
   }
 }
 
+export class LoginError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "LoginError";
+    this.status = status;
+  }
+}
+
+function loginMessage(status: number, detail: string): string {
+  if (status === 401) return "Email or password is incorrect.";
+  if (status === 403) return "This account is inactive. Ask an administrator.";
+  if (status === 422) return "Enter a valid email and password.";
+  if (status === 429) return "Too many attempts. Wait a minute and try again.";
+  if (status >= 500) return "Server error. Try again in a moment.";
+  const clean = detail.trim();
+  if (clean && !/port 8000|start the api/i.test(clean)) return clean;
+  return "Could not sign in. Check your connection and try again.";
+}
+
 export async function login(email: string, password: string) {
+  const payload = { email: email.trim().toLowerCase(), password };
   let r: Response;
   try {
     r = await fetch(`${API}/api/v1/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(payload),
     });
   } catch {
-    throw new Error("Cannot reach API. Start the API (port 8000), then try again.");
+    throw new LoginError("Cannot reach the server. Check your connection and try again.", 0);
   }
-  if (!r.ok) throw new Error(await apiError(r, "Login failed — check email/password or start the API."));
+  if (!r.ok) {
+    throw new LoginError(loginMessage(r.status, await apiError(r, "")), r.status);
+  }
   try {
     return await r.json();
   } catch {
-    throw new Error("API returned an empty response. Is the API running on port 8000?");
+    throw new LoginError("The server sent an empty reply. Try again.", r.status || 502);
   }
 }
 
 export async function fetchLive(): Promise<LiveEmployee[]> {
   const r = await fetch(`${API}/api/v1/live`, { headers: authHeaders() });
   if (!r.ok) throw new Error("Failed to load live board");
+  return r.json();
+}
+
+export type DashHourDay = { date: string; label: string; hours: number };
+export type DashRosterRow = {
+  employee_id: string;
+  code: string;
+  full_name: string;
+  status: string;
+  last_window: string;
+  hours_today: number;
+};
+export type DashLateInvoice = {
+  id: string;
+  client_name: string;
+  number: string;
+  amount: number;
+  currency: string;
+  delayed_days: number;
+};
+export type DashPipeline = {
+  working: number;
+  waiting: number;
+  on_hold: number;
+  done: number;
+  total: number;
+  open: number;
+};
+export type DashFinance = {
+  unpaid_count: number;
+  unpaid_amount: number;
+  paid_month_amount: number;
+  currency: string;
+  late: DashLateInvoice[];
+};
+export type DashboardSummary = {
+  generated_at: string;
+  timezone: string;
+  staff_count: number;
+  live_now: number;
+  break_idle: number;
+  offline: number;
+  pipeline: DashPipeline;
+  hours_this_week: DashHourDay[];
+  hours_last_week: DashHourDay[];
+  week_delta_hours: number;
+  sparkline: number[];
+  roster: DashRosterRow[];
+  finance: DashFinance | null;
+};
+
+export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardSummary> {
+  const r = await fetch(`${API}/api/v1/dashboard`, { headers: authHeaders(), signal });
+  if (r.status === 401) {
+    localStorage.removeItem("ems_token");
+    throw new Error("Session expired — sign in again");
+  }
+  if (!r.ok) throw new Error(await apiError(r, "Failed to load dashboard"));
   return r.json();
 }
 
@@ -87,6 +168,24 @@ export async function createEmployee(body: {
   });
   if (!r.ok) throw new Error(await apiError(r, "Create failed"));
   return r.json();
+}
+
+export async function updateEmployee(
+  employeeId: string,
+  body: {
+    code: string;
+    full_name: string;
+    email: string;
+    password?: string;
+  }
+) {
+  const r = await fetch(`${API}/api/v1/employees/${employeeId}`, {
+    method: "PATCH",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(await apiError(r, "Could not update employee"));
+  return r.json() as Promise<Employee>;
 }
 
 export async function setEmployeeCredentials(employeeId: string, email: string, password: string) {

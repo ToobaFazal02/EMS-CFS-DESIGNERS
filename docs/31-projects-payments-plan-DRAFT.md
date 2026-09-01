@@ -1,6 +1,6 @@
 # Phase 3–4 plan — Projects + Payments (DRAFT, awaiting Tooba approval)
 
-**Status:** Active plan — rebrand **done**; Projects/Payments code starts after this step.  
+**Status:** Projects + Payments **are built** on live EMS. Client 30 Aug: **do not push these until employees are using the Agent** for a few days. HR expenses is a **later** module (`docs/42-client-voice-2026-08-30-plan.md`).  
 **Advance %:** still confirm with client (recommend 50/50).  
 
 ---

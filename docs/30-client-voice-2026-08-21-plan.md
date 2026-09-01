@@ -5,7 +5,7 @@ Sources:
 - Excel screenshot: client invoice pipeline (CLIENT NAME, LOCATION, INVOICE status, INVOICE #)
 - 6 voice notes (`references/client-voice-2026-08-21/*.txt`)
 
-Status: **Planning only — do not code until client confirms scope + quote**
+Status: Historical plan from 21 Aug. **Later voice (30–31 Aug)** is in `docs/42-client-voice-2026-08-30-plan.md` (employees first; HR ≠ invoices; office expenses later).
 
 ---
 

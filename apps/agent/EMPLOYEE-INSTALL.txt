@@ -1,0 +1,34 @@
+CFS Designers Agent - install on your PC
+========================================
+
+You do NOT need Python or any extra software.
+
+1. Copy the whole CFS-Agent-Install folder to this PC.
+   Good place:  C:\CFS-Designers-Agent
+   Do not leave it in Downloads or on a USB after install.
+
+2. Open that folder. Double-click  INSTALL-AGENT.bat
+
+3. If Windows says "Windows protected your PC":
+   click More info, then Run anyway.
+
+4. When it asks "Start agent?" press Y
+
+5. The Agent window opens.
+   Paste the enroll code your manager sent you.
+   Click  Enroll this PC
+
+6. When you start work, click  Sign In  (green).
+   When you finish, click  Sign Out  (red).
+   Break In / Break Out if you take a break.
+
+7. To hide the window, click Minimize.
+   The gold CFS icon stays in the tray (near the clock).
+   Click that icon to open the Agent again.
+
+8. To close the Agent, click the X, then Quit (or Cancel to stay).
+
+Do not delete or move this folder after install.
+The Agent starts automatically when Windows starts.
+
+Need a new enroll code? Ask the office. Do not share your code.

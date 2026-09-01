@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 import threading
 import time
 import uuid
@@ -11,7 +12,22 @@ from pathlib import Path
 
 import httpx
 
-ROOT = Path(__file__).resolve().parents[1]
+
+def app_root() -> Path:
+    """Folder that holds config.json (next to the .exe when frozen)."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parents[1]
+
+
+def bundle_dir() -> Path:
+    """Read-only files packed inside the .exe (icons)."""
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS", app_root()))
+    return app_root()
+
+
+ROOT = app_root()
 CONFIG_PATH = ROOT / "config.json"
 DATA_DIR = ROOT / "agent_data"
 DB_PATH = DATA_DIR / "outbox.sqlite"
@@ -60,11 +76,17 @@ DEFAULT_CONFIG = {
 
 def load_config() -> dict:
     if not CONFIG_PATH.exists():
+        bundled = bundle_dir() / "config.production.json"
         example = ROOT / "config.example.json"
-        if example.exists():
+        if bundled.is_file():
+            CONFIG_PATH.write_text(bundled.read_text(encoding="utf-8"), encoding="utf-8")
+        elif example.exists():
             CONFIG_PATH.write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
         else:
-            CONFIG_PATH.write_text(json.dumps(DEFAULT_CONFIG, indent=2), encoding="utf-8")
+            cfg0 = dict(DEFAULT_CONFIG)
+            if getattr(sys, "frozen", False):
+                cfg0["api_base"] = "https://ems.cfsdesigners.com"
+            CONFIG_PATH.write_text(json.dumps(cfg0, indent=2), encoding="utf-8")
     cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     for k, v in DEFAULT_CONFIG.items():
         cfg.setdefault(k, v)

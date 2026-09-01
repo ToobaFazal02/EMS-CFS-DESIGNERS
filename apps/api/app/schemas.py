@@ -27,6 +27,13 @@ class EmployeeCreate(BaseModel):
     role: Role = Role.employee
 
 
+class EmployeeUpdate(BaseModel):
+    code: str
+    full_name: str
+    email: Optional[str] = None
+    password: Optional[str] = None
+
+
 class EmployeeCredentialsIn(BaseModel):
     email: str
     password: str
@@ -135,6 +142,63 @@ class DaySummaryOut(BaseModel):
     total_keys: int
     idle_minutes: float
     punches: list[PunchOut]
+
+
+class DashHourDay(BaseModel):
+    date: str
+    label: str
+    hours: float
+
+
+class DashRosterRow(BaseModel):
+    employee_id: str
+    code: str
+    full_name: str
+    status: str
+    last_window: str
+    hours_today: float
+
+
+class DashLateInvoice(BaseModel):
+    id: str
+    client_name: str
+    number: str
+    amount: float
+    currency: str
+    delayed_days: int
+
+
+class DashPipeline(BaseModel):
+    working: int = 0
+    waiting: int = 0
+    on_hold: int = 0
+    done: int = 0
+    total: int = 0
+    open: int = 0
+
+
+class DashFinance(BaseModel):
+    unpaid_count: int = 0
+    unpaid_amount: float = 0
+    paid_month_amount: float = 0
+    currency: str = "USD"
+    late: list[DashLateInvoice] = Field(default_factory=list)
+
+
+class DashboardOut(BaseModel):
+    generated_at: str
+    timezone: str = "Asia/Karachi"
+    staff_count: int
+    live_now: int
+    break_idle: int
+    offline: int
+    pipeline: DashPipeline
+    hours_this_week: list[DashHourDay]
+    hours_last_week: list[DashHourDay]
+    week_delta_hours: float
+    sparkline: list[float]
+    roster: list[DashRosterRow]
+    finance: Optional[DashFinance] = None
 
 
 class ClientIn(BaseModel):

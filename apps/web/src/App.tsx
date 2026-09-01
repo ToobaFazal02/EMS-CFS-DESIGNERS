@@ -1,25 +1,49 @@
-import { useEffect, useState } from "react";
-import { Link, Navigate, NavLink, Route, Routes, useNavigate } from "react-router-dom";
-import { fetchLive, login, type LiveEmployee } from "./api";
+import { useEffect, useRef, useState } from "react";
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { fetchLive, LoginError, login, type LiveEmployee } from "./api";
 import { LoginStage3D } from "./components/LoginStage3D";
 import { useToast } from "./components/ToastProvider";
+import { AuthedImg } from "./components/AuthedImg";
 import { AccountPage } from "./pages/AccountPage";
+import { DashboardPage } from "./pages/DashboardPage";
 import { DayPage } from "./pages/DayPage";
 import { EmployeesPage } from "./pages/EmployeesPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type LoginFieldErrors = { email?: string; password?: string };
+
+function validateLogin(email: string, password: string): LoginFieldErrors {
+  const next: LoginFieldErrors = {};
+  const trimmed = email.trim();
+  if (!trimmed) next.email = "Enter your email.";
+  else if (!EMAIL_RE.test(trimmed)) next.email = "Enter a valid email address.";
+  if (!password) next.password = "Enter your password.";
+  return next;
+}
+
 function LoginPage() {
   const nav = useNavigate();
-  const toast = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
+  const [formError, setFormError] = useState("");
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const next = validateLogin(email, password);
+    setFieldErrors(next);
+    setFormError("");
+    if (next.email || next.password) {
+      const first = next.email ? "email" : "password";
+      document.getElementById(first)?.focus();
+      return;
+    }
     setBusy(true);
     try {
       const data = await login(email, password);
@@ -32,7 +56,13 @@ function LoginPage() {
       if (role === "employee") nav(`/day/${data.employee_id}`);
       else nav("/");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Login failed");
+      const status = err instanceof LoginError ? err.status : -1;
+      const message = err instanceof Error ? err.message : "Could not sign in. Try again.";
+      setFormError(message);
+      if (status === 401) {
+        setFieldErrors({ email: " ", password: " " });
+      }
+      document.getElementById("password")?.focus();
     } finally {
       setBusy(false);
     }
@@ -42,33 +72,65 @@ function LoginPage() {
     <div className="login-wrap">
       <div className="login-shell">
         <LoginStage3D />
-        <form className="login-card login-card-3d" onSubmit={onSubmit}>
+        <form className="login-card login-card-3d" onSubmit={onSubmit} noValidate>
           <h1>
             <span className="login-brand">CFS Designers</span>
           </h1>
           <p className="login-sub">Sign in to continue</p>
-          <div className="field">
+          {formError ? (
+            <div className="alert-danger login-alert" role="alert" aria-live="assertive">
+              <span className="alert-danger-icon" aria-hidden>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 9v4M12 17h.01M10.3 4.7L2.2 19a2 2 0 001.7 3h16.2a2 2 0 001.7-3L13.7 4.7a2 2 0 00-3.4 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+              <p className="alert-danger-text">{formError}</p>
+            </div>
+          ) : null}
+          <div className={`field${fieldErrors.email ? " is-invalid" : ""}`}>
             <label htmlFor="email">Email</label>
             <input
               id="email"
+              type="email"
+              inputMode="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setFieldErrors((cur) => ({ ...cur, email: undefined }));
+                setFormError("");
+              }}
               autoComplete="username"
               required
               placeholder="name@cfsdesigners.com"
+              aria-invalid={Boolean(fieldErrors.email)}
+              aria-describedby={fieldErrors.email?.trim() ? "email-error" : undefined}
             />
+            {fieldErrors.email?.trim() ? (
+              <p id="email-error" className="field-error" role="alert">
+                {fieldErrors.email}
+              </p>
+            ) : null}
           </div>
-          <div className="field">
+          <div className={`field${fieldErrors.password ? " is-invalid" : ""}`}>
             <label htmlFor="password">Password</label>
             <div className="password-wrap">
               <input
                 id="password"
                 type={showPass ? "text" : "password"}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setFieldErrors((cur) => ({ ...cur, password: undefined }));
+                  setFormError("");
+                }}
                 autoComplete="current-password"
                 required
                 placeholder="••••••••"
+                aria-invalid={Boolean(fieldErrors.password)}
+                aria-describedby={fieldErrors.password?.trim() ? "password-error" : undefined}
               />
               <button
                 type="button"
@@ -100,6 +162,11 @@ function LoginPage() {
                 )}
               </button>
             </div>
+            {fieldErrors.password?.trim() ? (
+              <p id="password-error" className="field-error" role="alert">
+                {fieldErrors.password}
+              </p>
+            ) : null}
           </div>
           <button type="submit" className="login-submit" disabled={busy} style={{ width: "100%", marginTop: 12 }}>
             {busy ? "Signing in…" : "Sign in"}
@@ -124,10 +191,14 @@ function roleLabel(role: string): string {
 
 function Shell({ children }: { children: React.ReactNode }) {
   const [name, setName] = useState(() => localStorage.getItem("ems_name") || "User");
+  const [navOpen, setNavOpen] = useState(false);
+  const [gearOpen, setGearOpen] = useState(false);
+  const gearRef = useRef<HTMLDivElement>(null);
   const role = localStorage.getItem("ems_role") || "";
   const myId = localStorage.getItem("ems_employee_id") || "";
   const manager = isManagerRole();
   const nav = useNavigate();
+  const loc = useLocation();
 
   useEffect(() => {
     const sync = () => setName(localStorage.getItem("ems_name") || "User");
@@ -135,53 +206,148 @@ function Shell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("ems-profile", sync);
   }, []);
 
+  useEffect(() => {
+    setNavOpen(false);
+    setGearOpen(false);
+  }, [loc.pathname]);
+
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (gearRef.current && !gearRef.current.contains(e.target as Node)) setGearOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setGearOpen(false);
+        setNavOpen(false);
+      }
+    }
+    document.addEventListener("click", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  function logout() {
+    localStorage.removeItem("ems_token");
+    localStorage.removeItem("ems_role");
+    localStorage.removeItem("ems_employee_id");
+    localStorage.removeItem("ems_name");
+    setGearOpen(false);
+    nav("/login", { replace: true });
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand">
-          <span>CFS Designers</span>
-          {!manager ? <small className="muted" style={{ marginLeft: 8 }}>Staff</small> : null}
+        <div className="topbar-lead">
+          <button
+            type="button"
+            className="nav-toggle"
+            aria-label={navOpen ? "Close menu" : "Open menu"}
+            aria-expanded={navOpen}
+            onClick={() => setNavOpen((v) => !v)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+          <div className="brand">
+            <span>CFS Designers</span>
+            {!manager ? <small className="muted"> Staff</small> : null}
+          </div>
         </div>
-        <nav className="nav">
+        <nav className={`nav${navOpen ? " is-open" : ""}`} onClick={() => setNavOpen(false)}>
+          <div className="nav-drawer-head">
+            <span className="nav-drawer-title">Menu</span>
+            <button
+              type="button"
+              className="nav-close"
+              aria-label="Close menu"
+              onClick={(e) => {
+                e.stopPropagation();
+                setNavOpen(false);
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
           {manager ? (
             <>
               <NavLink to="/" end>
-                Live
+                Dashboard
               </NavLink>
+              <NavLink to="/live">Live</NavLink>
               <NavLink to="/employees">Employees</NavLink>
               <NavLink to="/projects">Projects</NavLink>
               <NavLink to="/payments">Payments</NavLink>
               <NavLink to="/reports">Reports</NavLink>
-              <NavLink to="/account">Account</NavLink>
             </>
           ) : (
             <>
               {myId ? <NavLink to={`/day/${myId}`}>My Day</NavLink> : null}
               <NavLink to="/projects">My Projects</NavLink>
-              <NavLink to="/account">Account</NavLink>
             </>
           )}
         </nav>
         <div className="user-chip">
           <span className="user-chip-name">
             {name}
-            {!manager && role ? <span className="user-chip-role"> · {roleLabel(role)}</span> : null}
+            {role ? <span className="user-chip-role"> · {roleLabel(role)}</span> : null}
           </span>
-          <button
-            className="secondary"
-            type="button"
-            onClick={() => {
-              localStorage.removeItem("ems_token");
-              localStorage.removeItem("ems_role");
-              localStorage.removeItem("ems_employee_id");
-              localStorage.removeItem("ems_name");
-              nav("/login");
-            }}
-          >
-            Logout
-          </button>
+          <div className="gear-wrap" ref={gearRef}>
+            <button
+              type="button"
+              className="gear-btn"
+              aria-label="Settings"
+              aria-expanded={gearOpen}
+              onClick={(e) => {
+                e.stopPropagation();
+                setGearOpen((v) => !v);
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+                <path
+                  d="M19.4 13a7.7 7.7 0 00.1-2l2.1-1.6-2-3.4-2.5.8a7.6 7.6 0 00-1.7-1L15 3.1h-4l-.4 2.7a7.6 7.6 0 00-1.7 1L6.4 6l-2 3.4L6.5 11a7.7 7.7 0 000 2l-2.1 1.6 2 3.4 2.5-.8a7.6 7.6 0 001.7 1l.4 2.7h4l.4-2.7a7.6 7.6 0 001.7-1l2.5.8 2-3.4L19.4 13z"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            {gearOpen ? (
+              <div className="gear-menu" role="menu">
+                <Link to="/account" role="menuitem" className="gear-item" onClick={() => setGearOpen(false)}>
+                  Account
+                </Link>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="gear-item gear-logout"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    logout();
+                  }}
+                >
+                  Logout
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </header>
+      {navOpen ? (
+        <button type="button" className="nav-backdrop" aria-label="Close menu" onClick={() => setNavOpen(false)} />
+      ) : null}
       {children}
     </div>
   );
@@ -286,74 +452,20 @@ function LivePage() {
   );
 }
 
-export function AuthedImg({
-  path,
-  className,
-  alt,
-  audit = false,
-}: {
-  path: string;
-  className?: string;
-  alt: string;
-  /** When true, server writes screenshot_view audit (day lightbox only). */
-  audit?: boolean;
-}) {
-  const [src, setSrc] = useState("");
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    let url = "";
-    let cancelled = false;
-    setSrc("");
-    setFailed(false);
-    const token = localStorage.getItem("ems_token") || "";
-    const clean = path.split("?")[0];
-    const fetchPath = audit ? `${clean}${clean.includes("?") ? "&" : "?"}audit=1` : clean;
-    fetch(fetchPath, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })
-      .then((r) => {
-        if (!r.ok) throw new Error("img");
-        return r.blob();
-      })
-      .then((b) => {
-        if (cancelled) return;
-        if (!b || b.size < 32) throw new Error("empty");
-        url = URL.createObjectURL(b);
-        setSrc(url);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setFailed(true);
-          setSrc("");
-        }
-      });
-    return () => {
-      cancelled = true;
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [path, audit]);
-  if (failed) {
-    return (
-      <div className={`${className || ""} thumb-empty`} role="img" aria-label="Screenshot unavailable">
-        <span>Unavailable</span>
-        <small>Could not load this capture</small>
-      </div>
-    );
-  }
-  if (!src) {
-    return (
-      <div className={`${className || ""} thumb-empty`} role="img" aria-label="Loading screenshot">
-        <span>Loading…</span>
-      </div>
-    );
-  }
-  return <img className={className} src={src} alt={alt} />;
-}
-
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route
         path="/"
+        element={
+          <RequireManager>
+            <DashboardPage />
+          </RequireManager>
+        }
+      />
+      <Route
+        path="/live"
         element={
           <RequireManager>
             <LivePage />

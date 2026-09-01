@@ -1,5 +1,7 @@
 # Final development complete — how to run & test
 
+**Live:** https://ems.cfsdesigners.com (`AUTO_SEED_SAMPLES=false`). Seed admin/staff below is **local demo only**. Production staff: Employees page + unique passwords. Current client ask: `docs/42-client-voice-2026-08-30-plan.md`.
+
 ## Why samples were missing before
 
 Seed lived in `app.seed` but did **not** run on API start. Fixed: startup calls `ensure_samples()` which now also creates **admin + staff 101–104** and SAMPLE projects/invoices.

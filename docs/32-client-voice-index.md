@@ -40,11 +40,27 @@ Every audio from the client chats that shaped this product. Transcripts live und
 
 ---
 
+## 30–31 Aug 2026 (11:31 PM – 12:35 AM)
+
+| File | Core |
+|---|---|
+| `…11.31.55 PM` | Admin ≠ HR. HR: attendance + projects + **office expenses**. No client invoices for HR. Money in vs money out. |
+| `…11.36.33 PM` | Employees first — ready **kal/parson**. Projects + invoicing a few days later. |
+| `…12.16.11 AM` | Screen recording of PC setup. Net hours as **8.1 / 8.2**. Breaks in hours. |
+| `…12.30.18 AM` | Close employee chapter. Named emails. Enroll once; four punch buttons. Short video. |
+| `…12.35.59 AM` | Branded CFS Agent among other PC software. Sign In → work → screenshots. |
+
+**Plan:** `docs/42-client-voice-2026-08-30-plan.md`  
+**Transcripts:** `references/client-voice-2026-08-30/`
+
+---
+
 ## Chat text (not audio)
 
 - “THIS IS LOOKING GREAT”
 - “NAME IT CFS DESIGNERS INSTEAD OF EMS CFS”
-- “DO YOU HAVE A LINK FOR ME?” (demo URL still pending)
+- Live EMS: **https://ems.cfsdesigners.com** (not pending)
+- 30 Aug: add professional emails + passwords so office only **enrolls** PCs
 
 ---
 

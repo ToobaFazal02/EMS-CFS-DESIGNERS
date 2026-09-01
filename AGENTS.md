@@ -43,6 +43,7 @@ Google Sheet attendance is the **legacy process to replace**, not the architectu
 | `docs/17-vpn-plain.md` | What VPN means |
 | `docs/18-reports-daily-monthly.md` | Daily + monthly reports |
 | `docs/19-responsive.md` | All screen sizes, no tiny island on 4K |
+| `docs/44-dashboard-predeploy.md` | Dashboard real data + ultra-wide fonts + pre-VPS clicks |
 | `docs/20-idle-sessions-pdf.md` | Idle detection, multi-session day, PDF template |
 | `docs/21-client-voice-2026-08-20-plan.md` | Latest client voice — finalize before code |
 | `docs/22-phase1-runbook.md` | How to run Phase 1 locally |

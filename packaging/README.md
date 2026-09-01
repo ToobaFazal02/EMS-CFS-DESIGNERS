@@ -1,5 +1,15 @@
 # Packaging — Agent installer
 
+## Office pack (no Python on employee PCs)
+
+On a build PC (your laptop):
+
+1. `apps/agent/BUILD-EXE.bat`
+2. `apps/agent/PREPARE-CLIENT-FOLDER.bat`
+3. Zip Desktop `CFS-Agent-Install` and send it.
+
+Employees: unzip → `INSTALL-AGENT.bat` → Desktop icon. **No python.org.**
+
 ## Pilot (no Inno needed)
 
 Copy `apps/agent` to the employee PC and run **`INSTALL-AGENT.bat`**.

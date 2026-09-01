@@ -5,6 +5,9 @@ __pycache__/
 .venv/
 node_modules/
 dist/
+dist-fresh/
+dist-ui2/
+dist-handover/
 build/
 *.pyc
 screenshots/

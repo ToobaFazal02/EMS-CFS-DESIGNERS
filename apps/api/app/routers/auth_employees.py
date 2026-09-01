@@ -24,6 +24,7 @@ from app.schemas import (
     EmployeeCreate,
     EmployeeCredentialsIn,
     EmployeeOut,
+    EmployeeUpdate,
     EnrollCompleteIn,
     EnrollCompleteOut,
     EnrollStartOut,
@@ -34,9 +35,34 @@ from app.schemas import (
 router = APIRouter(prefix="/api/v1", tags=["auth"])
 
 
+async def employee_to_out(db: AsyncSession, emp: Employee) -> EmployeeOut:
+    devices = list(
+        (
+            await db.execute(
+                select(Device)
+                .where(Device.employee_id == emp.id, Device.enrolled_at.is_not(None))
+                .order_by(Device.enrolled_at.desc())
+            )
+        ).scalars().all()
+    )
+    d = devices[0] if devices else None
+    return EmployeeOut(
+        id=emp.id,
+        code=emp.code,
+        full_name=emp.full_name,
+        email=emp.email,
+        role=emp.role,
+        active=emp.active,
+        enrolled=bool(d and d.enrolled_at),
+        enrolled_hostname=(d.hostname if d and d.hostname else None),
+        enrolled_at=(d.enrolled_at if d else None),
+    )
+
+
 @router.post("/auth/login", response_model=TokenOut)
 async def login(body: LoginIn, db: Annotated[AsyncSession, Depends(get_db)]) -> TokenOut:
-    result = await db.execute(select(Employee).where(Employee.email == body.email))
+    email = (body.email or "").strip().lower()
+    result = await db.execute(select(Employee).where(Employee.email == email))
     emp = result.scalar_one_or_none()
     if not emp or not emp.password_hash or not verify_password(body.password, emp.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -59,32 +85,7 @@ async def list_employees(
 ) -> list[EmployeeOut]:
     result = await db.execute(select(Employee).where(Employee.active == True).order_by(Employee.code))  # noqa: E712
     emps = list(result.scalars().all())
-    out: list[EmployeeOut] = []
-    for emp in emps:
-        devices = list(
-            (
-                await db.execute(
-                    select(Device)
-                    .where(Device.employee_id == emp.id, Device.enrolled_at.is_not(None))
-                    .order_by(Device.enrolled_at.desc())
-                )
-            ).scalars().all()
-        )
-        d = devices[0] if devices else None
-        out.append(
-            EmployeeOut(
-                id=emp.id,
-                code=emp.code,
-                full_name=emp.full_name,
-                email=emp.email,
-                role=emp.role,
-                active=emp.active,
-                enrolled=bool(d and d.enrolled_at),
-                enrolled_hostname=(d.hostname if d and d.hostname else None),
-                enrolled_at=(d.enrolled_at if d else None),
-            )
-        )
-    return out
+    return [await employee_to_out(db, emp) for emp in emps]
 
 
 @router.post("/employees", response_model=EmployeeOut)
@@ -118,6 +119,46 @@ async def create_employee(
     await db.commit()
     await db.refresh(emp)
     return emp
+
+
+@router.patch("/employees/{employee_id}", response_model=EmployeeOut)
+async def update_employee(
+    employee_id: str,
+    body: EmployeeUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Employee, Depends(require_manager)],
+) -> EmployeeOut:
+    emp = await db.get(Employee, employee_id)
+    if not emp or not emp.active:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    if emp.role in (Role.admin, Role.manager):
+        raise HTTPException(status_code=400, detail="Cannot edit admin/manager from Employees")
+    code = (body.code or "").strip()
+    name = " ".join((body.full_name or "").split())
+    if not code:
+        raise HTTPException(status_code=400, detail="Code is required")
+    if len(name) < 2:
+        raise HTTPException(status_code=400, detail="Enter a full name (at least 2 characters)")
+    email = (body.email or "").strip().lower() or None
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid login email required")
+    password = (body.password or "").strip() or None
+    if password is not None and len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    taken_code = await db.execute(select(Employee).where(Employee.code == code, Employee.id != emp.id))
+    if taken_code.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Code already exists")
+    taken_email = await db.execute(select(Employee).where(Employee.email == email, Employee.id != emp.id))
+    if taken_email.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Email already in use")
+    emp.code = code
+    emp.full_name = name
+    emp.email = email
+    if password:
+        emp.password_hash = hash_password(password)
+    await db.commit()
+    await db.refresh(emp)
+    return await employee_to_out(db, emp)
 
 
 @router.delete("/employees/{employee_id}")
@@ -169,15 +210,7 @@ async def set_employee_credentials(
     emp.password_hash = hash_password(password)
     await db.commit()
     await db.refresh(emp)
-    return EmployeeOut(
-        id=emp.id,
-        code=emp.code,
-        full_name=emp.full_name,
-        email=emp.email,
-        role=emp.role,
-        active=emp.active,
-        enrolled=False,
-    )
+    return await employee_to_out(db, emp)
 
 
 @router.post("/me/change-password")

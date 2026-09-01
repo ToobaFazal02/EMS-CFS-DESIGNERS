@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   createEmployee,
   deleteEmployee,
   fetchEmployees,
-  setEmployeeCredentials,
   startEnroll,
+  updateEmployee,
   type Employee,
 } from "../api";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -12,16 +12,19 @@ import { EnrollCodeDialog } from "../components/EnrollCodeDialog";
 import { PasswordField } from "../components/PasswordField";
 import { useToast } from "../components/ToastProvider";
 
+function emptyForm() {
+  return { code: "", name: "", email: "", password: "" };
+}
+
 export function EmployeesPage() {
   const toast = useToast();
+  const formRef = useRef<HTMLFormElement>(null);
   const [rows, setRows] = useState<Employee[]>([]);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [credId, setCredId] = useState<string | null>(null);
-  const [credEmail, setCredEmail] = useState("");
-  const [credPass, setCredPass] = useState("");
+  const [editing, setEditing] = useState<Employee | null>(null);
   const [busy, setBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Employee | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -30,6 +33,26 @@ export function EmployeesPage() {
     code: string;
     reenroll: boolean;
   } | null>(null);
+
+  function resetForm() {
+    const blank = emptyForm();
+    setCode(blank.code);
+    setName(blank.name);
+    setEmail(blank.email);
+    setPassword(blank.password);
+    setEditing(null);
+  }
+
+  function startEdit(emp: Employee) {
+    setEditing(emp);
+    setCode(emp.code);
+    setName(emp.full_name);
+    setEmail(emp.email || "");
+    setPassword("");
+    window.requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 
   async function load(silent = false) {
     setBusy(true);
@@ -50,24 +73,32 @@ export function EmployeesPage() {
     return () => clearInterval(t);
   }, []);
 
-  async function onCreate(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     try {
-      await createEmployee({
-        code,
-        full_name: name,
-        email,
-        password,
-        role: "employee",
-      });
-      toast.success("Staff added.");
-      setCode("");
-      setName("");
-      setEmail("");
-      setPassword("");
+      if (editing) {
+        await updateEmployee(editing.id, {
+          code,
+          full_name: name,
+          email,
+          ...(password.trim() ? { password: password.trim() } : {}),
+        });
+        toast.success("Employee updated.");
+        resetForm();
+      } else {
+        await createEmployee({
+          code,
+          full_name: name,
+          email,
+          password,
+          role: "employee",
+        });
+        toast.success("Staff added.");
+        resetForm();
+      }
       await load(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not add employee.");
+      toast.error(err instanceof Error ? err.message : editing ? "Could not update employee." : "Could not add employee.");
     }
   }
 
@@ -81,27 +112,12 @@ export function EmployeesPage() {
     }
   }
 
-  async function onSetCreds(e: React.FormEvent) {
-    e.preventDefault();
-    if (!credId) return;
-    try {
-      await setEmployeeCredentials(credId, credEmail, credPass);
-      toast.success("Login reset.");
-      setCredId(null);
-      setCredEmail("");
-      setCredPass("");
-      await load(true);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not set login.");
-    }
-  }
-
   async function confirmDelete() {
     if (!pendingDelete) return;
     setDeleting(true);
     try {
       await deleteEmployee(pendingDelete.id);
-      if (credId === pendingDelete.id) setCredId(null);
+      if (editing?.id === pendingDelete.id) resetForm();
       setPendingDelete(null);
       toast.success("Staff removed.");
       await load(true);
@@ -143,20 +159,33 @@ export function EmployeesPage() {
         </button>
       </div>
 
-      <form className="card" style={{ marginBottom: 16 }} onSubmit={onCreate}>
-        <h3 style={{ marginTop: 0 }}>Add staff (web login + Agent)</h3>
-        <div className="toolbar">
+      <form className="card staff-add-form" onSubmit={onSubmit} ref={formRef}>
+        <h3 style={{ marginTop: 0 }}>{editing ? `Edit ${editing.full_name}` : "Add staff (web login + Agent)"}</h3>
+        <div className="staff-add-grid">
           <div className="field">
-            <label>Code</label>
-            <input value={code} onChange={(e) => setCode(e.target.value)} required placeholder="105" />
-          </div>
-          <div className="field">
-            <label>Full name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Name" />
-          </div>
-          <div className="field">
-            <label>Login email</label>
+            <label htmlFor="staff-code">Code</label>
             <input
+              id="staff-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              required
+              placeholder="105"
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="staff-name">Full name</label>
+            <input
+              id="staff-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              placeholder="Name"
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="staff-email">Login email</label>
+            <input
+              id="staff-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -165,43 +194,27 @@ export function EmployeesPage() {
             />
           </div>
           <PasswordField
-            label="Temp password"
+            id="staff-password"
+            label={editing ? "New password (optional)" : "Temp password"}
             value={password}
             onChange={setPassword}
             autoComplete="new-password"
-            required
+            required={!editing}
             minLength={8}
           />
-          <button type="submit">Add employee</button>
+          <div className="staff-add-actions">
+            <button type="submit">{editing ? "Save changes" : "Add employee"}</button>
+            {editing ? (
+              <button type="button" className="secondary" onClick={resetForm}>
+                Cancel
+              </button>
+            ) : null}
+          </div>
         </div>
       </form>
 
-      {credId ? (
-        <form className="card" style={{ marginBottom: 16 }} onSubmit={onSetCreds}>
-          <h3 style={{ marginTop: 0 }}>Set / reset web login</h3>
-          <div className="toolbar">
-            <div className="field">
-              <label>Email</label>
-              <input type="email" value={credEmail} onChange={(e) => setCredEmail(e.target.value)} required />
-            </div>
-            <PasswordField
-              label="New password"
-              value={credPass}
-              onChange={setCredPass}
-              autoComplete="new-password"
-              required
-              minLength={8}
-            />
-            <button type="submit">Save login</button>
-            <button type="button" className="secondary" onClick={() => setCredId(null)}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      ) : null}
-
       <div className="card" style={{ overflowX: "auto" }}>
-        <table className="table-center">
+        <table className="table-center staff-table">
           <thead>
             <tr>
               <th>Code</th>
@@ -217,11 +230,11 @@ export function EmployeesPage() {
               const enrolled = Boolean(r.enrolled || r.enrolled_at || r.enrolled_hostname);
               return (
                 <tr key={r.id}>
-                  <td>{r.code}</td>
-                  <td>{r.full_name}</td>
-                  <td>{r.email || "—"}</td>
-                  <td>{r.role}</td>
-                  <td>
+                  <td data-label="Code">{r.code}</td>
+                  <td data-label="Name">{r.full_name}</td>
+                  <td data-label="Email">{r.email || "—"}</td>
+                  <td data-label="Role">{r.role}</td>
+                  <td data-label="Device">
                     {r.role !== "employee" ? (
                       "—"
                     ) : enrolled ? (
@@ -232,22 +245,14 @@ export function EmployeesPage() {
                       "Not enrolled"
                     )}
                   </td>
-                  <td>
+                  <td data-label="Actions">
                     {r.role === "employee" ? (
                       <div className="row-actions">
+                        <button type="button" className="secondary" onClick={() => startEdit(r)}>
+                          Edit
+                        </button>
                         <button type="button" className="secondary" onClick={() => onEnroll(r, enrolled)}>
                           {enrolled ? "Re-enroll" : "Enroll PC"}
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary"
-                          onClick={() => {
-                            setCredId(r.id);
-                            setCredEmail(r.email || "");
-                            setCredPass("");
-                          }}
-                        >
-                          Set login
                         </button>
                         <button type="button" className="btn-danger btn-row-del" onClick={() => setPendingDelete(r)}>
                           Remove

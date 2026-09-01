@@ -1,7 +1,7 @@
 import csv
 import io
 from collections import defaultdict
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
@@ -9,6 +9,8 @@ from fastapi.responses import FileResponse, Response, StreamingResponse
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from sqlalchemy.orm import selectinload
 
 from app.auth import ALGORITHM, get_current_user, is_manager, require_manager
 from app.config import get_settings
@@ -19,13 +21,27 @@ from app.models import (
     AuditLog,
     Device,
     Employee,
+    Invoice,
     Punch,
     PunchType,
+    Project,
     Role,
     Screenshot,
     WindowSample,
+    WorkState,
 )
-from app.schemas import DaySessionOut, DaySummaryOut, LiveEmployeeOut, PunchOut
+from app.schemas import (
+    DashFinance,
+    DashHourDay,
+    DashLateInvoice,
+    DashPipeline,
+    DashRosterRow,
+    DashboardOut,
+    DaySessionOut,
+    DaySummaryOut,
+    LiveEmployeeOut,
+    PunchOut,
+)
 from app.services.duration import hours_to_hm
 from app.services.excel_report import build_attendance_xlsx, build_monthly_xlsx
 from app.services.hours import (
@@ -38,8 +54,9 @@ from app.services.hours import (
     merge_punch_lists,
     work_bounds_by_pkt_day,
 )
+from app.services.payments import delayed_days
 from app.services.pdf_report import build_daily_pdf, build_monthly_pdf
-from app.services.timeutil import format_pk_time, to_pk
+from app.services.timeutil import format_pk_time, monday_of, now_pk, to_pk, today_pk
 from app.services.validation import parse_day_or_400, reject_future_day, reject_future_month
 
 router = APIRouter(prefix="/api/v1", tags=["manager"])
@@ -168,17 +185,26 @@ async def _sessions_capped(
     )
 
 
-@router.get("/live", response_model=list[LiveEmployeeOut])
-async def live_board(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
-) -> list[LiveEmployeeOut]:
+_DOW = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+
+
+def _stale_offline(status: str, last_seen: datetime | None) -> tuple[str, bool]:
+    """90s heartbeat stale rule. Second value: clear last_window."""
+    if status == "offline":
+        return status, False
+    if not last_seen:
+        return "offline", True
+    if (datetime.utcnow() - last_seen).total_seconds() > 90:
+        return "offline", True
+    return status, False
+
+
+async def _live_staff(db: AsyncSession) -> list[LiveEmployeeOut]:
     emps = (await db.execute(select(Employee).where(Employee.active == True))).scalars().all()  # noqa: E712
     out: list[LiveEmployeeOut] = []
     for emp in emps:
         if emp.role != Role.employee:
             continue
-        # Prefer enrolled devices; newest activity first
         devices = list(
             (
                 await db.execute(
@@ -186,7 +212,9 @@ async def live_board(
                     .where(Device.employee_id == emp.id, Device.enrolled_at.is_not(None))
                     .order_by(Device.last_seen_at.desc())
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
         if not devices:
             devices = list(
@@ -194,7 +222,9 @@ async def live_board(
                     await db.execute(
                         select(Device).where(Device.employee_id == emp.id).order_by(Device.last_seen_at.desc())
                     )
-                ).scalars().all()
+                )
+                .scalars()
+                .all()
             )
         d = devices[0] if devices else None
         thumb = None
@@ -211,13 +241,9 @@ async def live_board(
             idle = d.idle_seconds
             if d.last_screenshot_id:
                 thumb = f"/api/v1/screenshots/{d.last_screenshot_id}/file"
-            # Stale heartbeat => offline (90s). No last_seen + non-offline = treat offline.
-            if status != "offline":
-                if not last_seen:
-                    status = "offline"
-                elif (datetime.utcnow() - last_seen).total_seconds() > 90:
-                    status = "offline"
-                    last_window = ""
+            status, clear_window = _stale_offline(status, last_seen)
+            if clear_window:
+                last_window = ""
         out.append(
             LiveEmployeeOut(
                 employee_id=emp.id,
@@ -233,6 +259,242 @@ async def live_board(
             )
         )
     return out
+
+
+def _pkt_days(start: date, count: int) -> list[date]:
+    return [start + timedelta(days=i) for i in range(count)]
+
+
+def _day_net_hours(
+    punches: list[Punch],
+    buckets: list,
+    windows: list,
+    shots: list,
+    day: date,
+) -> float:
+    """Same hours engine as attendance CSV, for one PKT calendar day."""
+    start, end = day_bounds_utc(datetime(day.year, day.month, day.day))
+    day_buckets = [b for b in buckets if b.bucket_start and start <= b.bucket_start < end]
+    day_windows = [w for w in windows if w.sampled_at and start <= w.sampled_at < end]
+    day_shots = [s for s in shots if s.captured_at and start <= s.captured_at < end]
+    in_day = [p for p in punches if start <= p.server_at < end]
+    earlier = [p for p in punches if p.server_at < start]
+    last_before = max(earlier, key=lambda p: p.server_at) if earlier else None
+    prior: list[Punch] = []
+    if last_before and last_before.type != PunchType.sign_out and last_before.session_id:
+        prior = [p for p in punches if p.session_id == last_before.session_id]
+    merged = merge_punch_lists(prior, in_day)
+    work_at = last_work_at(buckets=day_buckets, windows=day_windows, screenshots=day_shots)
+    work_by_day = work_bounds_by_pkt_day(
+        buckets=day_buckets, windows=day_windows, screenshots=day_shots
+    )
+    sessions = compute_sessions(
+        merged,
+        now=clock_for_day(end),
+        last_activity_at=work_at,
+        work_by_day=work_by_day,
+    )
+    net = sum(float(s["net_hours"] or 0) for s in sessions)
+    if not sessions:
+        clicks = sum(b.mouse_clicks for b in day_buckets)
+        keys = sum(b.key_presses for b in day_buckets)
+        idle_sec = sum(b.idle_seconds for b in day_buckets)
+        if clicks or keys:
+            first = first_work_at(buckets=day_buckets, windows=day_windows, screenshots=day_shots)
+            net = activity_fallback_hours(first_at=first, last_at=work_at, idle_seconds=idle_sec)
+    return round(float(net or 0), 2)
+
+
+async def _hours_by_day(
+    db: AsyncSession,
+    emp_ids: list[str],
+    days: list[date],
+) -> dict[str, dict[date, float]]:
+    if not emp_ids or not days:
+        return {eid: {} for eid in emp_ids}
+    range_start, _ = day_bounds_utc(datetime(days[0].year, days[0].month, days[0].day))
+    _, range_end = day_bounds_utc(datetime(days[-1].year, days[-1].month, days[-1].day))
+    out: dict[str, dict[date, float]] = {eid: {d: 0.0 for d in days} for eid in emp_ids}
+    for eid in emp_ids:
+        punches = await _punches_spanning(db, eid, range_start, range_end)
+        buckets = list(
+            (
+                await db.execute(
+                    select(ActivityBucket).where(
+                        ActivityBucket.employee_id == eid,
+                        ActivityBucket.bucket_start >= range_start,
+                        ActivityBucket.bucket_start < range_end,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        windows = list(
+            (
+                await db.execute(
+                    select(WindowSample).where(
+                        WindowSample.employee_id == eid,
+                        WindowSample.sampled_at >= range_start,
+                        WindowSample.sampled_at < range_end,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        shots = list(
+            (
+                await db.execute(
+                    select(Screenshot).where(
+                        Screenshot.employee_id == eid,
+                        Screenshot.captured_at >= range_start,
+                        Screenshot.captured_at < range_end,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for d in days:
+            out[eid][d] = _day_net_hours(punches, buckets, windows, shots, d)
+    return out
+
+
+def _hour_days(days: list[date], totals: dict[date, float]) -> list[DashHourDay]:
+    return [
+        DashHourDay(date=d.isoformat(), label=_DOW[d.weekday()], hours=round(float(totals.get(d) or 0), 2))
+        for d in days
+    ]
+
+
+@router.get("/live", response_model=list[LiveEmployeeOut])
+async def live_board(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Employee, Depends(require_manager)],
+) -> list[LiveEmployeeOut]:
+    return await _live_staff(db)
+
+
+@router.get("/dashboard", response_model=DashboardOut)
+async def dashboard_summary(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[Employee, Depends(require_manager)],
+) -> DashboardOut:
+    live = await _live_staff(db)
+    staff_count = len(live)
+    live_now = sum(1 for r in live if r.status == "working")
+    break_idle = sum(1 for r in live if r.status in ("break", "idle"))
+    offline = sum(1 for r in live if r.status == "offline" or not r.status)
+
+    projects = list((await db.execute(select(Project))).scalars().all())
+    working_n = sum(1 for p in projects if p.work_state == WorkState.working.value)
+    waiting_n = sum(1 for p in projects if p.work_state == WorkState.waiting.value)
+    hold_n = sum(1 for p in projects if p.work_state == WorkState.on_hold.value)
+    done_n = sum(1 for p in projects if p.work_state == WorkState.done.value)
+    pipeline = DashPipeline(
+        working=working_n,
+        waiting=waiting_n,
+        on_hold=hold_n,
+        done=done_n,
+        total=len(projects),
+        open=len(projects) - done_n,
+    )
+
+    today = today_pk()
+    this_mon = monday_of(today)
+    last_mon = this_mon - timedelta(days=7)
+    this_days = _pkt_days(this_mon, 7)
+    last_days = _pkt_days(last_mon, 7)
+    all_days = last_days + this_days
+    emp_ids = [r.employee_id for r in live]
+    by_emp = await _hours_by_day(db, emp_ids, all_days)
+
+    def team_total(d: date) -> float:
+        return round(sum(by_emp.get(eid, {}).get(d, 0.0) for eid in emp_ids), 2)
+
+    this_totals = {d: team_total(d) for d in this_days}
+    last_totals = {d: team_total(d) for d in last_days}
+    through = today.weekday() + 1
+    this_so_far = sum(this_totals[d] for d in this_days[:through])
+    last_so_far = sum(last_totals[d] for d in last_days[:through])
+    hours_today = {eid: by_emp.get(eid, {}).get(today, 0.0) for eid in emp_ids}
+
+    roster = [
+        DashRosterRow(
+            employee_id=r.employee_id,
+            code=r.code,
+            full_name=r.full_name,
+            status=r.status,
+            last_window=r.last_window or "",
+            hours_today=round(float(hours_today.get(r.employee_id) or 0), 2),
+        )
+        for r in live
+    ]
+
+    finance: DashFinance | None = None
+    if user.role == Role.admin:
+        invs = list(
+            (await db.execute(select(Invoice).options(selectinload(Invoice.client)))).scalars().all()
+        )
+        ym = f"{today.year:04d}-{today.month:02d}"
+        unpaid_n = 0
+        unpaid_by: dict[str, float] = defaultdict(float)
+        paid_by: dict[str, float] = defaultdict(float)
+        late: list[DashLateInvoice] = []
+        for inv in invs:
+            amt = float(inv.amount or 0)
+            cur = (inv.currency or "USD").upper() or "USD"
+            if (inv.status or "") == "paid":
+                local = to_pk(inv.invoice_date) if inv.invoice_date else None
+                if local and f"{local.year:04d}-{local.month:02d}" == ym:
+                    paid_by[cur] += amt
+            else:
+                unpaid_n += 1
+                unpaid_by[cur] += amt
+                delay = delayed_days(inv, today=today)
+                if delay > 0:
+                    late.append(
+                        DashLateInvoice(
+                            id=inv.id,
+                            client_name=(inv.client.name if inv.client else "") or "—",
+                            number=inv.number or "",
+                            amount=amt,
+                            currency=cur,
+                            delayed_days=delay,
+                        )
+                    )
+        late.sort(key=lambda x: x.delayed_days, reverse=True)
+        currency = "USD"
+        if unpaid_by:
+            currency = max(unpaid_by, key=lambda c: unpaid_by[c])
+        elif paid_by:
+            currency = max(paid_by, key=lambda c: paid_by[c])
+        finance = DashFinance(
+            unpaid_count=unpaid_n,
+            unpaid_amount=round(float(unpaid_by.get(currency) or 0), 2),
+            paid_month_amount=round(float(paid_by.get(currency) or 0), 2),
+            currency=currency,
+            late=late[:40],
+        )
+
+    generated = now_pk().strftime("%H:%M")
+    spark = [this_totals[d] for d in this_days]
+    return DashboardOut(
+        generated_at=f"Updated {generated} PKT",
+        timezone="Asia/Karachi",
+        staff_count=staff_count,
+        live_now=live_now,
+        break_idle=break_idle,
+        offline=offline,
+        pipeline=pipeline,
+        hours_this_week=_hour_days(this_days, this_totals),
+        hours_last_week=_hour_days(last_days, last_totals),
+        week_delta_hours=round(this_so_far - last_so_far, 1),
+        sparkline=[round(x, 2) for x in spark],
+        roster=roster,
+        finance=finance,
+    )
 
 
 @router.websocket("/ws/live")

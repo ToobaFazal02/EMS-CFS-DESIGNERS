@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { fetchDay, fetchShots } from "../api";
-import { AuthedImg } from "../App";
+import { AuthedImg } from "../components/AuthedImg";
 import { useToast } from "../components/ToastProvider";
+import { formatHoursLabel, formatMinutesAsHours } from "../formatHours";
 
 const TZ = "Asia/Karachi";
 
@@ -35,18 +36,11 @@ function formatLocal(iso: string | null | undefined, withDate = true): string {
 }
 
 function hoursToHm(hours: number | string | null | undefined): string {
-  const hNum = Number(hours) || 0;
-  let totalMin = Math.round(hNum * 60);
-  if (totalMin < 0) totalMin = 0;
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  if (h && m) return `${h}h ${String(m).padStart(2, "0")}m`;
-  if (h) return `${h}h 00m`;
-  return `${m}m`;
+  return formatHoursLabel(hours);
 }
 
 function minutesToHm(minutes: number | string | null | undefined): string {
-  return hoursToHm((Number(minutes) || 0) / 60);
+  return formatMinutesAsHours(minutes);
 }
 
 function statusLabel(s: any): string {
@@ -106,7 +100,7 @@ export function DayPage() {
     <div>
       <p>
         {manager ? (
-          <Link to="/">← Live</Link>
+          <Link to="/live">← Live</Link>
         ) : (
           <Link to="/projects">← My Projects</Link>
         )}
@@ -212,6 +206,7 @@ export function DayPage() {
           </div>
           <div className="card" style={{ marginBottom: 16 }}>
             <h3>Sessions</h3>
+            <div className="sessions-wrap">
             <table className="table-center">
               <thead>
                 <tr>
@@ -234,12 +229,13 @@ export function DayPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
           <div className="toolbar" style={{ alignItems: "center" }}>
             <h3 style={{ margin: 0, flex: 1 }}>Screenshots — {date}</h3>
             <span className="muted">{shots.length} capture(s)</span>
           </div>
-          <div className="grid-live">
+          <div className="shots-grid">
             {shots.map((s, idx) => (
               <button type="button" className="shot-card" key={s.id} onClick={() => setLightbox(idx)}>
                 <p className="shot-time">{formatLocal(s.captured_at)}</p>
@@ -254,28 +250,35 @@ export function DayPage() {
       {lightbox !== null && shots[lightbox] ? (
         <div className="lightbox" role="dialog" aria-modal="true" onClick={() => setLightbox(null)}>
           <div className="lightbox-inner" onClick={(e) => e.stopPropagation()}>
-            <div className="lightbox-toolbar">
-              <span className="muted">
-                {lightbox + 1} / {shots.length} · {formatLocal(shots[lightbox].captured_at)}
-              </span>
-              <button type="button" className="secondary" onClick={() => setLightbox(null)}>
-                Close
-              </button>
-            </div>
             <div className="lightbox-stage">
               <button
                 type="button"
-                className="lightbox-nav"
+                className="lightbox-nav lightbox-nav-prev"
                 disabled={lightbox <= 0}
                 onClick={() => setLightbox((i) => (i === null ? 0 : Math.max(0, i - 1)))}
                 aria-label="Previous"
               >
                 ‹
               </button>
-              <AuthedImg path={shots[lightbox].url} className="lightbox-img" alt="Screenshot large" audit />
+              <div className="lightbox-shot">
+                <div className="lightbox-chrome">
+                  <p className="lightbox-meta">
+                    <span>
+                      {lightbox + 1} / {shots.length}
+                    </span>
+                    <span className="lightbox-meta-date">{formatLocal(shots[lightbox].captured_at)}</span>
+                  </p>
+                  <button type="button" className="lightbox-x" aria-label="Close" onClick={() => setLightbox(null)}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
+                <AuthedImg path={shots[lightbox].url} className="lightbox-img" alt="Screenshot large" audit />
+              </div>
               <button
                 type="button"
-                className="lightbox-nav"
+                className="lightbox-nav lightbox-nav-next"
                 disabled={lightbox >= shots.length - 1}
                 onClick={() => setLightbox((i) => (i === null ? 0 : Math.min(shots.length - 1, i + 1)))}
                 aria-label="Next"
