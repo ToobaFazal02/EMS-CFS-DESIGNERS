@@ -10,6 +10,7 @@ import {
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { EnrollCodeDialog } from "../components/EnrollCodeDialog";
 import { PasswordField } from "../components/PasswordField";
+import { RefreshButton } from "../components/RefreshButton";
 import { useToast } from "../components/ToastProvider";
 
 function emptyForm() {
@@ -154,9 +155,7 @@ export function EmployeesPage() {
 
       <div className="toolbar">
         <h2 style={{ margin: 0, flex: 1 }}>Employees</h2>
-        <button type="button" className="secondary" onClick={() => load()} disabled={busy}>
-          {busy ? "Refreshing…" : "↻ Refresh"}
-        </button>
+        <RefreshButton busy={busy} onClick={() => load()} />
       </div>
 
       <form className="card staff-add-form" onSubmit={onSubmit} ref={formRef}>

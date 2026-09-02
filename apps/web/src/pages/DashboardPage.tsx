@@ -10,6 +10,7 @@ import {
   previewHourDays,
 } from "../dashLayoutPreview";
 import { useToast } from "../components/ToastProvider";
+import { RefreshButton } from "../components/RefreshButton";
 import { formatHours, formatHoursLabel } from "../formatHours";
 
 function money(amount: number, currency = "USD") {
@@ -126,16 +127,12 @@ export function DashboardPage() {
           <h2 style={{ margin: 0 }}>Dashboard</h2>
           <p className="muted page-sub">Team, projects, and cash at a glance.</p>
         </div>
-        <button type="button" className="secondary" onClick={() => load(true)} disabled={busy}>
-          {busy && !data ? "Loading…" : busy ? "Refreshing…" : "↻ Refresh"}
-        </button>
+        <RefreshButton
+          busy={busy}
+          onClick={() => load(true)}
+          busyLabel={busy && !data ? "Loading…" : "Refreshing…"}
+        />
       </div>
-
-      {layoutPreview ? (
-        <p className="dash-local-preview" role="status">
-          Local layout preview only — live EMS keeps real staff and invoice numbers.
-        </p>
-      ) : null}
 
       {err && !data ? <p className="muted">{err}</p> : null}
       {err && data ? (
@@ -206,11 +203,6 @@ export function DashboardPage() {
             <i className="dash-swatch gold" /> This week (everyone)
             <i className="dash-swatch grey" /> Last week (everyone)
           </p>
-          <p className="muted dash-hours-hint">
-            Not one person. Each bar is every employee’s hours that day added up. Example: Monday gold = this Monday’s
-            studio total; Monday grey = last Monday’s studio total. If gold is taller, the team worked more that day
-            than last week.
-          </p>
         </article>
       </div>
 
@@ -252,7 +244,7 @@ export function DashboardPage() {
                     </li>
                   ))}
                 </ul>
-                <p className="muted dash-late-hint">{finance.late.length} overdue · list scrolls inside this card</p>
+                <p className="muted dash-late-hint">{finance.late.length} overdue</p>
               </>
             ) : (
               <p className="muted dash-late-empty">No late invoices.</p>

@@ -14,6 +14,7 @@ import {
 import { useToast } from "../components/ToastProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { CurrencySelect } from "../components/CurrencySelect";
+import { RefreshButton } from "../components/RefreshButton";
 import { formatMoney, guessCurrencyFromLocation, normalizeCurrencyCode } from "../components/currencies";
 
 const PHASES: { id: string; label: string; short: string }[] = [
@@ -331,9 +332,7 @@ export function ProjectsPage() {
             New project
           </button>
         ) : null}
-        <button type="button" className="secondary" onClick={() => load()} disabled={busy}>
-          {busy ? "Refreshing…" : "↻ Refresh"}
-        </button>
+        <RefreshButton busy={busy} onClick={() => load()} />
       </div>
       {pendingMove ? (
         <div className="card pay-gate-card">

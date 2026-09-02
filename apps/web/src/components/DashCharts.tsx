@@ -58,7 +58,7 @@ export function PresenceDonut({ working, brk, offline }: PresenceProps) {
     <div className="dash-presence">
       <div className="dash-donut-wrap">
         <svg viewBox="0 0 140 140" className="dash-donut" aria-hidden>
-          <circle cx="70" cy="70" r={r} fill="none" stroke="#2a2a2a" strokeWidth="16" />
+          <circle cx="70" cy="70" r={r} fill="none" stroke="var(--donut-track)" strokeWidth="16" />
           {total
             ? segs.map((s) => {
                 const len = (s.n / total) * c;
@@ -152,11 +152,11 @@ export function HoursWeekChart({ thisWeek, lastWeek }: HoursChartProps) {
             x2={W - right}
             y1={y(t)}
             y2={y(t)}
-            stroke="#3a3a3a"
+            stroke="var(--chart-grid)"
             strokeWidth="1"
             strokeDasharray="5 6"
           />
-          <text x={left - 8} y={y(t) + 4} textAnchor="end" fill="#c4c4c4" fontSize="14">
+          <text x={left - 8} y={y(t) + 4} textAnchor="end" fill="currentColor" fontSize="14">
             {t.toFixed(1)}h
           </text>
         </g>
@@ -169,9 +169,9 @@ export function HoursWeekChart({ thisWeek, lastWeek }: HoursChartProps) {
         const xThis = cx + 2;
         return (
           <g key={lab}>
-            <rect x={xLast} y={y(hLast)} width={barW} height={Math.max(0, y(0) - y(hLast))} fill="#3a3a3a" rx="2" />
-            <rect x={xThis} y={y(hThis)} width={barW} height={Math.max(0, y(0) - y(hThis))} fill="#C9A227" rx="2" />
-            <text x={cx} y={H - 8} textAnchor="middle" fill="#c4c4c4" fontSize="14">
+            <rect x={xLast} y={y(hLast)} width={barW} height={Math.max(0, y(0) - y(hLast))} fill="var(--chart-last)" rx="2" />
+            <rect x={xThis} y={y(hThis)} width={barW} height={Math.max(0, y(0) - y(hThis))} fill="var(--gold)" rx="2" />
+            <text x={cx} y={H - 8} textAnchor="middle" fill="currentColor" fontSize="14">
               {lab}
             </text>
           </g>

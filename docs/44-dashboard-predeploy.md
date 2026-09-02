@@ -51,6 +51,7 @@ DevTools **Issues** is not the same as red **Console** errors. Chrome often list
 4. Staff named **`t`** is real DB data; rename on Employees if that was a test account.
 5. Mixed `$` / `A$` / `PKR` on late rows is **per-invoice currency**, not a layout bug.
 6. Do not deploy until VPS `.env` `SECRET_KEY` and `AUTO_SEED_SAMPLES` are checked.
+7. Gear → Account: Dark / Light. Open the app 5 times max to see guide cards, then they stop.
 
 ## Code checks already run
 

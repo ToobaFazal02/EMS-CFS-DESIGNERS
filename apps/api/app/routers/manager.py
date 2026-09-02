@@ -14,7 +14,7 @@ from sqlalchemy.orm import selectinload
 
 from app.auth import ALGORITHM, get_current_user, is_manager, require_manager
 from app.config import get_settings
-from app.db import get_db
+from app.db import SessionLocal, get_db
 from app.live import live_hub
 from app.models import (
     ActivityBucket,
@@ -508,10 +508,19 @@ async def ws_live(websocket: WebSocket) -> None:
         if payload.get("typ") != "user":
             await websocket.close(code=4401)
             return
+        emp_id = payload.get("sub")
         role = (payload.get("role") or "").lower()
         if role not in ("manager", "admin"):
             await websocket.close(code=4403)
             return
+        async with SessionLocal() as db:
+            emp = await db.get(Employee, emp_id)
+            if not emp or not emp.active:
+                await websocket.close(code=4401)
+                return
+            if emp.role not in (Role.manager, Role.admin):
+                await websocket.close(code=4403)
+                return
     except JWTError:
         await websocket.close(code=4401)
         return
@@ -672,8 +681,9 @@ async def get_screenshot_file(
     if not shot:
         raise HTTPException(status_code=404, detail="Not found")
     _assert_self_or_manager(user, shot.employee_id)
-    path = settings.data_path / shot.path
-    if not path.exists():
+    root = settings.data_path.resolve()
+    path = (root / shot.path).resolve()
+    if not path.is_relative_to(root) or not path.is_file():
         raise HTTPException(status_code=404, detail="File missing")
     if audit and is_manager(user):
         db.add(

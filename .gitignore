@@ -15,6 +15,7 @@ uploads/
 logs/
 *.exe
 *.zip
+*.tsbuildinfo
 .DS_Store
 Thumbs.db
 apps/api/ems_data/

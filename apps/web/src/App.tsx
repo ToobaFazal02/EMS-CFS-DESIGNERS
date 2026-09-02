@@ -4,6 +4,9 @@ import { fetchLive, LoginError, login, type LiveEmployee } from "./api";
 import { LoginStage3D } from "./components/LoginStage3D";
 import { useToast } from "./components/ToastProvider";
 import { AuthedImg } from "./components/AuthedImg";
+import { GuideCard } from "./components/GuideCard";
+import { RefreshButton } from "./components/RefreshButton";
+import { ThemeSwitch } from "./components/ThemeSwitch";
 import { AccountPage } from "./pages/AccountPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DayPage } from "./pages/DayPage";
@@ -325,6 +328,9 @@ function Shell({ children }: { children: React.ReactNode }) {
             </button>
             {gearOpen ? (
               <div className="gear-menu" role="menu">
+                <div className="gear-theme" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                  <ThemeSwitch variant="menu" />
+                </div>
                 <Link to="/account" role="menuitem" className="gear-item" onClick={() => setGearOpen(false)}>
                   Account
                 </Link>
@@ -349,6 +355,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         <button type="button" className="nav-backdrop" aria-label="Close menu" onClick={() => setNavOpen(false)} />
       ) : null}
       {children}
+      <GuideCard manager={manager} />
     </div>
   );
 }
@@ -407,9 +414,7 @@ function LivePage() {
     <div>
       <div className="toolbar">
         <h2 style={{ margin: 0, flex: 1 }}>Live board</h2>
-        <button type="button" className="secondary" onClick={() => refresh(true)} disabled={busy}>
-          {busy ? "Refreshing…" : "↻ Refresh"}
-        </button>
+        <RefreshButton busy={busy} onClick={() => refresh(true)} />
       </div>
       <div className="grid-live">
         {rows.map((r) => (

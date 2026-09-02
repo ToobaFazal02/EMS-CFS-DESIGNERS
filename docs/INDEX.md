@@ -69,3 +69,4 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | Office **expenses** sheet (HR) | **Not built** — 30 Aug voice |
 | Report hours as **8.1 / 8.2** | **Done** on web (day + dashboard). PDF may still use `2h 32m` |
 | Hubstaff dashboard / gear / scrollbars | **Done** — real API data, device type scale (`docs/19`, `docs/44`) |
+| Dark / Light + first-5-visit guides | **Done** — Account appearance; Skip/Next cards (`docs/14`) |

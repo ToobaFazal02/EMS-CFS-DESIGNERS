@@ -266,11 +266,16 @@ async def upload_screenshot(
     # Normalize to JPEG
     from io import BytesIO
 
-    img = Image.open(BytesIO(raw))
-    if img.mode in ("RGBA", "P"):
-        img = img.convert("RGB")
-    img.thumbnail((1600, 900))
-    img.save(dest, "JPEG", quality=72, optimize=True)
+    try:
+        probe = Image.open(BytesIO(raw))
+        probe.verify()
+        img = Image.open(BytesIO(raw))
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        img.thumbnail((1600, 900))
+        img.save(dest, "JPEG", quality=72, optimize=True)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid image file") from exc
 
     shot = Screenshot(
         id=shot_id,

@@ -15,6 +15,7 @@ import {
 } from "../api";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { CurrencySelect } from "../components/CurrencySelect";
+import { RefreshButton } from "../components/RefreshButton";
 import { useToast } from "../components/ToastProvider";
 import { formatMoney, guessCurrencyFromLocation, normalizeCurrencyCode } from "../components/currencies";
 import { invoiceStatusLabel, invoiceStatusTextClass } from "../components/invoiceStatus";
@@ -547,9 +548,7 @@ export function PaymentsPage() {
             </button>
           </>
         ) : null}
-        <button type="button" className="secondary" onClick={() => load()} disabled={busy}>
-          {busy ? "Refreshing…" : "↻ Refresh"}
-        </button>
+        <RefreshButton busy={busy} onClick={() => load()} />
       </div>
 
       {tab === "invoices" ? (

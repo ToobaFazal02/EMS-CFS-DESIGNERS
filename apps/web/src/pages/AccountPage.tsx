@@ -2,6 +2,8 @@ import { useState } from "react";
 import { changeMyDisplayName, changeMyEmail, changeMyPassword } from "../api";
 import { PasswordField } from "../components/PasswordField";
 import { useToast } from "../components/ToastProvider";
+import { ThemeSwitch } from "../components/ThemeSwitch";
+import { resetGuides } from "../guide/guideStorage";
 
 function isManagerRole(): boolean {
   const r = localStorage.getItem("ems_role") || "";
@@ -72,6 +74,26 @@ export function AccountPage() {
           </p>
         </div>
       </header>
+
+      <div className="card account-panel account-appearance">
+        <h3>Appearance</h3>
+        <p className="account-hint muted">Moon is dark mode, sun is light mode. Saved on this browser.</p>
+        <ThemeSwitch />
+        {import.meta.env.DEV ? (
+          <div className="account-actions" style={{ marginTop: 12 }}>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                resetGuides();
+                window.location.reload();
+              }}
+            >
+              Show guide again
+            </button>
+          </div>
+        ) : null}
+      </div>
 
       <div className="account-layout">
         <div className="account-col">

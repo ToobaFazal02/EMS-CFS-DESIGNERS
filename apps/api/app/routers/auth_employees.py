@@ -2,7 +2,7 @@ import secrets
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,7 @@ from app.auth import (
 )
 from app.db import get_db
 from app.models import Device, Employee, Role
+from app.rate_limit import client_ip, hit
 from app.schemas import (
     ChangeDisplayNameIn,
     ChangeEmailIn,
@@ -60,7 +61,8 @@ async def employee_to_out(db: AsyncSession, emp: Employee) -> EmployeeOut:
 
 
 @router.post("/auth/login", response_model=TokenOut)
-async def login(body: LoginIn, db: Annotated[AsyncSession, Depends(get_db)]) -> TokenOut:
+async def login(body: LoginIn, request: Request, db: Annotated[AsyncSession, Depends(get_db)]) -> TokenOut:
+    hit(f"login:{client_ip(request)}", limit=8, window_seconds=900)
     email = (body.email or "").strip().lower()
     result = await db.execute(select(Employee).where(Employee.email == email))
     emp = result.scalar_one_or_none()
@@ -302,8 +304,10 @@ async def start_enroll(
 @router.post("/devices/enroll", response_model=EnrollCompleteOut)
 async def complete_enroll(
     body: EnrollCompleteIn,
+    request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> EnrollCompleteOut:
+    hit(f"enroll:{client_ip(request)}", limit=12, window_seconds=900)
     code = (body.enroll_code or "").strip().upper()
     if not code:
         raise HTTPException(status_code=400, detail="Enter the enroll code from the manager.")

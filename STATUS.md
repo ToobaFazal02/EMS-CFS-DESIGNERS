@@ -19,6 +19,7 @@
 - Phone-responsive manager web (hamburger, screenshot fill, staff cards)
 - Dashboard as home; gear menu; gold scrollbars; day hours as **8.1 h**
 - Dashboard: real API data only (no fake invoice rows / no hour-preview flash); 2560 fills like 1440 (`docs/44-dashboard-predeploy.md`)
+- Account **Dark / Light** + first-5-visit Skip/Next guide cards (`docs/14-ui-theme.md`)
 
 ## This week (client 30–31 Aug 2026)
 
