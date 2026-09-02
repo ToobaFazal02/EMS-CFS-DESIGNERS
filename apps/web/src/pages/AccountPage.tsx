@@ -77,8 +77,8 @@ export function AccountPage() {
 
       <div className="card account-panel account-appearance">
         <h3>Appearance</h3>
-        <p className="account-hint muted">Moon is dark mode, sun is light mode. Saved on this browser.</p>
-        <ThemeSwitch />
+        <p className="account-hint muted">Saved on this browser.</p>
+        <ThemeSwitch showLabel />
         {import.meta.env.DEV ? (
           <div className="account-actions" style={{ marginTop: 12 }}>
             <button
