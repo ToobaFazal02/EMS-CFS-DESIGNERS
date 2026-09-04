@@ -22,7 +22,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from app.services.duration import hours_to_hm, hours_to_hms, minutes_to_hm
+from app.services.duration import hours_to_hm, minutes_to_hm
 from app.services.timeutil import format_generated, format_pk_datetime, format_pk_time
 from app.services.window_categories import summarize_categories
 
@@ -354,8 +354,8 @@ def build_daily_pdf(
         ("Date", date_str),
         ("Start Time", start_s),
         ("End Time", end_s),
-        ("Hours Worked", hours_to_hms(net_hours)),
-        ("Break Time", hours_to_hms(break_hours)),
+        ("Hours Worked", hours_to_hm(net_hours)),
+        ("Break Time", hours_to_hm(break_hours)),
         ("Idle Time", minutes_to_hm(idle_minutes)),
         ("Total Clicks", f"{total_clicks:,}"),
         ("Key Presses", f"{total_keys:,}"),
@@ -642,7 +642,7 @@ def build_monthly_pdf(
             ]
         )
     if len(table_rows) == 1:
-        table_rows.append(["—", "—", "0", "0m", "0m", "0m", "—"])
+        table_rows.append(["—", "—", "0", hours_to_hm(0), hours_to_hm(0), hours_to_hm(0), "—"])
 
     t = Table(table_rows, colWidths=[16 * mm, 48 * mm, 16 * mm, 26 * mm, 22 * mm, 24 * mm, 22 * mm])
     t.setStyle(

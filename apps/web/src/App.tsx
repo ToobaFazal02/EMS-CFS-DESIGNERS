@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { fetchLive, LoginError, login, type LiveEmployee } from "./api";
 import { LoginStage3D } from "./components/LoginStage3D";
@@ -192,6 +193,29 @@ function roleLabel(role: string): string {
   return role;
 }
 
+function MainNavLinks({ manager, myId }: { manager: boolean; myId: string }) {
+  if (manager) {
+    return (
+      <>
+        <NavLink to="/" end>
+          Dashboard
+        </NavLink>
+        <NavLink to="/live">Live</NavLink>
+        <NavLink to="/employees">Employees</NavLink>
+        <NavLink to="/projects">Projects</NavLink>
+        <NavLink to="/payments">Payments</NavLink>
+        <NavLink to="/reports">Reports</NavLink>
+      </>
+    );
+  }
+  return (
+    <>
+      {myId ? <NavLink to={`/day/${myId}`}>My Day</NavLink> : null}
+      <NavLink to="/projects">My Projects</NavLink>
+    </>
+  );
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   const [name, setName] = useState(() => localStorage.getItem("ems_name") || "User");
   const [navOpen, setNavOpen] = useState(false);
@@ -213,6 +237,15 @@ function Shell({ children }: { children: React.ReactNode }) {
     setNavOpen(false);
     setGearOpen(false);
   }, [loc.pathname]);
+
+  useEffect(() => {
+    if (!navOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [navOpen]);
 
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -245,73 +278,47 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="app-shell">
       <header className="topbar">
         <div className="topbar-lead">
-          <button
-            type="button"
-            className="nav-toggle"
-            aria-label={navOpen ? "Close menu" : "Open menu"}
-            aria-expanded={navOpen}
-            onClick={() => setNavOpen((v) => !v)}
-          >
-            <span />
-            <span />
-            <span />
-          </button>
           <div className="brand">
             <span>CFS Designers</span>
             {!manager ? <small className="muted"> Staff</small> : null}
           </div>
         </div>
-        <nav className={`nav${navOpen ? " is-open" : ""}`} onClick={() => setNavOpen(false)}>
-          <div className="nav-drawer-head">
-            <span className="nav-drawer-title">Menu</span>
-            <button
-              type="button"
-              className="nav-close"
-              aria-label="Close menu"
-              onClick={(e) => {
-                e.stopPropagation();
-                setNavOpen(false);
-              }}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-          {manager ? (
-            <>
-              <NavLink to="/" end>
-                Dashboard
-              </NavLink>
-              <NavLink to="/live">Live</NavLink>
-              <NavLink to="/employees">Employees</NavLink>
-              <NavLink to="/projects">Projects</NavLink>
-              <NavLink to="/payments">Payments</NavLink>
-              <NavLink to="/reports">Reports</NavLink>
-            </>
-          ) : (
-            <>
-              {myId ? <NavLink to={`/day/${myId}`}>My Day</NavLink> : null}
-              <NavLink to="/projects">My Projects</NavLink>
-            </>
-          )}
+        <nav className="nav nav-desktop" aria-label="Main">
+          <MainNavLinks manager={manager} myId={myId} />
         </nav>
-        <div className="user-chip">
-          <span className="user-chip-name">
-            {name}
-            {role ? <span className="user-chip-role"> · {roleLabel(role)}</span> : null}
-          </span>
+        <div className="topbar-actions">
+          <div className="user-chip">
+            <span className="user-chip-name">
+              {name}
+              {role ? <span className="user-chip-role"> · {roleLabel(role)}</span> : null}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="nav-toggle"
+            aria-label={navOpen ? "Close menu" : "Open menu"}
+            aria-expanded={navOpen}
+            onClick={() => {
+              setGearOpen(false);
+              setNavOpen((v) => !v);
+            }}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
           <div className="gear-wrap" ref={gearRef}>
-            <button
-              type="button"
-              className="gear-btn"
-              aria-label="Settings"
-              aria-expanded={gearOpen}
-              onClick={(e) => {
-                e.stopPropagation();
-                setGearOpen((v) => !v);
-              }}
-            >
+              <button
+                type="button"
+                className="gear-btn"
+                aria-label="Settings"
+                aria-expanded={gearOpen}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setNavOpen(false);
+                  setGearOpen((v) => !v);
+                }}
+              >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
                 <path
                   d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"
@@ -351,9 +358,43 @@ function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      {navOpen ? (
-        <button type="button" className="nav-backdrop" aria-label="Close menu" onClick={() => setNavOpen(false)} />
-      ) : null}
+      {createPortal(
+        <>
+          <button
+            type="button"
+            className={`nav-backdrop${navOpen ? " is-visible" : ""}`}
+            aria-label="Close menu"
+            aria-hidden={!navOpen}
+            tabIndex={navOpen ? 0 : -1}
+            onClick={() => setNavOpen(false)}
+          />
+          <nav
+            className={`nav nav-mobile${navOpen ? " is-open" : ""}`}
+            aria-label="Main menu"
+            aria-hidden={!navOpen}
+            onClick={() => setNavOpen(false)}
+          >
+            <div className="nav-drawer-head">
+              <span className="nav-drawer-title">CFS Designers</span>
+              <button
+                type="button"
+                className="nav-close"
+                aria-label="Close menu"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setNavOpen(false);
+                }}
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+            <MainNavLinks manager={manager} myId={myId} />
+          </nav>
+        </>,
+        document.body,
+      )}
       {children}
       <GuideCard manager={manager} />
     </div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import { fetchDay, fetchShots } from "../api";
 import { AuthedImg } from "../components/AuthedImg";
@@ -247,20 +248,10 @@ export function DayPage() {
         </>
       ) : null}
 
-      {lightbox !== null && shots[lightbox] ? (
-        <div className="lightbox" role="dialog" aria-modal="true" onClick={() => setLightbox(null)}>
-          <div className="lightbox-inner" onClick={(e) => e.stopPropagation()}>
-            <div className="lightbox-stage">
-              <button
-                type="button"
-                className="lightbox-nav lightbox-nav-prev"
-                disabled={lightbox <= 0}
-                onClick={() => setLightbox((i) => (i === null ? 0 : Math.max(0, i - 1)))}
-                aria-label="Previous"
-              >
-                ‹
-              </button>
-              <div className="lightbox-shot">
+      {lightbox !== null && shots[lightbox]
+        ? createPortal(
+            <div className="lightbox" role="dialog" aria-modal="true" onClick={() => setLightbox(null)}>
+              <div className="lightbox-inner" onClick={(e) => e.stopPropagation()}>
                 <div className="lightbox-chrome">
                   <p className="lightbox-meta">
                     <span>
@@ -274,21 +265,32 @@ export function DayPage() {
                     </svg>
                   </button>
                 </div>
-                <AuthedImg path={shots[lightbox].url} className="lightbox-img" alt="Screenshot large" audit />
+                <div className="lightbox-stage">
+                  <button
+                    type="button"
+                    className="lightbox-nav lightbox-nav-prev"
+                    disabled={lightbox <= 0}
+                    onClick={() => setLightbox((i) => (i === null ? 0 : Math.max(0, i - 1)))}
+                    aria-label="Previous"
+                  >
+                    ‹
+                  </button>
+                  <AuthedImg path={shots[lightbox].url} className="lightbox-img" alt="Screenshot large" audit />
+                  <button
+                    type="button"
+                    className="lightbox-nav lightbox-nav-next"
+                    disabled={lightbox >= shots.length - 1}
+                    onClick={() => setLightbox((i) => (i === null ? 0 : Math.min(shots.length - 1, i + 1)))}
+                    aria-label="Next"
+                  >
+                    ›
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                className="lightbox-nav lightbox-nav-next"
-                disabled={lightbox >= shots.length - 1}
-                onClick={() => setLightbox((i) => (i === null ? 0 : Math.min(shots.length - 1, i + 1)))}
-                aria-label="Next"
-              >
-                ›
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
