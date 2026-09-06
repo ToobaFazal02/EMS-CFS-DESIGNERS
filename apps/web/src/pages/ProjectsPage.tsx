@@ -80,10 +80,10 @@ const emptyForm = {
 export function ProjectsPage() {
   const toast = useToast();
   const nav = useNavigate();
-  const manager = (() => {
-    const r = localStorage.getItem("ems_role") || "";
-    return r === "admin" || r === "manager";
-  })();
+  const role = localStorage.getItem("ems_role") || "";
+  const office = role === "admin" || role === "manager" || role === "hr" || role === "demo";
+  const finance = role === "admin" || role === "manager";
+  const manager = office; // board/list ops (HR included)
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -183,15 +183,21 @@ export function ProjectsPage() {
       toast.error("Select a client (required). Add one above if needed.");
       return;
     }
-    const deposit = Number(form.deposit_pct);
-    if (Number.isNaN(deposit) || deposit < 0 || deposit > 100) {
-      toast.error("Deposit % must be between 0 and 100.");
-      return;
-    }
-    const contract = form.contract_value === "" ? 0 : Number(form.contract_value);
-    if (Number.isNaN(contract) || contract <= 0) {
-      toast.error("Contract value must be greater than 0.");
-      return;
+    let deposit = 50;
+    let contract = 0;
+    let currency = "USD";
+    if (finance) {
+      deposit = Number(form.deposit_pct);
+      if (Number.isNaN(deposit) || deposit < 0 || deposit > 100) {
+        toast.error("Deposit % must be between 0 and 100.");
+        return;
+      }
+      contract = form.contract_value === "" ? 0 : Number(form.contract_value);
+      if (Number.isNaN(contract) || contract <= 0) {
+        toast.error("Contract value must be greater than 0.");
+        return;
+      }
+      currency = normalizeCurrencyCode(form.currency);
     }
     try {
       const body = {
@@ -208,7 +214,7 @@ export function ProjectsPage() {
         target_at: form.target_at ? `${form.target_at}T12:00:00` : null,
         contract_value: contract,
         deposit_pct: deposit,
-        currency: normalizeCurrencyCode(form.currency),
+        currency,
       };
       await saveProject(body, editing && editing !== "new" ? editing : undefined);
       setEditing(null);
@@ -274,7 +280,8 @@ export function ProjectsPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Move failed";
       toast.error(msg);
-      if (!force && /Advance|Final payment|Payment gate/i.test(msg)) {
+      // Override UI is finance-only — never nudge HR toward Payments
+      if (!force && finance && /Advance|Final payment|Payment gate|need_deposit|need_final|cannot leave Intake|cannot move to/i.test(msg)) {
         setPendingMove({ p, phase });
       }
     }
@@ -308,7 +315,7 @@ export function ProjectsPage() {
         title="Delete project?"
         message={
           pendingDelete
-            ? `Delete “${pendingDelete.name}”? Invoices stay in Payments (unlinked from this project).`
+            ? `Delete “${pendingDelete.name}”? Linked invoices stay in Payments (unlinked from this project).`
             : ""
         }
         confirmLabel="Delete"
@@ -334,7 +341,7 @@ export function ProjectsPage() {
         ) : null}
         <RefreshButton busy={busy} onClick={() => load()} />
       </div>
-      {pendingMove ? (
+      {pendingMove && finance ? (
         <div className="card pay-gate-card">
           <p style={{ marginTop: 0, marginBottom: 12 }}>
             <strong>{pendingMove.p.name}</strong> — advance not marked Paid yet (
@@ -490,38 +497,42 @@ export function ProjectsPage() {
               <label>Target</label>
               <input type="date" value={form.target_at} onChange={(e) => setForm({ ...form, target_at: e.target.value })} />
             </div>
-            <div className="field field-span-2">
-              <label>
-                Contract value <span className="req">*</span>
-              </label>
-              <div className="money-field">
-                <input
-                  className="money-amount"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  required
-                  value={form.contract_value}
-                  onChange={(e) => setForm({ ...form, contract_value: e.target.value })}
-                />
-                <div className="money-currency">
-                  <CurrencySelect value={form.currency} onChange={(currency) => setForm({ ...form, currency })} required />
+            {finance ? (
+              <>
+                <div className="field field-span-2">
+                  <label>
+                    Contract value <span className="req">*</span>
+                  </label>
+                  <div className="money-field">
+                    <input
+                      className="money-amount"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      required
+                      value={form.contract_value}
+                      onChange={(e) => setForm({ ...form, contract_value: e.target.value })}
+                    />
+                    <div className="money-currency">
+                      <CurrencySelect value={form.currency} onChange={(currency) => setForm({ ...form, currency })} required />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div className="field">
-              <label>
-                Deposit % <span className="req">*</span>
-              </label>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                required
-                value={form.deposit_pct}
-                onChange={(e) => setForm({ ...form, deposit_pct: e.target.value })}
-              />
-            </div>
+                <div className="field">
+                  <label>
+                    Deposit % <span className="req">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    required
+                    value={form.deposit_pct}
+                    onChange={(e) => setForm({ ...form, deposit_pct: e.target.value })}
+                  />
+                </div>
+              </>
+            ) : null}
             <div className="field field-span-3">
               <label>Comments</label>
               <input value={form.comments} onChange={(e) => setForm({ ...form, comments: e.target.value })} />
@@ -569,7 +580,7 @@ export function ProjectsPage() {
                           <div className="kanban-labels">
                             <span className="kanban-label" style={{ background: phaseColor }} title={ph.label} />
                             {blocked ? (
-                              <span className="kanban-label" style={{ background: "#ef4444" }} title="Payment due" />
+                              <span className="kanban-label" style={{ background: "#7a1f2e" }} title="Payment due" />
                             ) : null}
                             {fullyPaid ? (
                               <span className="kanban-label" style={{ background: "#22c55e" }} title="Fully paid" />
@@ -581,22 +592,22 @@ export function ProjectsPage() {
                             {p.name}
                           </button>
                           <p className="kanban-client">{p.client_name || "No client"}</p>
-                          {manager && contract > 0 ? (
+                          {finance && contract > 0 ? (
                             <p className="kanban-pay">
                               {formatMoney(paid, cur)} / {formatMoney(contract, cur)}
                             </p>
                           ) : null}
                           <div className="kanban-badges">
                             {pill ? <span className={pill.cls}>{pill.label}</span> : null}
-                            {manager && contract <= 0 ? (
+                            {finance && contract <= 0 ? (
                               <span className="pill pill-blocked">No contract $</span>
                             ) : null}
-                            {manager && contract > 0 && blocked ? (
+                            {finance && contract > 0 && blocked ? (
                               <span className="pill pill-blocked">
                                 {p.gate === "need_deposit" ? "Deposit due" : "Final pay"}
                               </span>
                             ) : null}
-                            {manager && contract > 0 && !blocked && fullyPaid ? (
+                            {finance && contract > 0 && !blocked && fullyPaid ? (
                               <span className="pill pill-ok">Paid</span>
                             ) : null}
                             {p.assignee_name ? (
@@ -610,7 +621,7 @@ export function ProjectsPage() {
                               </span>
                             ) : null}
                           </div>
-                          {manager && blocked ? (
+                          {finance && blocked ? (
                             <button type="button" className="kanban-pay-link" onClick={() => nav("/payments")}>
                               Payments →
                             </button>
@@ -628,15 +639,17 @@ export function ProjectsPage() {
                                   </option>
                                 ))}
                               </select>
-                              <button
-                                type="button"
-                                className="btn-danger kanban-del"
-                                title="Delete project"
-                                aria-label={`Delete ${p.name}`}
-                                onClick={() => onDelete(p)}
-                              >
-                                Delete
-                              </button>
+                              {finance ? (
+                                <button
+                                  type="button"
+                                  className="btn-danger kanban-del"
+                                  title="Delete project"
+                                  aria-label={`Delete ${p.name}`}
+                                  onClick={() => onDelete(p)}
+                                >
+                                  Delete
+                                </button>
+                              ) : null}
                             </div>
                           ) : null}
                         </article>
@@ -721,9 +734,13 @@ export function ProjectsPage() {
                   <td>{p.comments || "—"}</td>
                   {manager ? (
                     <td>
-                      <button type="button" className="btn-danger btn-row-del" onClick={() => onDelete(p)}>
-                        Delete
-                      </button>
+                      {finance ? (
+                        <button type="button" className="btn-danger btn-row-del" onClick={() => onDelete(p)}>
+                          Delete
+                        </button>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
                     </td>
                   ) : null}
                 </tr>

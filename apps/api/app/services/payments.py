@@ -63,7 +63,18 @@ def gate_status(project: Project, new_phase: str | None = None) -> str:
     return "ok"
 
 
-def gate_error(code: str) -> str:
+def gate_error(code: str, *, audience: str = "finance") -> str:
+    """Finance gets Payments instructions; HR/demo get ops-only wording (no invoice $)."""
+    if audience != "finance":
+        if code == "need_deposit":
+            return (
+                "This job cannot leave Intake yet. Ask Admin or Manager to clear the advance first."
+            )
+        if code == "need_final":
+            return (
+                "This job cannot move to Stamped / Field / Run Files yet. Ask Admin or Manager to clear the balance first."
+            )
+        return "Phase change blocked. Ask Admin or Manager for help."
     if code == "need_deposit":
         return (
             "Advance not recorded. Go to Payments → add a Deposit invoice for this "
@@ -75,3 +86,7 @@ def gate_error(code: str) -> str:
             "Stamped Drawings / Field Files / Run Files."
         )
     return "Payment gate blocked this move."
+
+
+def gate_audience(is_finance_user: bool) -> str:
+    return "finance" if is_finance_user else "office"

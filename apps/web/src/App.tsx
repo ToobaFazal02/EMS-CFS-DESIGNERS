@@ -12,6 +12,7 @@ import { AccountPage } from "./pages/AccountPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DayPage } from "./pages/DayPage";
 import { EmployeesPage } from "./pages/EmployeesPage";
+import { ExpensesPage } from "./pages/ExpensesPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ReportsPage } from "./pages/ReportsPage";
@@ -181,20 +182,58 @@ function LoginPage() {
   );
 }
 
-function isManagerRole(): boolean {
+function isFinanceRole(): boolean {
   const r = localStorage.getItem("ems_role") || "";
   return r === "admin" || r === "manager";
+}
+
+function isOfficeRole(): boolean {
+  const r = localStorage.getItem("ems_role") || "";
+  return r === "admin" || r === "manager" || r === "hr";
+}
+
+function isDemoRole(): boolean {
+  return (localStorage.getItem("ems_role") || "") === "demo";
+}
+
+function isOfficeOrDemoRole(): boolean {
+  return isOfficeRole() || isDemoRole();
 }
 
 function roleLabel(role: string): string {
   if (role === "admin") return "Admin";
   if (role === "manager") return "Manager";
+  if (role === "hr") return "HR";
+  if (role === "demo") return "Demo";
   if (role === "employee") return "Staff";
   return role;
 }
 
-function MainNavLinks({ manager, myId }: { manager: boolean; myId: string }) {
-  if (manager) {
+function MainNavLinks({
+  office,
+  finance,
+  demo,
+  myId,
+}: {
+  office: boolean;
+  finance: boolean;
+  demo: boolean;
+  myId: string;
+}) {
+  if (demo) {
+    return (
+      <>
+        <NavLink to="/" end>
+          Dashboard
+        </NavLink>
+        <NavLink to="/live">Live</NavLink>
+        <NavLink to="/employees">Team</NavLink>
+        <NavLink to="/projects">Projects</NavLink>
+        <NavLink to="/expenses">Expenses</NavLink>
+      </>
+    );
+  }
+  if (office) {
     return (
       <>
         <NavLink to="/" end>
@@ -203,7 +242,8 @@ function MainNavLinks({ manager, myId }: { manager: boolean; myId: string }) {
         <NavLink to="/live">Live</NavLink>
         <NavLink to="/employees">Employees</NavLink>
         <NavLink to="/projects">Projects</NavLink>
-        <NavLink to="/payments">Payments</NavLink>
+        {finance ? <NavLink to="/payments">Payments</NavLink> : null}
+        <NavLink to="/expenses">Expenses</NavLink>
         <NavLink to="/reports">Reports</NavLink>
       </>
     );
@@ -223,7 +263,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   const gearRef = useRef<HTMLDivElement>(null);
   const role = localStorage.getItem("ems_role") || "";
   const myId = localStorage.getItem("ems_employee_id") || "";
-  const manager = isManagerRole();
+  const office = isOfficeRole();
+  const finance = isFinanceRole();
+  const demo = isDemoRole();
   const nav = useNavigate();
   const loc = useLocation();
 
@@ -280,11 +322,13 @@ function Shell({ children }: { children: React.ReactNode }) {
         <div className="topbar-lead">
           <div className="brand">
             <span>CFS Designers</span>
-            {!manager ? <small className="muted"> Staff</small> : null}
+            {!office && !demo ? <small className="muted"> Staff</small> : null}
+            {role === "hr" ? <span className="role-pill">HR View</span> : null}
+            {demo ? <span className="role-pill role-pill-demo">Demo</span> : null}
           </div>
         </div>
         <nav className="nav nav-desktop" aria-label="Main">
-          <MainNavLinks manager={manager} myId={myId} />
+          <MainNavLinks office={office} finance={finance} demo={demo} myId={myId} />
         </nav>
         <div className="topbar-actions">
           <div className="user-chip">
@@ -390,13 +434,13 @@ function Shell({ children }: { children: React.ReactNode }) {
                 </svg>
               </button>
             </div>
-            <MainNavLinks manager={manager} myId={myId} />
+            <MainNavLinks office={office} finance={finance} demo={demo} myId={myId} />
           </nav>
         </>,
         document.body,
       )}
       {children}
-      <GuideCard manager={manager} />
+      <GuideCard manager={office || demo} />
     </div>
   );
 }
@@ -406,13 +450,34 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <Shell>{children}</Shell>;
 }
 
-function RequireManager({ children }: { children: React.ReactNode }) {
+function RequireOffice({ children }: { children: React.ReactNode }) {
   if (!localStorage.getItem("ems_token")) return <Navigate to="/login" replace />;
-  if (!isManagerRole()) {
+  if (!isOfficeRole()) {
     const id = localStorage.getItem("ems_employee_id");
     return <Navigate to={id ? `/day/${id}` : "/projects"} replace />;
   }
   return <Shell>{children}</Shell>;
+}
+
+function RequireOfficeOrDemo({ children }: { children: React.ReactNode }) {
+  if (!localStorage.getItem("ems_token")) return <Navigate to="/login" replace />;
+  if (!isOfficeOrDemoRole()) {
+    const id = localStorage.getItem("ems_employee_id");
+    return <Navigate to={id ? `/day/${id}` : "/projects"} replace />;
+  }
+  return <Shell>{children}</Shell>;
+}
+
+function RequireFinance({ children }: { children: React.ReactNode }) {
+  if (!localStorage.getItem("ems_token")) return <Navigate to="/login" replace />;
+  if (!isFinanceRole()) {
+    return <Navigate to="/" replace />;
+  }
+  return <Shell>{children}</Shell>;
+}
+
+function RequireManager({ children }: { children: React.ReactNode }) {
+  return <RequireOffice>{children}</RequireOffice>;
 }
 
 function LivePage() {
@@ -505,25 +570,25 @@ export default function App() {
       <Route
         path="/"
         element={
-          <RequireManager>
+          <RequireOfficeOrDemo>
             <DashboardPage />
-          </RequireManager>
+          </RequireOfficeOrDemo>
         }
       />
       <Route
         path="/live"
         element={
-          <RequireManager>
+          <RequireOfficeOrDemo>
             <LivePage />
-          </RequireManager>
+          </RequireOfficeOrDemo>
         }
       />
       <Route
         path="/employees"
         element={
-          <RequireManager>
+          <RequireOfficeOrDemo>
             <EmployeesPage />
-          </RequireManager>
+          </RequireOfficeOrDemo>
         }
       />
       <Route
@@ -545,9 +610,17 @@ export default function App() {
       <Route
         path="/payments"
         element={
-          <RequireManager>
+          <RequireFinance>
             <PaymentsPage />
-          </RequireManager>
+          </RequireFinance>
+        }
+      />
+      <Route
+        path="/expenses"
+        element={
+          <RequireOfficeOrDemo>
+            <ExpensesPage />
+          </RequireOfficeOrDemo>
         }
       />
       <Route
@@ -561,9 +634,9 @@ export default function App() {
       <Route
         path="/reports"
         element={
-          <RequireManager>
+          <RequireOffice>
             <ReportsPage />
-          </RequireManager>
+          </RequireOffice>
         }
       />
     </Routes>

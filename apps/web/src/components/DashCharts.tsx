@@ -266,7 +266,7 @@ export function MoneyBars({ unpaid, paid, currency }: MoneyBarsProps) {
         <div className="dash-money-row">
           <span>Unpaid</span>
           <div className="dash-bar-track dash-money-track">
-            <span style={{ width: `${Math.max((unpaid / max) * 100, unpaid ? 4 : 0)}%`, background: "#ef4444" }} />
+            <span style={{ width: `${Math.max((unpaid / max) * 100, unpaid ? 4 : 0)}%`, background: "#7a1f2e" }} />
           </div>
           <b className="text-pending">{fmt(unpaid)}</b>
         </div>

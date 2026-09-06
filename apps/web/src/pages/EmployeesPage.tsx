@@ -20,11 +20,15 @@ function emptyForm() {
 export function EmployeesPage() {
   const toast = useToast();
   const formRef = useRef<HTMLFormElement>(null);
+  const roleNow = localStorage.getItem("ems_role") || "";
+  const canCreateHr = ["admin", "manager"].includes(roleNow);
+  const readOnlyDemo = roleNow === "demo";
   const [rows, setRows] = useState<Employee[]>([]);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<"employee" | "hr" | "demo">("employee");
   const [editing, setEditing] = useState<Employee | null>(null);
   const [busy, setBusy] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Employee | null>(null);
@@ -41,6 +45,7 @@ export function EmployeesPage() {
     setName(blank.name);
     setEmail(blank.email);
     setPassword(blank.password);
+    setRole("employee");
     setEditing(null);
   }
 
@@ -92,9 +97,11 @@ export function EmployeesPage() {
           full_name: name,
           email,
           password,
-          role: "employee",
+          role: canCreateHr ? role : "employee",
         });
-        toast.success("Staff added.");
+        toast.success(
+          role === "hr" ? "HR login added." : role === "demo" ? "Demo login added." : "Staff added."
+        );
         resetForm();
       }
       await load(true);
@@ -154,10 +161,15 @@ export function EmployeesPage() {
       />
 
       <div className="toolbar">
-        <h2 style={{ margin: 0, flex: 1 }}>Employees</h2>
+        <h2 style={{ margin: 0, flex: 1 }}>{readOnlyDemo ? "Sample team" : "Employees"}</h2>
         <RefreshButton busy={busy} onClick={() => load()} />
       </div>
 
+      {readOnlyDemo ? (
+        <p className="muted" style={{ marginTop: 0 }}>
+          Demo roster only — fictional names. Real CFS staff stay hidden.
+        </p>
+      ) : (
       <form className="card staff-add-form" onSubmit={onSubmit} ref={formRef}>
         <h3 style={{ marginTop: 0 }}>{editing ? `Edit ${editing.full_name}` : "Add staff (web login + Agent)"}</h3>
         <div className="staff-add-grid">
@@ -201,8 +213,30 @@ export function EmployeesPage() {
             required={!editing}
             minLength={8}
           />
+          {canCreateHr && !editing ? (
+            <div className="field">
+              <label htmlFor="staff-role">Login type</label>
+              <select
+                id="staff-role"
+                value={role}
+                onChange={(e) => setRole(e.target.value as "employee" | "hr" | "demo")}
+              >
+                <option value="employee">Staff (Agent + My Day)</option>
+                <option value="hr">HR (no Payments / invoices)</option>
+                <option value="demo">Demo tour (sample data only)</option>
+              </select>
+            </div>
+          ) : null}
           <div className="staff-add-actions">
-            <button type="submit">{editing ? "Save changes" : "Add employee"}</button>
+            <button type="submit">
+              {editing
+                ? "Save changes"
+                : role === "hr"
+                  ? "Add HR login"
+                  : role === "demo"
+                    ? "Add demo login"
+                    : "Add employee"}
+            </button>
             {editing ? (
               <button type="button" className="secondary" onClick={resetForm}>
                 Cancel
@@ -211,6 +245,7 @@ export function EmployeesPage() {
           </div>
         </div>
       </form>
+      )}
 
       <div className="card" style={{ overflowX: "auto" }}>
         <table className="table-center staff-table">
@@ -221,7 +256,7 @@ export function EmployeesPage() {
               <th>Email</th>
               <th>Role</th>
               <th>Device</th>
-              <th>Actions</th>
+              {!readOnlyDemo ? <th>Actions</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -244,23 +279,25 @@ export function EmployeesPage() {
                       "Not enrolled"
                     )}
                   </td>
-                  <td data-label="Actions">
-                    {r.role === "employee" ? (
-                      <div className="row-actions">
-                        <button type="button" className="secondary" onClick={() => startEdit(r)}>
-                          Edit
-                        </button>
-                        <button type="button" className="secondary" onClick={() => onEnroll(r, enrolled)}>
-                          {enrolled ? "Re-enroll" : "Enroll PC"}
-                        </button>
-                        <button type="button" className="btn-danger btn-row-del" onClick={() => setPendingDelete(r)}>
-                          Remove
-                        </button>
-                      </div>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
+                  {!readOnlyDemo ? (
+                    <td data-label="Actions">
+                      {r.role === "employee" ? (
+                        <div className="row-actions">
+                          <button type="button" className="secondary" onClick={() => startEdit(r)}>
+                            Edit
+                          </button>
+                          <button type="button" className="secondary" onClick={() => onEnroll(r, enrolled)}>
+                            {enrolled ? "Re-enroll" : "Enroll PC"}
+                          </button>
+                          <button type="button" className="btn-danger btn-row-del" onClick={() => setPendingDelete(r)}>
+                            Remove
+                          </button>
+                        </div>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}

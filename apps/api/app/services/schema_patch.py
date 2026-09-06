@@ -7,10 +7,12 @@ PROJECT_COLS = {
     "contract_value": "FLOAT DEFAULT 0",
     "deposit_pct": "FLOAT DEFAULT 50",
     "currency": "VARCHAR(8) DEFAULT 'USD'",
+    "is_demo": "BOOLEAN DEFAULT 0",
 }
 
 CLIENT_COLS = {
     "phone": "VARCHAR(40) DEFAULT ''",
+    "is_demo": "BOOLEAN DEFAULT 0",
 }
 
 INVOICE_COLS = {
@@ -19,6 +21,16 @@ INVOICE_COLS = {
     "bill_to_phone": "VARCHAR(40) DEFAULT ''",
     "line_items": "TEXT DEFAULT '[]'",
     "invoice_notes": "TEXT DEFAULT ''",
+    "is_demo": "BOOLEAN DEFAULT 0",
+}
+
+EMPLOYEE_COLS = {
+    "is_demo": "BOOLEAN DEFAULT 0",
+}
+
+EXPENSE_COLS = {
+    "is_demo": "BOOLEAN DEFAULT 0",
+    "receipt_path": "VARCHAR(500) DEFAULT ''",
 }
 
 INVOICE_SETTINGS_COLS = {
@@ -45,3 +57,5 @@ def ensure_sqlite_columns(sync_conn) -> None:
     _patch_table(sync_conn, "clients", CLIENT_COLS)
     _patch_table(sync_conn, "invoices", INVOICE_COLS)
     _patch_table(sync_conn, "invoice_settings", INVOICE_SETTINGS_COLS)
+    _patch_table(sync_conn, "employees", EMPLOYEE_COLS)
+    _patch_table(sync_conn, "office_expenses", EXPENSE_COLS)

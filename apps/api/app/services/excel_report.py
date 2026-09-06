@@ -276,7 +276,8 @@ def build_payments_xlsx(rows: list[dict]) -> bytes:
 
 FILL_GREEN = PatternFill("solid", fgColor="92D050")
 FILL_YELLOW = PatternFill("solid", fgColor="FFFF00")
-FILL_RED = PatternFill("solid", fgColor="FF0000")
+FILL_RED = PatternFill("solid", fgColor="7A1F2E")  # maroon for unpaid budget cells
+FILL_MAROON = FILL_RED
 FONT_COPPER = Font(name="Georgia", size=22, color="A85914")
 FONT_BROWN = Font(name="Arial", size=8, color="615A22")
 FONT_BROWN_B = Font(name="Arial", bold=True, size=9, color="615A22")

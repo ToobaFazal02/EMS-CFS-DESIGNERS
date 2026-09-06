@@ -41,10 +41,25 @@ Do **not** start items 1–3 until Agents are on office PCs. Client 30–31 Aug:
 - Login that sees attendance + projects + later expenses
 - **Cannot** see client invoices / $
 
-## 7. Office expenses sheet (HR)
+## 8. HR + expenses isolation — **done Sep 2026**
 
-- Chai/water, electricity, gas, solar, bills, parties, other
-- Month-end: money in vs money out — **not** a full accounting system
+- HR sees real CFS attendance / projects / expenses — **not** Payments / invoice $
+- Demo role is separate (`is_demo` catalog) — never mixed into HR/admin real data
+
+## 9. Sales / marketing demo (BACKLOG — do not start until CFS ops stable)
+
+**Goal:** A public or invite-only walkthrough that sells the *product*, not CFS Designers’ private data.
+
+| Piece | Plan |
+|---|---|
+| Brand | White-label: “Studio EMS” / generic logo — **no CFS name** on sales demo |
+| Data | Only fictional sample staff / projects / expenses (`is_demo=True`) |
+| Scope | Full tour: Dashboard, Live (fake cards), Team, Projects, Expenses, Reports (sample), Payments (fake invoices) |
+| Access | Password-rotated demo login, rate-limited; never production DB |
+| Ads / Reels | 15–30s: Sign In blink → Live board → day hours → invoice PDF — sample only |
+| USA targeting | Pain: “CAD detailers / LGS shops / remote drafting teams”; LinkedIn + Meta ads to AEC / cold-formed steel / remote engineering orgs; landing = book a call + demo login |
+
+**Do not** run ads that show real CFS clients, screenshots, or invoice bank details.
 
 ---
 

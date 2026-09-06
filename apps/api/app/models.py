@@ -14,8 +14,20 @@ def _uuid() -> str:
 
 class Role(str, enum.Enum):
     employee = "employee"
+    hr = "hr"
+    demo = "demo"
     manager = "manager"
     admin = "admin"
+
+
+class ExpenseCategory(str, enum.Enum):
+    tea_water = "tea_water"
+    electricity = "electricity"
+    gas = "gas"
+    solar = "solar"
+    bills = "bills"
+    parties = "parties"
+    other = "other"
 
 
 class PunchType(str, enum.Enum):
@@ -42,6 +54,7 @@ class Employee(Base):
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[Role] = mapped_column(Enum(Role, native_enum=False), default=Role.employee)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     devices: Mapped[list["Device"]] = relationship(back_populates="employee")
@@ -153,6 +166,7 @@ class Client(Base):
     phone: Mapped[str] = mapped_column(String(40), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     projects: Mapped[list["Project"]] = relationship(back_populates="client")
@@ -181,6 +195,7 @@ class Project(Base):
     contract_value: Mapped[float] = mapped_column(Float, default=0.0)
     deposit_pct: Mapped[float] = mapped_column(Float, default=50.0)
     currency: Mapped[str] = mapped_column(String(8), default="USD")
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     invoices: Mapped[list["Invoice"]] = relationship(back_populates="project")
 
 
@@ -213,6 +228,7 @@ class Invoice(Base):
     bill_to_phone: Mapped[str] = mapped_column(String(40), default="")
     line_items: Mapped[str] = mapped_column(Text, default="[]")
     invoice_notes: Mapped[str] = mapped_column(Text, default="")
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     client: Mapped[Client] = relationship()
@@ -243,3 +259,23 @@ class InvoiceSettings(Base):
     header_color: Mapped[str] = mapped_column(String(20), default="#548235")
     highlight_color: Mapped[str] = mapped_column(String(20), default="#c9a227")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OfficeExpense(Base):
+    """Studio cash-out only (tea, utilities, parties). Not client invoices."""
+
+    __tablename__ = "office_expenses"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    spent_on: Mapped[datetime] = mapped_column(DateTime, index=True)  # date stored as midnight UTC-ish; use date part
+    category: Mapped[str] = mapped_column(String(40), index=True, default=ExpenseCategory.other.value)
+    amount_pkr: Mapped[float] = mapped_column(Float, default=0.0)
+    vendor_note: Mapped[str] = mapped_column(String(300), default="")
+    receipt_name: Mapped[str] = mapped_column(String(220), default="")
+    receipt_path: Mapped[str] = mapped_column(String(500), default="")
+    created_by_id: Mapped[str | None] = mapped_column(ForeignKey("employees.id"), nullable=True, index=True)
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    created_by: Mapped[Employee | None] = relationship()

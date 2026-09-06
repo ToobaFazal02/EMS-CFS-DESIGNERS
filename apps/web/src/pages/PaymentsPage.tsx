@@ -776,7 +776,7 @@ export function PaymentsPage() {
                                   checked={Boolean(row.unpaid)}
                                   onChange={(e) => updateLineItem(i, { unpaid: e.target.checked })}
                                 />
-                                Red
+                                Maroon
                               </label>
                             </td>
                             <td className="col-del">
@@ -809,7 +809,7 @@ export function PaymentsPage() {
                   + Add line item
                 </button>
                 <p className="line-hint">
-                  Tick <b>Unpaid / Red</b> to paint that Budget cell red on the PDF. Scope “Detailing” is automatically yellow — same as the client template.
+                  Tick <b>Unpaid / Maroon</b> to paint that Budget cell maroon on the PDF. Scope “Detailing” is automatically yellow — same as the client template.
                 </p>
 
               <div className="invoice-notes-block">
@@ -1087,7 +1087,7 @@ export function PaymentsPage() {
             <div className="invoice-form-grid">
               <div className="field">
                 <label>Table header color</label>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <input
                     type="color"
                     value={settings.header_color}
@@ -1099,13 +1099,32 @@ export function PaymentsPage() {
                     value={settings.header_color}
                     onChange={(e) => setSettings({ ...settings, header_color: e.target.value })}
                     placeholder="#92D050"
-                    style={{ flex: 1 }}
+                    style={{ flex: 1, minWidth: 120 }}
                   />
+                </div>
+                <div className="color-swatches" role="group" aria-label="Header presets">
+                  {[
+                    ["#92D050", "Lime"],
+                    ["#548235", "Green"],
+                    ["#c9a227", "Gold"],
+                    ["#7a1f2e", "Maroon"],
+                    ["#A85914", "Copper"],
+                  ].map(([hex, label]) => (
+                    <button
+                      key={hex}
+                      type="button"
+                      className={`color-swatch${settings.header_color.toLowerCase() === hex.toLowerCase() ? " is-active" : ""}`}
+                      style={{ background: hex }}
+                      title={label}
+                      aria-label={label}
+                      onClick={() => setSettings({ ...settings, header_color: hex })}
+                    />
+                  ))}
                 </div>
               </div>
               <div className="field">
                 <label>Highlight / accent color</label>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <input
                     type="color"
                     value={settings.highlight_color}
@@ -1117,8 +1136,27 @@ export function PaymentsPage() {
                     value={settings.highlight_color}
                     onChange={(e) => setSettings({ ...settings, highlight_color: e.target.value })}
                     placeholder="#c9a227"
-                    style={{ flex: 1 }}
+                    style={{ flex: 1, minWidth: 120 }}
                   />
+                </div>
+                <div className="color-swatches" role="group" aria-label="Highlight presets">
+                  {[
+                    ["#c9a227", "Gold"],
+                    ["#A85914", "Copper"],
+                    ["#7a1f2e", "Maroon"],
+                    ["#92D050", "Lime"],
+                    ["#1f3a5f", "Navy"],
+                  ].map(([hex, label]) => (
+                    <button
+                      key={hex}
+                      type="button"
+                      className={`color-swatch${settings.highlight_color.toLowerCase() === hex.toLowerCase() ? " is-active" : ""}`}
+                      style={{ background: hex }}
+                      title={label}
+                      aria-label={label}
+                      onClick={() => setSettings({ ...settings, highlight_color: hex })}
+                    />
+                  ))}
                 </div>
               </div>
             </div>

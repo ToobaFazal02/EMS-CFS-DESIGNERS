@@ -172,6 +172,10 @@ async def ensure_samples() -> None:
         await db.commit()
         await _seed_flow_samples(db, demo_emp)
         await db.commit()
+        from app.demo_seed import ensure_demo_catalog
+
+        await ensure_demo_catalog(db)
+        await db.commit()
 
 
 async def main() -> None:
@@ -221,7 +225,15 @@ async def main() -> None:
         await db.commit()
         await _seed_flow_samples(db, demo_emp)
         await db.commit()
-        print("Seed OK. Admin: admin@cfsdesigners.com / Admin123!  |  Staff web: waheed@cfsdesigners.com / Emp123!")
+        from app.demo_seed import ensure_demo_catalog
+
+        await ensure_demo_catalog(db)
+        await db.commit()
+        print(
+            "Seed OK. Admin: admin@cfsdesigners.com / Admin123!  |  "
+            "Staff web: waheed@cfsdesigners.com / Emp123!  |  "
+            "Demo tour: demo@cfsdesigners.com / DemoTour123!"
+        )
 
 
 if __name__ == "__main__":

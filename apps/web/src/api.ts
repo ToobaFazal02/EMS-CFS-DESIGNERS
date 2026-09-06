@@ -460,4 +460,93 @@ export async function deleteEmployee(id: string) {
   return r.json() as Promise<{ ok: boolean; id: string }>;
 }
 
+export const EXPENSE_CATEGORIES = [
+  { id: "tea_water", label: "Tea / water" },
+  { id: "electricity", label: "Electricity" },
+  { id: "gas", label: "Gas" },
+  { id: "solar", label: "Solar" },
+  { id: "bills", label: "Bills" },
+  { id: "parties", label: "Parties / events" },
+  { id: "other", label: "Other" },
+] as const;
+
+export type ExpenseItem = {
+  id: string;
+  spent_on: string;
+  category: string;
+  amount_pkr: number;
+  vendor_note: string;
+  receipt_name: string;
+  receipt_url?: string | null;
+  created_by_id?: string | null;
+  created_at?: string | null;
+};
+
+export type ExpenseMonthBucket = {
+  month: number;
+  total_pkr: number;
+  count: number;
+};
+
+export type ExpenseMonth = {
+  year: number;
+  month: number;
+  total_pkr: number;
+  count: number;
+  year_total_pkr?: number;
+  year_count?: number;
+  months?: ExpenseMonthBucket[];
+  by_category: Record<string, number>;
+  items: ExpenseItem[];
+};
+
+export async function fetchExpenses(year: number, month: number, category?: string): Promise<ExpenseMonth> {
+  const q = new URLSearchParams({ year: String(year), month: String(month) });
+  if (category) q.set("category", category);
+  const r = await fetch(`${API}/api/v1/expenses?${q}`, { headers: authHeaders() });
+  if (r.status === 401) {
+    localStorage.removeItem("ems_token");
+    throw new Error("Session expired — sign in again");
+  }
+  if (r.status === 403) throw new Error("Office access required for expenses");
+  if (!r.ok) throw new Error(await apiError(r, "Failed to load expenses"));
+  return r.json();
+}
+
+export async function createExpense(body: {
+  spent_on: string;
+  category: string;
+  amount_pkr: number;
+  vendor_note?: string;
+  receipt?: File | null;
+}): Promise<ExpenseItem> {
+  const fd = new FormData();
+  fd.append("spent_on", body.spent_on);
+  fd.append("category", body.category);
+  fd.append("amount_pkr", String(body.amount_pkr));
+  fd.append("vendor_note", body.vendor_note || "");
+  if (body.receipt) fd.append("receipt", body.receipt);
+  const r = await fetch(`${API}/api/v1/expenses`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: fd,
+  });
+  if (!r.ok) throw new Error(await apiError(r, "Could not save expense"));
+  return r.json();
+}
+
+export async function deleteExpense(id: string): Promise<void> {
+  const r = await fetch(`${API}/api/v1/expenses/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!r.ok) throw new Error(await apiError(r, "Could not delete expense"));
+}
+
+export async function fetchExpenseReceipt(url: string): Promise<Blob> {
+  const r = await fetch(`${API}${url}`, { headers: authHeaders() });
+  if (!r.ok) throw new Error(await apiError(r, "Could not open receipt"));
+  return r.blob();
+}
+
 export { authHeaders, API };

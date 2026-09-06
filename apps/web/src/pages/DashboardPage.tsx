@@ -125,7 +125,9 @@ export function DashboardPage() {
       <div className="toolbar">
         <div>
           <h2 style={{ margin: 0 }}>Dashboard</h2>
-          <p className="muted page-sub">Team, projects, and cash at a glance.</p>
+          <p className="muted page-sub">
+            {showFinanceKpi ? "Team, projects, and cash at a glance." : "People, presence, and project load at a glance."}
+          </p>
         </div>
         <RefreshButton
           busy={busy}

@@ -334,3 +334,52 @@ class InvoiceOut(BaseModel):
     line_items: list[InvoiceLineItemIn] = Field(default_factory=list)
     invoice_notes: str = ""
     delayed_days: int = 0
+
+
+EXPENSE_CATEGORIES = (
+    "tea_water",
+    "electricity",
+    "gas",
+    "solar",
+    "bills",
+    "parties",
+    "other",
+)
+
+
+class ExpenseIn(BaseModel):
+    spent_on: str = Field(..., description="YYYY-MM-DD (Asia/Karachi calendar day)")
+    category: str
+    amount_pkr: float = Field(..., gt=0, le=50_000_000)
+    vendor_note: str = Field("", max_length=300)
+    receipt_name: str = Field("", max_length=220)
+
+
+class ExpenseOut(BaseModel):
+    id: str
+    spent_on: str
+    category: str
+    amount_pkr: float
+    vendor_note: str = ""
+    receipt_name: str = ""
+    receipt_url: Optional[str] = None
+    created_by_id: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+
+class ExpenseMonthBucket(BaseModel):
+    month: int
+    total_pkr: float
+    count: int
+
+
+class ExpenseMonthOut(BaseModel):
+    year: int
+    month: int
+    total_pkr: float
+    count: int
+    year_total_pkr: float = 0
+    year_count: int = 0
+    months: list[ExpenseMonthBucket] = Field(default_factory=list)
+    by_category: dict[str, float]
+    items: list[ExpenseOut]

@@ -1,12 +1,10 @@
 /** Layout-only numbers. Vite production builds compile this to always-false. */
 
 export function isLocalDashPreview(): boolean {
+  // Opt-in only — never fake KPIs for HR / demo / normal local use
   if (import.meta.env.PROD) return false;
-  if (!import.meta.env.DEV) return false;
   if (typeof window === "undefined") return false;
-  const host = window.location.hostname.toLowerCase();
-  if (host === "ems.cfsdesigners.com" || host.endsWith(".cfsdesigners.com")) return false;
-  return host === "localhost" || host === "127.0.0.1";
+  return localStorage.getItem("ems_dash_preview") === "1";
 }
 
 export const PREVIEW_HOURS_THIS = [7.6, 8.1, 8.4, 7.9, 8.2, 3.1, 0];

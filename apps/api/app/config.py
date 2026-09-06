@@ -45,6 +45,7 @@ class Settings(BaseSettings):
         p.mkdir(parents=True, exist_ok=True)
         (p / "screenshots").mkdir(exist_ok=True)
         (p / "reports").mkdir(exist_ok=True)
+        (p / "receipts").mkdir(exist_ok=True)
         return p
 
 

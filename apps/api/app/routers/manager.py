@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy.orm import selectinload
 
-from app.auth import ALGORITHM, get_current_user, is_manager, require_manager
+from app.auth import ALGORITHM, get_current_user, is_finance, is_manager, require_manager, require_office_or_demo
+from app.services.data_scope import wants_demo_rows
 from app.config import get_settings
 from app.db import SessionLocal, get_db
 from app.live import live_hub
@@ -61,6 +62,24 @@ from app.services.validation import parse_day_or_400, reject_future_day, reject_
 
 router = APIRouter(prefix="/api/v1", tags=["manager"])
 settings = get_settings()
+
+
+async def _report_staff(db: AsyncSession, user: Employee) -> list[Employee]:
+    """Active staff for reports — demo login only sees sample employees."""
+    demo = wants_demo_rows(user)
+    return list(
+        (
+            await db.execute(
+                select(Employee).where(
+                    Employee.role == Role.employee,
+                    Employee.active == True,  # noqa: E712
+                    Employee.is_demo == demo,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
 
 
 def _assert_self_or_manager(user: Employee, employee_id: str) -> None:
@@ -199,11 +218,32 @@ def _stale_offline(status: str, last_seen: datetime | None) -> tuple[str, bool]:
     return status, False
 
 
-async def _live_staff(db: AsyncSession) -> list[LiveEmployeeOut]:
-    emps = (await db.execute(select(Employee).where(Employee.active == True))).scalars().all()  # noqa: E712
+async def _live_staff(db: AsyncSession, *, demo: bool = False) -> list[LiveEmployeeOut]:
+    emps = (
+        await db.execute(
+            select(Employee).where(Employee.active == True, Employee.is_demo == demo)  # noqa: E712
+        )
+    ).scalars().all()
     out: list[LiveEmployeeOut] = []
     for emp in emps:
         if emp.role != Role.employee:
+            continue
+        if demo:
+            # Demo catalog has no real screenshots — status-only placeholder cards
+            out.append(
+                LiveEmployeeOut(
+                    employee_id=emp.id,
+                    code=emp.code,
+                    full_name=emp.full_name,
+                    status="offline",
+                    last_window="Demo sample (no live PC)",
+                    last_seen_at=None,
+                    last_clicks_delta=0,
+                    last_keys_delta=0,
+                    idle_seconds=0,
+                    last_screenshot_url=None,
+                )
+            )
             continue
         devices = list(
             (
@@ -371,23 +411,26 @@ def _hour_days(days: list[date], totals: dict[date, float]) -> list[DashHourDay]
 @router.get("/live", response_model=list[LiveEmployeeOut])
 async def live_board(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    user: Annotated[Employee, Depends(require_office_or_demo)],
 ) -> list[LiveEmployeeOut]:
-    return await _live_staff(db)
+    return await _live_staff(db, demo=wants_demo_rows(user))
 
 
 @router.get("/dashboard", response_model=DashboardOut)
 async def dashboard_summary(
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: Annotated[Employee, Depends(require_manager)],
+    user: Annotated[Employee, Depends(require_office_or_demo)],
 ) -> DashboardOut:
-    live = await _live_staff(db)
+    demo = wants_demo_rows(user)
+    live = await _live_staff(db, demo=demo)
     staff_count = len(live)
     live_now = sum(1 for r in live if r.status == "working")
     break_idle = sum(1 for r in live if r.status in ("break", "idle"))
     offline = sum(1 for r in live if r.status == "offline" or not r.status)
 
-    projects = list((await db.execute(select(Project))).scalars().all())
+    projects = list(
+        (await db.execute(select(Project).where(Project.is_demo == demo))).scalars().all()  # noqa: E712
+    )
     working_n = sum(1 for p in projects if p.work_state == WorkState.working.value)
     waiting_n = sum(1 for p in projects if p.work_state == WorkState.waiting.value)
     hold_n = sum(1 for p in projects if p.work_state == WorkState.on_hold.value)
@@ -433,9 +476,15 @@ async def dashboard_summary(
     ]
 
     finance: DashFinance | None = None
-    if user.role == Role.admin:
+    if is_finance(user) and not demo:
         invs = list(
-            (await db.execute(select(Invoice).options(selectinload(Invoice.client)))).scalars().all()
+            (
+                await db.execute(
+                    select(Invoice)
+                    .options(selectinload(Invoice.client))
+                    .where(Invoice.is_demo == False)  # noqa: E712
+                )
+            ).scalars().all()
         )
         ym = f"{today.year:04d}-{today.month:02d}"
         unpaid_n = 0

@@ -13,6 +13,7 @@ from app.auth import (
     hash_password,
     hash_token,
     require_manager,
+    require_office_or_demo,
     verify_password,
 )
 from app.db import get_db
@@ -83,10 +84,30 @@ async def login(body: LoginIn, request: Request, db: Annotated[AsyncSession, Dep
 @router.get("/employees", response_model=list[EmployeeOut])
 async def list_employees(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    user: Annotated[Employee, Depends(require_office_or_demo)],
 ) -> list[EmployeeOut]:
-    result = await db.execute(select(Employee).where(Employee.active == True).order_by(Employee.code))  # noqa: E712
+    from app.auth import is_finance
+    from app.services.data_scope import wants_demo_rows
+    from sqlalchemy import or_
+
+    demo = wants_demo_rows(user)
+    if demo:
+        # Demo assignee picker: sample staff only (not the demo login itself)
+        q = select(Employee).where(
+            Employee.active == True,  # noqa: E712
+            Employee.is_demo == True,
+            Employee.role == Role.employee,
+        )
+    else:
+        # Real roster + optional demo tour login (admin/manager can manage it)
+        q = select(Employee).where(
+            Employee.active == True,  # noqa: E712
+            or_(Employee.is_demo == False, Employee.role == Role.demo),
+        )
+    result = await db.execute(q.order_by(Employee.code))
     emps = list(result.scalars().all())
+    if not is_finance(user):
+        emps = [e for e in emps if e.role != Role.demo]
     return [await employee_to_out(db, emp) for emp in emps]
 
 
@@ -94,8 +115,8 @@ async def list_employees(
 async def create_employee(
     body: EmployeeCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
-) -> Employee:
+    actor: Annotated[Employee, Depends(require_manager)],
+) -> EmployeeOut:
     existing = await db.execute(select(Employee).where(Employee.code == body.code))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Code already exists")
@@ -106,8 +127,12 @@ async def create_employee(
             raise HTTPException(status_code=400, detail="Email already in use")
     if body.role == Role.admin:
         raise HTTPException(status_code=403, detail="Cannot create admin accounts from Employees")
-    if body.role == Role.employee and (not email or not body.password):
-        raise HTTPException(status_code=400, detail="Email and password required for staff web login")
+    from app.auth import is_finance
+
+    if body.role in (Role.manager, Role.hr, Role.demo) and not is_finance(actor):
+        raise HTTPException(status_code=403, detail="Only admin/manager can create HR, manager, or demo logins")
+    if body.role in (Role.employee, Role.hr, Role.demo) and (not email or not body.password):
+        raise HTTPException(status_code=400, detail="Email and password required for web login")
     if body.password and len(body.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
     emp = Employee(
@@ -116,11 +141,17 @@ async def create_employee(
         email=email,
         password_hash=hash_password(body.password) if body.password else None,
         role=body.role,
+        is_demo=body.role == Role.demo,
     )
     db.add(emp)
     await db.commit()
     await db.refresh(emp)
-    return emp
+    if body.role == Role.demo:
+        from app.demo_seed import ensure_demo_catalog
+
+        await ensure_demo_catalog(db)
+        await db.commit()
+    return await employee_to_out(db, emp)
 
 
 @router.patch("/employees/{employee_id}", response_model=EmployeeOut)
@@ -133,8 +164,8 @@ async def update_employee(
     emp = await db.get(Employee, employee_id)
     if not emp or not emp.active:
         raise HTTPException(status_code=404, detail="Employee not found")
-    if emp.role in (Role.admin, Role.manager):
-        raise HTTPException(status_code=400, detail="Cannot edit admin/manager from Employees")
+    if emp.role in (Role.admin, Role.manager, Role.hr):
+        raise HTTPException(status_code=400, detail="Cannot edit admin/manager/HR from Employees")
     code = (body.code or "").strip()
     name = " ".join((body.full_name or "").split())
     if not code:
@@ -175,8 +206,14 @@ async def deactivate_employee(
         raise HTTPException(status_code=404, detail="Employee not found")
     if emp.id == actor.id:
         raise HTTPException(status_code=400, detail="You cannot remove your own account")
+    from app.auth import is_finance
+
     if emp.role in (Role.admin, Role.manager):
         raise HTTPException(status_code=400, detail="Cannot remove admin/manager from Employees")
+    if emp.role == Role.hr and not is_finance(actor):
+        raise HTTPException(status_code=403, detail="Only admin/manager can remove HR accounts")
+    if emp.role == Role.demo and not is_finance(actor):
+        raise HTTPException(status_code=403, detail="Only admin/manager can remove demo accounts")
     emp.active = False
     emp.password_hash = None
     # Invalidate device enrollments
@@ -193,12 +230,18 @@ async def set_employee_credentials(
     employee_id: str,
     body: EmployeeCredentialsIn,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    actor: Annotated[Employee, Depends(require_manager)],
 ) -> EmployeeOut:
     """Admin sets/resets staff web email + password (tell them privately)."""
     emp = await db.get(Employee, employee_id)
     if not emp:
         raise HTTPException(status_code=404, detail="Employee not found")
+    from app.auth import is_finance
+
+    if emp.role in (Role.admin, Role.manager):
+        raise HTTPException(status_code=400, detail="Cannot reset admin/manager credentials here")
+    if emp.role == Role.hr and not is_finance(actor):
+        raise HTTPException(status_code=403, detail="Only admin/manager can reset HR credentials")
     email = (body.email or "").strip().lower()
     password = (body.password or "").strip()
     if not email or "@" not in email:

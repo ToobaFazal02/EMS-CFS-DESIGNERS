@@ -7,11 +7,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth import get_current_user, is_manager, require_manager
+from app.auth import (
+    get_current_user,
+    is_demo_user,
+    is_finance,
+    is_manager,
+    require_finance,
+    require_office_or_demo,
+)
 from app.db import get_db
 from app.models import AuditLog, Client, Employee, Project, ProjectPhase, Role, WorkState
 from app.schemas import ClientIn, ClientOut, ProjectIn, ProjectOut
-from app.services.payments import gate_error, gate_status, normalize_currency, paid_amount
+from app.services.data_scope import wants_demo_rows
+from app.services.payments import gate_audience, gate_error, gate_status, normalize_currency, paid_amount
 
 router = APIRouter(prefix="/api/v1", tags=["projects"])
 
@@ -23,7 +31,7 @@ def _clean_project_name(raw: str | None) -> str:
     return " ".join((raw or "").split()).strip()
 
 
-def _validate_project_fields(body: ProjectIn) -> str:
+def _validate_project_fields(body: ProjectIn, *, require_contract: bool) -> str:
     """Return cleaned name or raise 400. Client is required for a real Design Queue card."""
     name = _clean_project_name(body.name)
     if len(name) < 4:
@@ -48,7 +56,7 @@ def _validate_project_fields(body: ProjectIn) -> str:
     value = float(body.contract_value or 0)
     if value < 0:
         raise HTTPException(status_code=400, detail="Contract value cannot be negative.")
-    if value <= 0:
+    if require_contract and value <= 0:
         raise HTTPException(
             status_code=400,
             detail="Contract value is required (must be greater than 0). Without it, the 50% payment gate stays off.",
@@ -58,6 +66,23 @@ def _validate_project_fields(body: ProjectIn) -> str:
     if body.storeys is not None and body.storeys < 0:
         raise HTTPException(status_code=400, detail="Storeys cannot be negative.")
     return name
+
+
+def _client_out(c: Client, *, hide_private: bool) -> ClientOut:
+    """HR/demo: name + location only — no phone/notes (may hold commercial secrets)."""
+    return ClientOut(
+        id=c.id,
+        name=c.name,
+        location=c.location or "",
+        phone="" if hide_private else (c.phone or ""),
+        notes="" if hide_private else (c.notes or ""),
+        active=c.active,
+    )
+
+
+def _assert_row_scope(user: Employee, *, is_demo_row: bool) -> None:
+    if wants_demo_rows(user) != bool(is_demo_row):
+        raise HTTPException(status_code=404, detail="Not found")
 
 
 def _project_out(p: Project, *, hide_money: bool = False) -> ProjectOut:
@@ -152,17 +177,27 @@ async def project_phases(_: Annotated[Employee, Depends(get_current_user)]) -> d
 @router.get("/clients", response_model=list[ClientOut])
 async def list_clients(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    user: Annotated[Employee, Depends(require_office_or_demo)],
 ) -> list[ClientOut]:
-    rows = (await db.execute(select(Client).where(Client.active == True).order_by(Client.name))).scalars().all()  # noqa: E712
-    return [ClientOut(id=c.id, name=c.name, location=c.location or "", phone=c.phone or "", notes=c.notes or "", active=c.active) for c in rows]
+    demo = wants_demo_rows(user)
+    q = (
+        select(Client)
+        .where(Client.active == True, Client.is_demo == demo)  # noqa: E712
+        .order_by(Client.name)
+    )
+    rows = (await db.execute(q)).scalars().all()
+    # HR: never show training SAMPLE rows — only real CFS clients (+ what HR adds)
+    if user.role == Role.hr:
+        rows = [c for c in rows if "SAMPLE" not in (c.name or "").upper() and "(DEMO)" not in (c.name or "").upper()]
+    hide = not is_finance(user)
+    return [_client_out(c, hide_private=hide) for c in rows]
 
 
 @router.post("/clients", response_model=ClientOut)
 async def create_client(
     body: ClientIn,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    user: Annotated[Employee, Depends(require_office_or_demo)],
 ) -> ClientOut:
     name = (body.name or "").strip()
     if not name:
@@ -172,11 +207,19 @@ async def create_client(
     location = (body.location or "").strip()
     if not location:
         raise HTTPException(status_code=400, detail="Client location is required (e.g. USA, AUS)")
-    c = Client(name=name, location=location, phone=(body.phone or "").strip()[:40], notes=body.notes or "")
+    phone = (body.phone or "").strip()[:40] if is_finance(user) else ""
+    notes = (body.notes or "") if is_finance(user) else ""
+    c = Client(
+        name=name,
+        location=location,
+        phone=phone,
+        notes=notes,
+        is_demo=wants_demo_rows(user),
+    )
     db.add(c)
     await db.commit()
     await db.refresh(c)
-    return ClientOut(id=c.id, name=c.name, location=c.location, phone=c.phone or "", notes=c.notes, active=c.active)
+    return _client_out(c, hide_private=not is_finance(user))
 
 
 @router.get("/projects", response_model=list[ProjectOut])
@@ -184,6 +227,7 @@ async def list_projects(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[Employee, Depends(get_current_user)],
 ) -> list[ProjectOut]:
+    demo = wants_demo_rows(user)
     q = (
         select(Project)
         .options(
@@ -191,12 +235,15 @@ async def list_projects(
             selectinload(Project.assignee),
             selectinload(Project.invoices),
         )
+        .where(Project.is_demo == demo)
         .order_by(Project.updated_at.desc())
     )
-    if not is_manager(user):
+    if not is_manager(user) and not is_demo_user(user):
         q = q.where(Project.assignee_id == user.id)
-    rows = (await db.execute(q)).scalars().all()
-    hide = not is_manager(user)
+    rows = list((await db.execute(q)).scalars().all())
+    if user.role == Role.hr:
+        rows = [p for p in rows if "SAMPLE" not in (p.name or "").upper() and "DEMO —" not in (p.name or "").upper()]
+    hide = not is_finance(user)
     return [_project_out(p, hide_money=hide) for p in rows]
 
 
@@ -204,36 +251,45 @@ async def list_projects(
 async def create_project(
     body: ProjectIn,
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: Annotated[Employee, Depends(require_manager)],
+    user: Annotated[Employee, Depends(require_office_or_demo)],
 ) -> ProjectOut:
-    name = _validate_project_fields(body)
+    name = _validate_project_fields(body, require_contract=is_finance(user))
     phase = body.phase if body.phase in PHASES else ProjectPhase.intake.value
     state = body.work_state if body.work_state in STATES else WorkState.working.value
+    demo = wants_demo_rows(user)
     if body.client_id:
         c = await db.get(Client, body.client_id)
-        if not c:
+        if not c or bool(c.is_demo) != demo:
             raise HTTPException(status_code=400, detail="Client not found")
     if body.assignee_id:
         emp = await db.get(Employee, body.assignee_id)
-        if not emp:
+        if not emp or bool(getattr(emp, "is_demo", False)) != demo:
             raise HTTPException(status_code=400, detail="Assignee not found")
-    value = float(body.contract_value or 0)
-    deposit_pct = float(body.deposit_pct or 50)
-    try:
-        currency = normalize_currency(body.currency)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid currency code (use ISO 4217, e.g. USD, AUD, PKR)")
+    if is_finance(user):
+        value = float(body.contract_value or 0)
+        deposit_pct = float(body.deposit_pct or 50)
+        try:
+            currency = normalize_currency(body.currency)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid currency code (use ISO 4217, e.g. USD, AUD, PKR)")
+    else:
+        # HR / demo: project ops without client $ fields
+        value = 0.0
+        deposit_pct = 50.0
+        currency = "USD"
+        body.override_gate = False
     # New jobs have $0 paid — refuse non-intake / release start unless override
     if value > 0 and not body.override_gate:
+        aud = gate_audience(is_finance(user))
         deposit = value * (deposit_pct / 100.0)
         if phase != ProjectPhase.intake.value and deposit > 0:
-            raise HTTPException(status_code=409, detail=gate_error("need_deposit"))
+            raise HTTPException(status_code=409, detail=gate_error("need_deposit", audience=aud))
         if phase in (
             ProjectPhase.stamped_drawings.value,
             ProjectPhase.field_files.value,
             ProjectPhase.run_files.value,
         ):
-            raise HTTPException(status_code=409, detail=gate_error("need_final"))
+            raise HTTPException(status_code=409, detail=gate_error("need_final", audience=aud))
     p = Project(
         name=name,
         client_id=body.client_id,
@@ -249,6 +305,7 @@ async def create_project(
         contract_value=value,
         deposit_pct=deposit_pct,
         currency=currency,
+        is_demo=demo,
     )
     if body.override_gate and phase != ProjectPhase.intake.value and value > 0:
         db.add(
@@ -263,7 +320,7 @@ async def create_project(
     await db.commit()
     loaded = await _load_project(db, p.id)
     assert loaded
-    return _project_out(loaded)
+    return _project_out(loaded, hide_money=not is_finance(user))
 
 
 @router.patch("/projects/{project_id}", response_model=ProjectOut)
@@ -271,37 +328,45 @@ async def update_project(
     project_id: str,
     body: ProjectIn,
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: Annotated[Employee, Depends(require_manager)],
+    user: Annotated[Employee, Depends(require_office_or_demo)],
 ) -> ProjectOut:
     p = await _load_project(db, project_id)
     if not p:
         raise HTTPException(status_code=404, detail="Project not found")
-    name = _validate_project_fields(body)
+    _assert_row_scope(user, is_demo_row=bool(p.is_demo))
+    name = _validate_project_fields(body, require_contract=is_finance(user))
     if body.phase not in PHASES:
         raise HTTPException(status_code=400, detail="Invalid phase")
     if body.work_state not in STATES:
         raise HTTPException(status_code=400, detail="Invalid status")
+    demo = wants_demo_rows(user)
     if body.client_id:
         c = await db.get(Client, body.client_id)
-        if not c:
+        if not c or bool(c.is_demo) != demo:
             raise HTTPException(status_code=400, detail="Client not found")
     if body.assignee_id:
         emp = await db.get(Employee, body.assignee_id)
-        if not emp:
+        if not emp or bool(getattr(emp, "is_demo", False)) != demo:
             raise HTTPException(status_code=400, detail="Assignee not found")
 
-    p.contract_value = float(body.contract_value or 0)
-    p.deposit_pct = float(body.deposit_pct or 50)
-    try:
-        p.currency = normalize_currency(body.currency)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid currency code (use ISO 4217, e.g. USD, AUD, PKR)")
+    if is_finance(user):
+        p.contract_value = float(body.contract_value or 0)
+        p.deposit_pct = float(body.deposit_pct or 50)
+        try:
+            p.currency = normalize_currency(body.currency)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid currency code (use ISO 4217, e.g. USD, AUD, PKR)")
+    else:
+        body.override_gate = False
     await db.flush()
 
     code = gate_status(p, new_phase=body.phase)
-    allow = body.override_gate and user.role in (Role.admin, Role.manager)
+    allow = body.override_gate and is_finance(user)
     if code != "ok" and not allow:
-        raise HTTPException(status_code=409, detail=gate_error(code))
+        raise HTTPException(
+            status_code=409,
+            detail=gate_error(code, audience=gate_audience(is_finance(user))),
+        )
     if allow and code != "ok":
         db.add(
             AuditLog(
@@ -327,19 +392,21 @@ async def update_project(
     await db.commit()
     loaded = await _load_project(db, project_id)
     assert loaded
-    return _project_out(loaded)
+    return _project_out(loaded, hide_money=not is_finance(user))
 
 
 @router.delete("/projects/{project_id}")
 async def delete_project(
     project_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: Annotated[Employee, Depends(require_manager)],
+    user: Annotated[Employee, Depends(require_finance)],
 ) -> dict:
-    """Admin/manager only. Detaches invoices (keeps payment history), then removes project."""
+    """Admin/manager only — HR cannot delete (protects invoice linkage / history)."""
     p = await _load_project(db, project_id)
     if not p:
         raise HTTPException(status_code=404, detail="Project not found")
+    if p.is_demo:
+        raise HTTPException(status_code=403, detail="Use demo tools only inside the demo catalog")
     name = p.name
     for inv in list(p.invoices or []):
         inv.project_id = None

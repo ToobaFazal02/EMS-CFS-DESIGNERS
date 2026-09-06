@@ -20,7 +20,8 @@ BROWN = colors.HexColor("#615A22")
 BLACK = colors.HexColor("#000000")
 GREEN = colors.HexColor("#92D050")  # Excel lime used in the reference table
 YELLOW = colors.HexColor("#FFFF00")
-RED = colors.HexColor("#FF0000")
+RED = colors.HexColor("#7A1F2E")  # maroon (client preference vs bright red)
+MAROON = RED
 WHITE = colors.white
 GREEN_LIGHT = colors.Color(0.57, 0.82, 0.31, alpha=0.2)
 

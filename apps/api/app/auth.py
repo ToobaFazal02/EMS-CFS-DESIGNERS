@@ -66,22 +66,56 @@ async def get_current_user(
     return emp
 
 
-async def require_manager(user: Annotated[Employee, Depends(get_current_user)]) -> Employee:
-    if user.role not in (Role.manager, Role.admin):
-        raise HTTPException(status_code=403, detail="Manager access required")
-    return user
+def is_finance(user: Employee) -> bool:
+    """Admin / manager — client invoices and payments $."""
+    return user.role in (Role.admin, Role.manager)
+
+
+def is_office(user: Employee) -> bool:
+    """Admin / manager / HR — real workforce, projects board, office expenses."""
+    return user.role in (Role.admin, Role.manager, Role.hr)
+
+
+def is_demo_user(user: Employee) -> bool:
+    return user.role == Role.demo
 
 
 def is_manager(user: Employee) -> bool:
-    return user.role in (Role.manager, Role.admin)
+    """Office ops (includes HR). Prefer is_finance() when money is involved."""
+    return is_office(user)
+
+
+def is_office_or_demo(user: Employee) -> bool:
+    return is_office(user) or is_demo_user(user)
+
+
+async def require_manager(user: Annotated[Employee, Depends(get_current_user)]) -> Employee:
+    """Real office access: admin, manager, or HR (not demo, not finance-only)."""
+    if not is_office(user):
+        raise HTTPException(status_code=403, detail="Office access required")
+    return user
+
+
+async def require_office_or_demo(user: Annotated[Employee, Depends(get_current_user)]) -> Employee:
+    """Office ops or isolated demo tour (never mixes real client money)."""
+    if not is_office_or_demo(user):
+        raise HTTPException(status_code=403, detail="Office or demo access required")
+    return user
+
+
+async def require_finance(user: Annotated[Employee, Depends(get_current_user)]) -> Employee:
+    """Payments / invoices — HR and demo must never pass this gate."""
+    if not is_finance(user):
+        raise HTTPException(status_code=403, detail="Finance access required")
+    return user
 
 
 async def require_self_or_manager(
     employee_id: str,
     user: Annotated[Employee, Depends(get_current_user)],
 ) -> Employee:
-    """Staff may only open their own day; managers/admins open anyone."""
-    if is_manager(user) or user.id == employee_id:
+    """Staff may only open their own day; office roles open anyone (not demo)."""
+    if is_office(user) or user.id == employee_id:
         return user
     raise HTTPException(status_code=403, detail="You can only view your own attendance")
 
@@ -92,8 +126,6 @@ async def get_device_from_token(
 ) -> Device:
     if not creds:
         raise HTTPException(status_code=401, detail="Device token required")
-    # Device tokens are opaque; look up by verifying hash against active devices is expensive.
-    # Phase 1: JWT-shaped device token with typ=device
     try:
         payload = jwt.decode(creds.credentials, settings.secret_key, algorithms=[ALGORITHM])
         if payload.get("typ") != "device":
@@ -106,7 +138,6 @@ async def get_device_from_token(
         raise HTTPException(status_code=401, detail="Device not found")
     if device.token_hash == "revoked" or device.enrolled_at is None:
         raise HTTPException(status_code=401, detail="Device revoked — re-enroll with a new code")
-    # Bind JWT to stored hash so a forged/stolen device_id JWT cannot impersonate
     if device.token_hash not in ("pending",) and not verify_token_hash(creds.credentials, device.token_hash):
         raise HTTPException(status_code=401, detail="Device token invalid — re-enroll")
     return device

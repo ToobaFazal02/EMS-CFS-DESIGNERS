@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth import require_manager
+from app.auth import require_finance
 from app.config import get_settings
 from app.db import get_db
 from app.models import Client, Employee, Invoice, Project
@@ -139,11 +139,11 @@ def _apply_invoice_fields(inv: Invoice, body: InvoiceIn, client: Client) -> None
 
 async def _validate_invoice_refs(db: AsyncSession, body: InvoiceIn) -> Client:
     client = await db.get(Client, body.client_id)
-    if not client:
+    if not client or client.is_demo:
         raise HTTPException(status_code=400, detail="Client not found")
     if body.project_id:
         proj = await db.get(Project, body.project_id)
-        if not proj:
+        if not proj or proj.is_demo:
             raise HTTPException(status_code=400, detail="Project not found")
         if proj.client_id and proj.client_id != body.client_id:
             raise HTTPException(status_code=400, detail="Project does not belong to this client")
@@ -153,7 +153,7 @@ async def _validate_invoice_refs(db: AsyncSession, body: InvoiceIn) -> Client:
 @router.get("/invoice-settings", response_model=InvoiceSettingsOut)
 async def get_invoice_settings(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    _: Annotated[Employee, Depends(require_finance)],
 ) -> InvoiceSettingsOut:
     row = await get_or_create_invoice_settings(db)
     return InvoiceSettingsOut(
@@ -182,7 +182,7 @@ async def get_invoice_settings(
 async def update_invoice_settings(
     body: InvoiceSettingsIn,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    _: Annotated[Employee, Depends(require_finance)],
 ) -> InvoiceSettingsOut:
     row = await get_or_create_invoice_settings(db)
     for field in InvoiceSettingsIn.model_fields:
@@ -214,13 +214,14 @@ async def update_invoice_settings(
 @router.get("/invoices", response_model=list[InvoiceOut])
 async def list_invoices(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    _: Annotated[Employee, Depends(require_finance)],
 ) -> list[InvoiceOut]:
     rows = _sort_invoices(
         (
             await db.execute(
                 select(Invoice)
                 .options(selectinload(Invoice.client), selectinload(Invoice.project))
+                .where(Invoice.is_demo == False)  # noqa: E712
             )
         )
         .scalars()
@@ -233,7 +234,7 @@ async def list_invoices(
 async def create_invoice(
     body: InvoiceIn,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    _: Annotated[Employee, Depends(require_finance)],
 ) -> InvoiceOut:
     number = (body.number or "").strip()
     if not number:
@@ -264,6 +265,7 @@ async def create_invoice(
             follow_up_at=body.follow_up_at,
             status=body.status,
             kind=body.kind or "deposit",
+            is_demo=False,
         )
         _apply_invoice_fields(inv, body, client)
         db.add(inv)
@@ -283,7 +285,7 @@ async def update_invoice(
     invoice_id: str,
     body: InvoiceIn,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    _: Annotated[Employee, Depends(require_finance)],
 ) -> InvoiceOut:
     inv = await db.get(Invoice, invoice_id)
     if not inv:
@@ -333,7 +335,7 @@ async def update_invoice(
 async def delete_invoice(
     invoice_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    _: Annotated[Employee, Depends(require_finance)],
 ) -> dict:
     inv = await db.get(Invoice, invoice_id)
     if not inv:
@@ -348,7 +350,7 @@ async def delete_invoice(
 async def invoice_pdf(
     invoice_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    _: Annotated[Employee, Depends(require_finance)],
     inline: bool = False,
 ) -> FileResponse:
     try:
@@ -410,7 +412,7 @@ async def invoice_pdf(
 async def invoice_xlsx(
     invoice_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    _: Annotated[Employee, Depends(require_finance)],
 ) -> Response:
     inv = await _load(db, invoice_id)
     if not inv:
@@ -453,13 +455,14 @@ async def invoice_xlsx(
 @router.get("/reports/payments.xlsx")
 async def payments_xlsx(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    _: Annotated[Employee, Depends(require_finance)],
 ) -> Response:
     rows = _sort_invoices(
         (
             await db.execute(
                 select(Invoice)
                 .options(selectinload(Invoice.client), selectinload(Invoice.project))
+                .where(Invoice.is_demo == False)  # noqa: E712
             )
         )
         .scalars()
