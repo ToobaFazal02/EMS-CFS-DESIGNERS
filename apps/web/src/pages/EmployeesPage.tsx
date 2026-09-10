@@ -281,14 +281,16 @@ export function EmployeesPage() {
                   </td>
                   {!readOnlyDemo ? (
                     <td data-label="Actions">
-                      {r.role === "employee" ? (
+                      {r.role === "employee" || (r.role === "hr" && canCreateHr) ? (
                         <div className="row-actions">
                           <button type="button" className="secondary" onClick={() => startEdit(r)}>
                             Edit
                           </button>
-                          <button type="button" className="secondary" onClick={() => onEnroll(r, enrolled)}>
-                            {enrolled ? "Re-enroll" : "Enroll PC"}
-                          </button>
+                          {r.role === "employee" ? (
+                            <button type="button" className="secondary" onClick={() => onEnroll(r, enrolled)}>
+                              {enrolled ? "Re-enroll" : "Enroll PC"}
+                            </button>
+                          ) : null}
                           <button type="button" className="btn-danger btn-row-del" onClick={() => setPendingDelete(r)}>
                             Remove
                           </button>

@@ -63,7 +63,7 @@ async def employee_to_out(db: AsyncSession, emp: Employee) -> EmployeeOut:
 
 @router.post("/auth/login", response_model=TokenOut)
 async def login(body: LoginIn, request: Request, db: Annotated[AsyncSession, Depends(get_db)]) -> TokenOut:
-    hit(f"login:{client_ip(request)}", limit=8, window_seconds=900)
+    hit(f"login:{client_ip(request)}", limit=20, window_seconds=300)
     email = (body.email or "").strip().lower()
     result = await db.execute(select(Employee).where(Employee.email == email))
     emp = result.scalar_one_or_none()
@@ -107,7 +107,8 @@ async def list_employees(
     result = await db.execute(q.order_by(Employee.code))
     emps = list(result.scalars().all())
     if not is_finance(user):
-        emps = [e for e in emps if e.role != Role.demo]
+        # HR/employee: hide admin, manager, and demo rows
+        emps = [e for e in emps if e.role not in (Role.admin, Role.manager, Role.demo)]
     return [await employee_to_out(db, emp) for emp in emps]
 
 
@@ -159,13 +160,17 @@ async def update_employee(
     employee_id: str,
     body: EmployeeUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Employee, Depends(require_manager)],
+    actor: Annotated[Employee, Depends(require_manager)],
 ) -> EmployeeOut:
+    from app.auth import is_finance
+
     emp = await db.get(Employee, employee_id)
     if not emp or not emp.active:
         raise HTTPException(status_code=404, detail="Employee not found")
-    if emp.role in (Role.admin, Role.manager, Role.hr):
-        raise HTTPException(status_code=400, detail="Cannot edit admin/manager/HR from Employees")
+    if emp.role in (Role.admin, Role.manager):
+        raise HTTPException(status_code=400, detail="Cannot edit admin/manager from Employees")
+    if emp.role == Role.hr and not is_finance(actor):
+        raise HTTPException(status_code=403, detail="Only admin/manager can edit HR accounts")
     code = (body.code or "").strip()
     name = " ".join((body.full_name or "").split())
     if not code:
@@ -350,7 +355,7 @@ async def complete_enroll(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> EnrollCompleteOut:
-    hit(f"enroll:{client_ip(request)}", limit=12, window_seconds=900)
+    hit(f"enroll:{client_ip(request)}", limit=20, window_seconds=300)
     code = (body.enroll_code or "").strip().upper()
     if not code:
         raise HTTPException(status_code=400, detail="Enter the enroll code from the manager.")

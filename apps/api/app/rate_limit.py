@@ -17,7 +17,7 @@ def client_ip(request: Request) -> str:
     return peer or "unknown"
 
 
-def hit(key: str, limit: int, window_seconds: float) -> None:
+def hit(key: str, limit: int = 20, window_seconds: float = 300) -> None:
     now = monotonic()
     bucket = [t for t in _hits[key] if now - t < window_seconds]
     if len(bucket) >= limit:
