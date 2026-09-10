@@ -16,7 +16,9 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | `00-executive-brief.md` | One-page why |
 | `02-product-vision.md` | What we are building |
 | `03-functional-requirements.md` | **All FR** (workforce + projects + payments + later expenses) |
-| `42-client-voice-2026-08-30-plan.md` | **Latest client voice** — employees first, HR, expenses |
+| `42-client-voice-2026-08-30-plan.md` | Employees first, HR, expenses |
+| `45-client-voice-2026-09-03-plan.md` | **Latest client voice** — invoice PDF parity + Faisal/Asad shares |
+| `46-production-audit-2026-09-09.md` | **Production audit DONE** — 404/403, security, deploy gate |
 | `43-lovable-dashboard-prompt.md` | Copy-paste Lovable prompt — **Dashboard tab only** |
 | `44-dashboard-predeploy.md` | **1 Sep 2026** Dashboard data + ultra-wide type + what to click before VPS |
 | `04-non-functional-requirements.md` | **All NFR** (perf, scale, security bar) |
@@ -34,9 +36,11 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | `31-projects-payments-plan-DRAFT.md` | Sheet columns, Design Queue, 50/50 advance, gates |
 | `32-client-voice-index.md` | **All audio transcripts mapped** |
 | `42-client-voice-2026-08-30-plan.md` | Employee-first rollout, HR vs invoices, expenses, 8.1 hours |
+| `45-client-voice-2026-09-03-plan.md` | Invoice PDF exact match + Faisal/Asad partner share |
 | `../references/client-voice-2026-08-20-*.txt` | 20 Aug transcript |
 | `../references/client-voice-2026-08-21/*.txt` | 21 Aug (8 notes) transcripts |
 | `../references/client-voice-2026-08-30/` | 30–31 Aug (5 notes) transcripts |
+| `../references/client-voice-2026-09-03/` | 3 Sep (3 notes) transcripts + interpreted EN |
 
 ---
 
@@ -65,8 +69,11 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | Rebrand → CFS Designers | **Done** on live `https://ems.cfsdesigners.com` |
 | Projects Kanban + payment gates | **Built** — client said use **after** employees are live |
 | Payments Tracking | **Built** (admin only) — same: after employee week |
-| Distinct **HR** login (no invoices) | **Not built** — 30 Aug voice |
-| Office **expenses** sheet (HR) | **Not built** — 30 Aug voice |
+| Distinct **HR** login (no invoices) | **Done** Sep 2026 |
+| Office **expenses** + receipts + month/year totals | **Done** Sep 2026 |
+| Demo role + `is_demo` isolation | **Done** Sep 2026 |
+| Invoice PDF = client sample (COST, no COMMENTS, spacing) | **Next** — `docs/45` P0 (awaiting approval) |
+| Faisal / Asad partner share ledger | **Planned** — `docs/45` P1 |
 | Report hours as **8.1 / 8.2** | **Done** on web (day + dashboard). PDF may still use `2h 32m` |
 | Hubstaff dashboard / gear / scrollbars | **Done** — real API data, device type scale (`docs/19`, `docs/44`) |
 | Dark / Light + first-5-visit guides | **Done** — Account appearance; Skip/Next cards (`docs/14`) |

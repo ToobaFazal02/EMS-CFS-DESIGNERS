@@ -71,6 +71,18 @@ def is_finance(user: Employee) -> bool:
     return user.role in (Role.admin, Role.manager)
 
 
+def is_partner(user: Employee) -> bool:
+    """Faisal Khan / Asad Khan profit split — admin only. Never HR, employee, demo, or manager."""
+    if user.role != Role.admin:
+        return False
+    blob = f"{user.full_name or ''} {user.email or ''}".casefold()
+    # Named partner accounts, or the shared CFS admin login the owners already use.
+    if "faisal" in blob or "asad" in blob:
+        return True
+    email = (user.email or "").casefold().strip()
+    return email in {"admin@cfsdesigners.com", "admin@example.com"}
+
+
 def is_office(user: Employee) -> bool:
     """Admin / manager / HR — real workforce, projects board, office expenses."""
     return user.role in (Role.admin, Role.manager, Role.hr)
@@ -107,6 +119,13 @@ async def require_finance(user: Annotated[Employee, Depends(get_current_user)]) 
     """Payments / invoices — HR and demo must never pass this gate."""
     if not is_finance(user):
         raise HTTPException(status_code=403, detail="Finance access required")
+    return user
+
+
+async def require_partner(user: Annotated[Employee, Depends(get_current_user)]) -> Employee:
+    """Partner share ledger — Faisal / Asad (admin) only."""
+    if not is_partner(user):
+        raise HTTPException(status_code=403, detail="Partner access required")
     return user
 
 

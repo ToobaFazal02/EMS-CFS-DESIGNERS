@@ -1,0 +1,3 @@
+INTERPRETED (EN) — 6:39 PM (~67s)
+Invoices: keep Add New Invoice, but invoice details (client, project, area, etc.) must follow MY format so after creating we can download a proper PDF.
+Also introduce a Faisal Share / Asad Share setup on the invoices side: take total invoice value, subtract CFS office expenses, then divide the remainder by two so each partner sees their share — all visible so we know who has how much money.

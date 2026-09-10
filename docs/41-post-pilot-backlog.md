@@ -1,8 +1,20 @@
 # After MVP handover — saved list
 
-Do **not** start items 1–3 until Agents are on office PCs. Client 30–31 Aug: **employees first**. Source: `docs/42-client-voice-2026-08-30-plan.md`.
+Sources: `docs/42-client-voice-2026-08-30-plan.md` · **`docs/45-client-voice-2026-09-03-plan.md` (latest product asks)**
 
-## 0. This week (ops — not new product)
+Priority order for the **next coding sprint** (after your approval of doc 45):
+
+| Pri | Item | Status |
+|---|---|---|
+| **P0** | Invoice PDF exact match to client sample (COST $, no COMMENTS, spacing, maroon not bright red) | **Done in code 7 Sep** — verify PDF side-by-side |
+| **P1** | Faisal / Asad partner share: paid invoices − CFS expenses → ÷ 2, admin-visible | **Done in code 7 Sep** — `/partner-shares` + Dashboard KPI |
+| P2 | Employee Agent enroll + how-to screen video (ops) | Ongoing ops |
+| P3 | Sales white-label demo walkthrough | Later — after CFS ops stable |
+| — | PDF report hours `8.1 h` vs `2h 32m` | Nice-to-have |
+
+---
+
+## 0. Ops (not new product)
 
 - Add employees + professional EMS emails + unique passwords
 - Enroll PCs; four punch buttons; branded Agent already in zip
@@ -10,41 +22,42 @@ Do **not** start items 1–3 until Agents are on office PCs. Client 30–31 Aug:
 
 ---
 
-## 1. Hubstaff-style dashboard (first screen)
+## 1. Hubstaff-style dashboard (first screen) — **done**
 
-- Opening after login must **not** land on Live first. Home = **Dashboard**. Live is its own tab (screenshots). **No duplicate Live/Employees/Projects buttons on the dashboard.**
-- Visual pass: Lovable layout shipped (KPI + donut + week hours + pipeline + admin invoices + roster). Data from `GET /api/v1/dashboard` (PKT hours, live status, real invoices).
-- Money (unpaid invoices) **admin only**.
+- Home = **Dashboard**. Live is its own tab. Money (unpaid invoices) **admin only**.
 
-## 2. Settings gear (replace Account tab) — **done 31 Aug 2026**
-
-- Header: **gear icon** (not a full Account tab).
-- Click → dropdown: Account, Logout (and later theme/help if needed).
-- Same pattern as professional SaaS sidebars.
+## 2. Settings gear — **done 31 Aug 2026**
 
 ## 3. Themed thin scrollbars — **done 31 Aug 2026**
 
-- Every scroll surface: thin bars in **black / gold / white** — not default grey/white OS bars.
+## 4. Agent as a real desktop app — **done** (`CFS-Agent-Install.zip`)
 
-## 4. Agent as a real desktop app
+## 5. Decimal hours — **web day view 8.1 h (done)**; PDF reports still `2h 32m`
 
-- Company **CFS logo** on desktop, Start Menu, taskbar, window, tray — **done** in `CFS-Agent-Install.zip`
-- Install once → stays enrolled (client: no daily login/logout of the app)
-- Window **X** → Quit (red) / Cancel
+## 6–8. Distinct HR + expenses isolation — **done Sep 2026**
 
-## 5. Decimal hours (client 31 Aug) — **web day view 8.1 h (done)**
+- HR: attendance / projects / expenses — **not** Payments / invoice $
+- Demo role + `is_demo` catalog — never mixed into real data
+- Receipts upload/view/download + monthly + yearly expense totals
 
-- Reports: prefer **8.1 / 8.2** (and breaks in hours), not minutes-first `2h 32m` only
+## 10. Invoice PDF parity (P0 — client 3 Sep 2026)
 
-## 6. Distinct HR role
+See `docs/45-client-voice-2026-09-03-plan.md`.
 
-- Login that sees attendance + projects + later expenses
-- **Cannot** see client invoices / $
+- Column **COST ($)** (not Budget)
+- Drop **COMMENTS** column
+- Spacing: Invoice To / USD Account Details / Thank you — match sample
+- No bright red; maroon only on unpaid/highlights
+- Side-by-side test vs `Invoice - Faisal - CFS Designers (30-07-26).pdf`
 
-## 8. HR + expenses isolation — **done Sep 2026**
+## 11. Partner shares — Faisal / Asad (P1 — client 3 Sep 2026)
 
-- HR sees real CFS attendance / projects / expenses — **not** Payments / invoice $
-- Demo role is separate (`is_demo` catalog) — never mixed into HR/admin real data
+```
+Total invoice value (period) − CFS office expenses = net
+net ÷ 2 = Faisal share | Asad share
+```
+
+Admin-only; not HR / not demo. Confirm 50/50 + paid-only defaults in doc 45 before coding.
 
 ## 9. Sales / marketing demo (BACKLOG — do not start until CFS ops stable)
 
@@ -60,7 +73,3 @@ Do **not** start items 1–3 until Agents are on office PCs. Client 30–31 Aug:
 | USA targeting | Pain: “CAD detailers / LGS shops / remote drafting teams”; LinkedIn + Meta ads to AEC / cold-formed steel / remote engineering orgs; landing = book a call + demo login |
 
 **Do not** run ads that show real CFS clients, screenshots, or invoice bank details.
-
----
-
-When starting a later sprint after employees are live, remaining: **HR role → expenses**. PDF reports still use `2h 32m` until a follow-up.

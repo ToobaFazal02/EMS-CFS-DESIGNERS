@@ -13,6 +13,7 @@ import {
   type InvoiceSettings,
   type ProjectRow,
 } from "../api";
+import { CellColorPicker } from "../components/CellColorPicker";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { CurrencySelect } from "../components/CurrencySelect";
 import { RefreshButton } from "../components/RefreshButton";
@@ -51,6 +52,7 @@ const emptyLine = (): InvoiceLineItem => ({
   rate: "",
   comments: "",
   unpaid: false,
+  cell_colors: {},
 });
 
 const emptyForm: FormState = {
@@ -263,6 +265,7 @@ export function PaymentsPage() {
             rate: String(row.rate ?? (row.unit_price != null ? String(row.unit_price) : "")),
             comments: String(row.comments || ""),
             unpaid: Boolean(row.unpaid),
+            cell_colors: { ...(row.cell_colors || {}) },
           }))
         : [{ ...emptyLine(), description: "Services", qty: 1, unit_price: Number(r.amount) || 0, area: "", rate: String(Number(r.amount) || 0) }];
 
@@ -298,7 +301,30 @@ export function PaymentsPage() {
         rate: String(next[index]?.rate || ""),
         comments: String(next[index]?.comments || ""),
         unpaid: Boolean(next[index]?.unpaid),
+        cell_colors: { ...(next[index]?.cell_colors || {}) },
         ...patch,
+      };
+      return { ...prev, line_items: next };
+    });
+  }
+
+  function setCellColor(
+    index: number,
+    key: "project" | "scope" | "area" | "rate" | "cost",
+    hex: string,
+  ) {
+    setForm((prev) => {
+      const next = [...prev.line_items];
+      const row = next[index];
+      if (!row) return prev;
+      const colors = { ...(row.cell_colors || {}) };
+      const cleaned = (hex || "").trim().toUpperCase();
+      if (!cleaned) delete colors[key];
+      else colors[key] = cleaned;
+      next[index] = {
+        ...row,
+        cell_colors: colors,
+        unpaid: key === "cost" && cleaned === "#7A1F2E" ? true : row.unpaid,
       };
       return { ...prev, line_items: next };
     });
@@ -352,7 +378,7 @@ export function PaymentsPage() {
         return;
       }
       if (areaNum == null && rateNum == null && (Number(row.unit_price) || 0) < 0) {
-        toast.error(`Line ${i + 1}: Budget cannot be negative`);
+        toast.error(`Line ${i + 1}: COST cannot be negative`);
         return;
       }
     }
@@ -385,6 +411,9 @@ export function PaymentsPage() {
             rate: String(row.rate || "").trim(),
             comments: String(row.comments || "").trim(),
             unpaid: Boolean(row.unpaid),
+            cell_colors: Object.fromEntries(
+              Object.entries(row.cell_colors || {}).filter(([, v]) => Boolean(v && String(v).trim())),
+            ),
           };
         }),
         invoice_notes: form.invoice_notes.trim(),
@@ -703,8 +732,7 @@ export function PaymentsPage() {
                         <th>Scope of Work</th>
                         <th className="col-qty">Area</th>
                         <th className="col-rate">$ / sq.ft</th>
-                        <th className="col-amt">Budget</th>
-                        <th>Comments</th>
+                        <th className="col-amt">COST ($)</th>
                         <th className="col-unpaid">Unpaid</th>
                         <th className="col-del" aria-label="Remove" />
                       </tr>
@@ -713,68 +741,112 @@ export function PaymentsPage() {
                       {form.line_items.map((row, i) => {
                         const amt = lineAmount(row);
                         const numeric = parseNum(row.area) != null && parseNum(row.rate) != null;
+                        const cc = row.cell_colors || {};
                         return (
                           <tr key={i} className={row.unpaid ? "line-unpaid" : undefined}>
                             <td className="col-sno">{i + 1}</td>
                             <td>
-                              <input
-                                required
-                                value={row.description}
-                                onChange={(e) => updateLineItem(i, { description: e.target.value })}
-                                placeholder="Project name"
-                              />
-                            </td>
-                            <td>
-                              <input
-                                value={row.scope || ""}
-                                onChange={(e) => updateLineItem(i, { scope: e.target.value })}
-                                placeholder="Estimation / Detailing"
-                              />
-                            </td>
-                            <td>
-                              <input
-                                value={row.area ?? ""}
-                                onChange={(e) => updateLineItem(i, { area: e.target.value })}
-                                placeholder="309 or LumpSum"
-                              />
-                            </td>
-                            <td>
-                              <input
-                                value={row.rate ?? ""}
-                                onChange={(e) => updateLineItem(i, { rate: e.target.value })}
-                                placeholder="0.4 or LumpSum"
-                              />
-                            </td>
-                            <td className={`col-amt${row.unpaid ? " cell-unpaid" : ""}`}>
-                              {numeric ? (
-                                formatMoney(amt, form.currency)
-                              ) : (
+                              <div className="cell-with-color">
                                 <input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
-                                  value={row.unit_price || ""}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    updateLineItem(i, { unit_price: val === "" ? 0 : Number(val) });
-                                  }}
-                                  placeholder="Budget"
+                                  required
+                                  value={row.description}
+                                  onChange={(e) => updateLineItem(i, { description: e.target.value })}
+                                  placeholder="Project name"
+                                  style={cc.project ? { background: cc.project } : undefined}
                                 />
-                              )}
+                                <CellColorPicker
+                                  label="Project"
+                                  value={cc.project}
+                                  onChange={(hex) => setCellColor(i, "project", hex)}
+                                />
+                              </div>
                             </td>
                             <td>
-                              <input
-                                value={row.comments || ""}
-                                onChange={(e) => updateLineItem(i, { comments: e.target.value })}
-                                placeholder="Notes"
-                              />
+                              <div className="cell-with-color">
+                                <input
+                                  value={row.scope || ""}
+                                  onChange={(e) => updateLineItem(i, { scope: e.target.value })}
+                                  placeholder="Estimation / Detailing"
+                                  style={cc.scope ? { background: cc.scope } : undefined}
+                                />
+                                <CellColorPicker
+                                  label="Scope"
+                                  value={cc.scope}
+                                  onChange={(hex) => setCellColor(i, "scope", hex)}
+                                />
+                              </div>
+                            </td>
+                            <td>
+                              <div className="cell-with-color">
+                                <input
+                                  value={row.area ?? ""}
+                                  onChange={(e) => updateLineItem(i, { area: e.target.value })}
+                                  placeholder="309 or LumpSum"
+                                  style={cc.area ? { background: cc.area } : undefined}
+                                />
+                                <CellColorPicker
+                                  label="Area"
+                                  value={cc.area}
+                                  onChange={(hex) => setCellColor(i, "area", hex)}
+                                />
+                              </div>
+                            </td>
+                            <td>
+                              <div className="cell-with-color">
+                                <input
+                                  value={row.rate ?? ""}
+                                  onChange={(e) => updateLineItem(i, { rate: e.target.value })}
+                                  placeholder="0.4 or LumpSum"
+                                  style={cc.rate ? { background: cc.rate } : undefined}
+                                />
+                                <CellColorPicker
+                                  label="Rate"
+                                  value={cc.rate}
+                                  onChange={(hex) => setCellColor(i, "rate", hex)}
+                                />
+                              </div>
+                            </td>
+                            <td
+                              className={`col-amt${
+                                row.unpaid && !(cc.cost && cc.cost.toUpperCase() !== "#7A1F2E") ? " cell-unpaid" : ""
+                              }`}
+                              style={cc.cost ? { background: cc.cost, color: cc.cost.toUpperCase() === "#7A1F2E" ? "#fff" : undefined } : undefined}
+                            >
+                              <div className="cell-with-color">
+                                {numeric ? (
+                                  <span className="cell-amt-text">{formatMoney(amt, form.currency)}</span>
+                                ) : (
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={row.unit_price || ""}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      updateLineItem(i, { unit_price: val === "" ? 0 : Number(val) });
+                                    }}
+                                    placeholder="COST"
+                                  />
+                                )}
+                                <CellColorPicker
+                                  label="COST"
+                                  value={cc.cost}
+                                  onChange={(hex) => setCellColor(i, "cost", hex)}
+                                />
+                              </div>
                             </td>
                             <td className="col-unpaid">
                               <label className="unpaid-check">
                                 <input
                                   type="checkbox"
                                   checked={Boolean(row.unpaid)}
-                                  onChange={(e) => updateLineItem(i, { unpaid: e.target.checked })}
+                                  onChange={(e) => {
+                                    const on = e.target.checked;
+                                    const colors = { ...(row.cell_colors || {}) };
+                                    if (on) colors.cost = "#7A1F2E";
+                                    else if ((colors.cost || "").toUpperCase() === "#7A1F2E") delete colors.cost;
+                                    updateLineItem(i, { unpaid: on, cell_colors: colors });
+                                  }}
                                 />
                                 Maroon
                               </label>
@@ -797,10 +869,10 @@ export function PaymentsPage() {
                     <tfoot>
                       <tr>
                         <td colSpan={5} className="total-label">
-                          Total budget
+                          TOTAL BUDGET
                         </td>
                         <td className="col-amt total-value">{formatMoney(computedTotal, form.currency)}</td>
-                        <td colSpan={3} />
+                        <td colSpan={2} />
                       </tr>
                     </tfoot>
                   </table>
@@ -809,7 +881,7 @@ export function PaymentsPage() {
                   + Add line item
                 </button>
                 <p className="line-hint">
-                  Tick <b>Unpaid / Maroon</b> to paint that Budget cell maroon on the PDF. Scope “Detailing” is automatically yellow — same as the client template.
+                  Paint any cell: click the small color chip on Project / Scope / Area / Rate / COST — Yellow for Detailing (like the client PDF), Maroon for unpaid COST, or any custom color. PDF matches your picks.
                 </p>
 
               <div className="invoice-notes-block">

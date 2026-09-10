@@ -3,10 +3,37 @@
 from __future__ import annotations
 
 import json
+import re
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 MAX_LINE_ITEMS = 50
+_HEX_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+CELL_COLOR_KEYS = ("project", "scope", "area", "rate", "cost")
+
+
+def _clean_hex(raw: object) -> str:
+    s = str(raw or "").strip()
+    if not s:
+        return ""
+    if not s.startswith("#"):
+        s = f"#{s}"
+    if _HEX_RE.match(s):
+        if len(s) == 4:
+            s = f"#{s[1]*2}{s[2]*2}{s[3]*2}"
+        return s.upper()
+    return ""
+
+
+def _clean_cell_colors(raw: object) -> dict[str, str]:
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key in CELL_COLOR_KEYS:
+        hx = _clean_hex(raw.get(key))
+        if hx:
+            out[key] = hx
+    return out
 
 
 class InvoiceLineItem(BaseModel):
@@ -18,6 +45,12 @@ class InvoiceLineItem(BaseModel):
     rate: str = Field("", max_length=80)
     comments: str = Field("", max_length=500)
     unpaid: bool = False
+    cell_colors: dict[str, str] = Field(default_factory=dict)
+
+    @field_validator("cell_colors", mode="before")
+    @classmethod
+    def _validate_colors(cls, v: object) -> dict[str, str]:
+        return _clean_cell_colors(v)
 
     @property
     def line_total(self) -> float:
@@ -56,6 +89,7 @@ def _row_dict(row) -> dict:
             "rate": getattr(row, "rate", ""),
             "comments": getattr(row, "comments", ""),
             "unpaid": getattr(row, "unpaid", False),
+            "cell_colors": getattr(row, "cell_colors", {}) or {},
         }
     else:
         data = row
@@ -86,6 +120,7 @@ def _row_dict(row) -> dict:
         "rate": rate,
         "comments": str(data.get("comments") or "").strip(),
         "unpaid": bool(unpaid),
+        "cell_colors": _clean_cell_colors(data.get("cell_colors")),
     }
 
 
@@ -119,6 +154,7 @@ def line_items_for_pdf(items: list[InvoiceLineItem], *, fallback_desc: str, fall
                 "amount": i.line_total,
                 "comments": i.comments,
                 "unpaid": i.unpaid,
+                "cell_colors": dict(i.cell_colors or {}),
             }
             for i in items
         ]
@@ -135,6 +171,7 @@ def line_items_for_pdf(items: list[InvoiceLineItem], *, fallback_desc: str, fall
                 "amount": amt,
                 "comments": "",
                 "unpaid": False,
+                "cell_colors": {},
             }
         ]
     return []

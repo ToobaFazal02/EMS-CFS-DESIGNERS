@@ -13,9 +13,11 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { DayPage } from "./pages/DayPage";
 import { EmployeesPage } from "./pages/EmployeesPage";
 import { ExpensesPage } from "./pages/ExpensesPage";
+import { PartnerSharesPage } from "./pages/PartnerSharesPage";
 import { PaymentsPage } from "./pages/PaymentsPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { AccessDeniedPage, NotFoundPage } from "./pages/NotFoundPage";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -57,6 +59,8 @@ function LoginPage() {
       localStorage.setItem("ems_role", data.role);
       localStorage.setItem("ems_employee_id", data.employee_id);
       localStorage.setItem("ems_login_hint", email.trim().toLowerCase());
+      // Old layout-preview leftover — caused fake KPI boxes to flash after login
+      localStorage.removeItem("ems_dash_preview");
       const role = String(data.role || "");
       if (role === "employee") nav(`/day/${data.employee_id}`);
       else nav("/");
@@ -187,6 +191,11 @@ function isFinanceRole(): boolean {
   return r === "admin" || r === "manager";
 }
 
+function isPartnerRole(): boolean {
+  /** Faisal / Asad profit split — admin only (never HR / employee / demo / manager). */
+  return (localStorage.getItem("ems_role") || "") === "admin";
+}
+
 function isOfficeRole(): boolean {
   const r = localStorage.getItem("ems_role") || "";
   return r === "admin" || r === "manager" || r === "hr";
@@ -212,11 +221,13 @@ function roleLabel(role: string): string {
 function MainNavLinks({
   office,
   finance,
+  partner,
   demo,
   myId,
 }: {
   office: boolean;
   finance: boolean;
+  partner: boolean;
   demo: boolean;
   myId: string;
 }) {
@@ -243,6 +254,7 @@ function MainNavLinks({
         <NavLink to="/employees">Employees</NavLink>
         <NavLink to="/projects">Projects</NavLink>
         {finance ? <NavLink to="/payments">Payments</NavLink> : null}
+        {partner ? <NavLink to="/partner-shares">Shares</NavLink> : null}
         <NavLink to="/expenses">Expenses</NavLink>
         <NavLink to="/reports">Reports</NavLink>
       </>
@@ -265,6 +277,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const myId = localStorage.getItem("ems_employee_id") || "";
   const office = isOfficeRole();
   const finance = isFinanceRole();
+  const partner = isPartnerRole();
   const demo = isDemoRole();
   const nav = useNavigate();
   const loc = useLocation();
@@ -328,7 +341,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <nav className="nav nav-desktop" aria-label="Main">
-          <MainNavLinks office={office} finance={finance} demo={demo} myId={myId} />
+          <MainNavLinks office={office} finance={finance} partner={partner} demo={demo} myId={myId} />
         </nav>
         <div className="topbar-actions">
           <div className="user-chip">
@@ -434,7 +447,7 @@ function Shell({ children }: { children: React.ReactNode }) {
                 </svg>
               </button>
             </div>
-            <MainNavLinks office={office} finance={finance} demo={demo} myId={myId} />
+            <MainNavLinks office={office} finance={finance} partner={partner} demo={demo} myId={myId} />
           </nav>
         </>,
         document.body,
@@ -471,13 +484,25 @@ function RequireOfficeOrDemo({ children }: { children: React.ReactNode }) {
 function RequireFinance({ children }: { children: React.ReactNode }) {
   if (!localStorage.getItem("ems_token")) return <Navigate to="/login" replace />;
   if (!isFinanceRole()) {
-    return <Navigate to="/" replace />;
+    return (
+      <Shell>
+        <AccessDeniedPage message="HR and staff cannot open Payments or client invoices. Ask an admin if you need access." />
+      </Shell>
+    );
   }
   return <Shell>{children}</Shell>;
 }
 
-function RequireManager({ children }: { children: React.ReactNode }) {
-  return <RequireOffice>{children}</RequireOffice>;
+function RequirePartner({ children }: { children: React.ReactNode }) {
+  if (!localStorage.getItem("ems_token")) return <Navigate to="/login" replace />;
+  if (!isPartnerRole()) {
+    return (
+      <Shell>
+        <AccessDeniedPage message="Partner shares are only for Faisal / Asad (admin). Your role cannot open this page." />
+      </Shell>
+    );
+  }
+  return <Shell>{children}</Shell>;
 }
 
 function LivePage() {
@@ -563,6 +588,17 @@ function LivePage() {
   );
 }
 
+function CatchAllPage() {
+  if (localStorage.getItem("ems_token")) {
+    return (
+      <Shell>
+        <NotFoundPage />
+      </Shell>
+    );
+  }
+  return <NotFoundPage />;
+}
+
 export default function App() {
   return (
     <Routes>
@@ -616,6 +652,14 @@ export default function App() {
         }
       />
       <Route
+        path="/partner-shares"
+        element={
+          <RequirePartner>
+            <PartnerSharesPage />
+          </RequirePartner>
+        }
+      />
+      <Route
         path="/expenses"
         element={
           <RequireOfficeOrDemo>
@@ -639,6 +683,7 @@ export default function App() {
           </RequireOffice>
         }
       />
+      <Route path="*" element={<CatchAllPage />} />
     </Routes>
   );
 }

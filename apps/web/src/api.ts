@@ -122,6 +122,30 @@ export type DashFinance = {
   currency: string;
   late: DashLateInvoice[];
 };
+export type DashPartnerShares = {
+  year: number;
+  month: number | null;
+  currency: string;
+  display_currency?: string;
+  usd_pkr_rate: number;
+  rate_date?: string | null;
+  rate_note?: string;
+  partner_a_name: string;
+  partner_b_name: string;
+  paid_invoices_usd: number;
+  paid_invoices_pkr?: number;
+  paid_invoice_count: number;
+  expenses_pkr: number;
+  expenses_usd: number;
+  expense_count: number;
+  net_usd: number;
+  net_pkr?: number;
+  faisal_share_usd: number;
+  faisal_share_pkr?: number;
+  asad_share_usd: number;
+  asad_share_pkr?: number;
+  split_percent: number;
+};
 export type DashboardSummary = {
   generated_at: string;
   timezone: string;
@@ -136,6 +160,7 @@ export type DashboardSummary = {
   sparkline: number[];
   roster: DashRosterRow[];
   finance: DashFinance | null;
+  partner_shares: DashPartnerShares | null;
 };
 
 export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardSummary> {
@@ -276,6 +301,8 @@ export type InvoiceLineItem = {
   rate?: string;
   comments?: string;
   unpaid?: boolean;
+  /** PDF cell backgrounds: project | scope | area | rate | cost */
+  cell_colors?: Partial<Record<"project" | "scope" | "area" | "rate" | "cost", string>>;
 };
 
 export type InvoiceSettings = {
@@ -547,6 +574,58 @@ export async function fetchExpenseReceipt(url: string): Promise<Blob> {
   const r = await fetch(`${API}${url}`, { headers: authHeaders() });
   if (!r.ok) throw new Error(await apiError(r, "Could not open receipt"));
   return r.blob();
+}
+
+export type PartnerSharePaidRow = {
+  id: string;
+  number: string;
+  client_name: string;
+  amount: number;
+  amount_usd?: number | null;
+  amount_pkr?: number | null;
+  currency: string;
+  invoice_date: string | null;
+  usd_pkr_rate?: number | null;
+  rate_date?: string | null;
+  in_pool: boolean;
+};
+
+export type PartnerShareExpenseRow = {
+  id: string;
+  spent_on: string;
+  category: string;
+  amount_pkr: number;
+  amount_usd: number;
+  usd_pkr_rate: number;
+  rate_date: string;
+  vendor_note: string;
+};
+
+export type PartnerShares = DashPartnerShares & {
+  paid_rows: PartnerSharePaidRow[];
+  expense_rows?: PartnerShareExpenseRow[];
+};
+
+export async function fetchPartnerShares(opts?: {
+  year?: number;
+  month?: number | null;
+  signal?: AbortSignal;
+}): Promise<PartnerShares> {
+  const q = new URLSearchParams();
+  if (opts?.year != null) q.set("year", String(opts.year));
+  if (opts?.month != null) q.set("month", String(opts.month));
+  const qs = q.toString();
+  const r = await fetch(`${API}/api/v1/partner-shares${qs ? `?${qs}` : ""}`, {
+    headers: authHeaders(),
+    signal: opts?.signal,
+  });
+  if (r.status === 401) {
+    localStorage.removeItem("ems_token");
+    throw new Error("Session expired — sign in again");
+  }
+  if (r.status === 403) throw new Error("Partner access required");
+  if (!r.ok) throw new Error(await apiError(r, "Failed to load partner shares"));
+  return r.json();
 }
 
 export { authHeaders, API };

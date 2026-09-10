@@ -13,7 +13,7 @@ Senior frontend/design pass before shipping the Hubstaff-style **Dashboard** hom
 | Client invoices | Admin only. Unpaid total = **dominant currency only**. Late list = real overdue invoices | Real client names. **No fake layout rows** |
 | Team roster | Same live staff list | Names and hours from the database |
 
-**Sample overlay (localhost `vite` only):** fake 2-live / 43.3 h numbers for colour layout. Blocked when `import.meta.env.PROD` is true, hostname is not localhost, or host is `*.cfsdesigners.com`. Live EMS never shows that overlay.
+**Sample overlay:** removed (9 Sep 2026). Old `localStorage.ems_dash_preview=1` caused fake KPI boxes to flash after login then vanish — Dashboard now waits for real API data only and clears that flag on load/login.
 
 Refresh keeps the last successful payload if the API fails. Stale in-flight requests are aborted.
 

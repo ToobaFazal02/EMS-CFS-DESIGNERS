@@ -153,6 +153,20 @@ def _is_unpaid(row: dict) -> bool:
     return bool(val)
 
 
+def _cell_hex(row: dict, key: str) -> str | None:
+    colors_map = row.get("cell_colors") if isinstance(row.get("cell_colors"), dict) else {}
+    raw = str((colors_map or {}).get(key) or "").strip()
+    if not raw:
+        return None
+    if not raw.startswith("#"):
+        raw = f"#{raw}"
+    try:
+        colors.HexColor(raw)
+        return raw
+    except Exception:
+        return None
+
+
 def _banner_green(settings: dict) -> colors.Color:
     raw = str((settings or {}).get("header_color") or "#92D050").strip()
     if raw.lower() == "#548235":
@@ -205,8 +219,8 @@ def build_invoice_pdf(
         fontName=FONT_GEORGIA,
         fontSize=21.1,
         textColor=COPPER,
-        leading=24,
-        spaceAfter=6,
+        leading=26,
+        spaceAfter=10,
     )
     meta = ParagraphStyle(
         "meta",
@@ -214,7 +228,8 @@ def build_invoice_pdf(
         fontName=FONT_ARIAL,
         fontSize=8,
         textColor=BROWN,
-        leading=11,
+        leading=12,
+        spaceAfter=2,
     )
     date_style = ParagraphStyle(
         "inv_date",
@@ -223,8 +238,8 @@ def build_invoice_pdf(
         fontSize=8.8,
         textColor=BROWN,
         leading=12,
-        spaceBefore=1,
-        spaceAfter=8,
+        spaceBefore=6,
+        spaceAfter=18,
     )
     invoice_to = ParagraphStyle(
         "invoice_to",
@@ -233,7 +248,8 @@ def build_invoice_pdf(
         fontSize=10.9,
         textColor=COPPER,
         leading=14,
-        spaceAfter=2,
+        spaceBefore=2,
+        spaceAfter=4,
     )
     client_name = ParagraphStyle(
         "client_name",
@@ -241,8 +257,8 @@ def build_invoice_pdf(
         fontName=FONT_GEORGIA,
         fontSize=21.1,
         textColor=BLACK,
-        leading=24,
-        spaceAfter=2,
+        leading=26,
+        spaceAfter=6,
     )
     client_banner = ParagraphStyle(
         "client_banner",
@@ -289,7 +305,7 @@ def build_invoice_pdf(
         fontSize=12,
         textColor=BROWN,
         leading=16,
-        spaceAfter=6,
+        spaceAfter=10,
     )
     bank_p = ParagraphStyle(
         "bank_p",
@@ -297,8 +313,8 @@ def build_invoice_pdf(
         fontName=FONT_ARIAL,
         fontSize=9.8,
         textColor=BROWN,
-        leading=12.5,
-        spaceAfter=6,
+        leading=14,
+        spaceAfter=12,
     )
     bank_line = ParagraphStyle(
         "bank_line",
@@ -307,6 +323,17 @@ def build_invoice_pdf(
         fontSize=9.8,
         textColor=BROWN,
         leading=12,
+        spaceAfter=2,
+    )
+    # Value + hint in one paragraph so no extra gap (same as Routing / Swift).
+    bank_block = ParagraphStyle(
+        "bank_block",
+        parent=styles["Normal"],
+        fontName=FONT_ARIAL,
+        fontSize=9.8,
+        textColor=BROWN,
+        leading=12,
+        spaceAfter=10,
     )
     contact = ParagraphStyle(
         "contact",
@@ -314,8 +341,18 @@ def build_invoice_pdf(
         fontName=FONT_ARIAL,
         fontSize=11,
         textColor=BROWN,
-        leading=14,
-        spaceAfter=2,
+        leading=15,
+        spaceAfter=8,
+    )
+    contact_name_style = ParagraphStyle(
+        "contact_name",
+        parent=contact,
+        spaceAfter=4,
+    )
+    contact_email_style = ParagraphStyle(
+        "contact_email",
+        parent=contact,
+        spaceAfter=12,
     )
     thanks = ParagraphStyle(
         "thanks",
@@ -351,40 +388,53 @@ def build_invoice_pdf(
         story.append(Paragraph(_e(bill_to_location), meta))
     if bill_to_phone:
         story.append(Paragraph(_e(bill_to_phone), meta))
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 18))
 
-    # Column widths from the embedded table image (778px → 509pt).
-    col_w = [38, 124, 74, 62, 66, 72, 73]
+    # Client sample: 6 columns (no COMMENTS). Widths ≈ Letter content ~509pt.
+    col_w = [42, 148, 88, 70, 78, 83]
     client_label = (_e(bill_to_name) or "CLIENT").upper()
+    # Map PDF column index → cell_colors key
+    col_keys = ("", "project", "scope", "area", "rate", "cost")
 
     rows_data: list[list] = [
-        [Paragraph(client_label, client_banner), "", "", "", "", "", ""],
+        [Paragraph(client_label, client_banner), "", "", "", "", ""],
         [
             Paragraph("S/NO", th),
             Paragraph("Project Name", th),
             Paragraph("Scope of Work", th),
             Paragraph("AREA", th),
             Paragraph("$ per sq.ft", th),
-            Paragraph("Budget ($)", th),
-            Paragraph("COMMENTS", th),
+            Paragraph("COST ($)", th),
         ],
     ]
     subtotal = 0.0
     items = line_items or []
-    unpaid_rows: list[int] = []
-    yellow_rows: list[int] = []
+    # (row_index, col_index, hex, white_text)
+    cell_paints: list[tuple[int, int, str, bool]] = []
     for i, row in enumerate(items, 1):
         desc = _e(row.get("description", ""))
         scope = str(row.get("scope", "") or "")
-        comments = _e(row.get("comments", ""))
         line_amt = _line_amount(row)
         subtotal += line_amt
         ridx = len(rows_data)
         unpaid = _is_unpaid(row)
-        if _is_detailing(scope):
-            yellow_rows.append(ridx)
-        if unpaid:
-            unpaid_rows.append(ridx)
+
+        # Explicit per-cell colors from the form.
+        for cidx, key in enumerate(col_keys):
+            if not key:
+                continue
+            hx = _cell_hex(row, key)
+            if hx:
+                cell_paints.append((ridx, cidx, hx, hx.upper() in {"#7A1F2E", "#92263A", "#6B1A28"}))
+
+        # Legacy defaults if user did not set an explicit color:
+        # Detailing → yellow scope; Unpaid → maroon COST.
+        if not _cell_hex(row, "scope") and _is_detailing(scope):
+            cell_paints.append((ridx, 2, "#FFFF00", False))
+        if unpaid and not _cell_hex(row, "cost"):
+            cell_paints.append((ridx, 5, "#7A1F2E", True))
+
+        cost_white = unpaid or (_cell_hex(row, "cost") or "").upper() in {"#7A1F2E", "#92263A", "#6B1A28"}
         rows_data.append(
             [
                 Paragraph(str(i), td),
@@ -392,8 +442,7 @@ def build_invoice_pdf(
                 Paragraph(_e(scope), td),
                 Paragraph(_e(_display_area(row)), td),
                 Paragraph(_e(_display_rate(row)), td),
-                Paragraph(_fmt_budget(line_amt), td_w if unpaid else td),
-                Paragraph(comments, td),
+                Paragraph(_fmt_budget(line_amt), td_w if cost_white else td),
             ]
         )
     if not items:
@@ -405,7 +454,6 @@ def build_invoice_pdf(
                 Paragraph("", td),
                 Paragraph("", td),
                 Paragraph("0", td),
-                Paragraph("", td),
             ]
         )
 
@@ -419,7 +467,6 @@ def build_invoice_pdf(
             "",
             "",
             Paragraph(_fmt_budget(total_amt), tot),
-            Paragraph("", td),
         ]
     )
 
@@ -433,25 +480,27 @@ def build_invoice_pdf(
         ("BOX", (0, 0), (-1, -1), 0.5, BLACK),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ALIGN", (0, 1), (-1, 1), "CENTER"),
-        ("LEFTPADDING", (0, 0), (-1, -1), 2),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 2),
-        ("TOPPADDING", (0, 0), (0, 0), 6),
-        ("BOTTOMPADDING", (0, 0), (0, 0), 6),
-        ("TOPPADDING", (0, 1), (-1, -1), 2),
-        ("BOTTOMPADDING", (0, 1), (-1, -1), 2),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING", (0, 0), (0, 0), 7),
+        ("BOTTOMPADDING", (0, 0), (0, 0), 7),
+        ("TOPPADDING", (0, 1), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
     ]
-    for ridx in yellow_rows:
-        tbl_style.append(("BACKGROUND", (2, ridx), (2, ridx), YELLOW))
-    for ridx in unpaid_rows:
-        tbl_style.append(("BACKGROUND", (5, ridx), (5, ridx), RED))
-        tbl_style.append(("TEXTCOLOR", (5, ridx), (5, ridx), WHITE))
+    for ridx, cidx, hx, white_text in cell_paints:
+        tbl_style.append(("BACKGROUND", (cidx, ridx), (cidx, ridx), _hex_color(hx, "#FFFF00")))
+        if white_text:
+            tbl_style.append(("TEXTCOLOR", (cidx, ridx), (cidx, ridx), WHITE))
     items_tbl.setStyle(TableStyle(tbl_style))
     story.append(items_tbl)
 
-    story.append(Spacer(1, 10))
+    # Match reference: generous gap before bank block.
+    story.append(Spacer(1, 26))
     story.append(Paragraph(f"<u>{bank_title}</u>", bank_h))
     if bank_intro:
         story.append(Paragraph(bank_intro, bank_p))
+    else:
+        story.append(Spacer(1, 4))
 
     bank_fields = [
         ("Name", s.get("bank_account_name", ""), ""),
@@ -465,12 +514,13 @@ def build_invoice_pdf(
         val = _e(value)
         if not val:
             continue
-        story.append(Paragraph(f"{_e(label)}: {val}", bank_line))
         if hint:
-            story.append(Paragraph(_e(hint), bank_line))
-        story.append(Spacer(1, 3))
-
-    story.append(Spacer(1, 10))
+            # One block — tight like Routing / hint (no blank line between).
+            story.append(Paragraph(f"{_e(label)}: {val}<br/>{_e(hint)}", bank_block))
+        else:
+            story.append(Paragraph(f"{_e(label)}: {val}", bank_line))
+    # Client sample: large white gap after bank address before contact block (~3–4 lines).
+    story.append(Spacer(1, 52))
     story.append(
         Paragraph(
             "If you have any questions concerning this invoice, use the following contact information:",
@@ -478,9 +528,9 @@ def build_invoice_pdf(
         )
     )
     if contact_name:
-        story.append(Paragraph(contact_name, contact))
+        story.append(Paragraph(contact_name, contact_name_style))
     if contact_email:
-        story.append(Paragraph(contact_email, contact))
+        story.append(Paragraph(contact_email, contact_email_style))
     story.append(Paragraph(footer_thanks, thanks))
 
     doc.build(story)

@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     cors_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
     timezone: str = "Asia/Karachi"
     auto_seed_samples: bool = False
+    # Deprecated: partner shares use live daily USD/PKR rates (see fx_rates.py).
+    # Kept only as env compatibility; ignored by share math.
+    usd_pkr_rate: float = 0.0
 
     def secret_is_weak(self) -> bool:
         key = (self.secret_key or "").strip()

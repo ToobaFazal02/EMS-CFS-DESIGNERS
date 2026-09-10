@@ -3,9 +3,9 @@
 | Key | Value |
 |---|---|
 | EXECUTION_APPROVED | **yes** |
-| Current phase | **Employee Agent rollout (client 30–31 Aug 2026)** |
-| Code allowed | Phases 1–5 + hardening + audit fixes |
-| Approved by | User 24 Aug 2026 |
+| Current phase | **Production ready (code)** — see `docs/46-production-audit-2026-09-09.md` |
+| Code allowed | Phases 1–5 + hardening + doc 45 + 404/403 |
+| Approved by | User 24 Aug 2026 (product); **9 Sep 2026** production audit DONE |
 
 ## Done
 
@@ -21,17 +21,21 @@
 - Dashboard: real API data only (no fake invoice rows / no hour-preview flash); 2560 fills like 1440 (`docs/44-dashboard-predeploy.md`)
 - Account **Dark / Light** + first-5-visit Skip/Next guide cards (`docs/14-ui-theme.md`)
 
-## This week (client 30–31 Aug 2026)
+## Latest client voice (3 Sep 2026) — implementing
 
-See `docs/42-client-voice-2026-08-30-plan.md`. **Employees first.** HR role + expenses still later.
+See `docs/45-client-voice-2026-09-03-plan.md`. Q1–Q5 locked 7 Sep.
 
-1. Add staff (named `@cfsdesigners.com` logins + unique temp passwords)
-2. Enroll each PC — Agent stays enrolled; four punch buttons only
-3. Screenshots + net hours from **kal / parson**
-4. Short **screen recording** of employee PC install
-5. Projects + invoicing: already built — client will use **after a few days**
+1. **P0** Invoice PDF exact match (COST $, drop COMMENTS, spacing, maroon) — **code done**
+2. **P1** Faisal / Asad share: paid invoices − expenses → ÷ 2 (admin/partner only) — **code done**
 
-## After employees are live (locked)
+## Ops still open (30–31 Aug)
+
+See `docs/42-client-voice-2026-08-30-plan.md`.
+
+1. Add staff + enroll Agent PCs + short install video
+2. Screenshots + net hours in daily use
+
+## Shipped since pilot docs
 
 See `docs/41-post-pilot-backlog.md`.
 
@@ -39,8 +43,9 @@ See `docs/41-post-pilot-backlog.md`.
 2. Header **gear** → Account + Logout — **done**
 3. Thin **theme** scrollbars — **done**
 4. Hours as **8.1 h** on day web — **done** (PDF still `2h 32m`)
-5. Distinct **HR** login (attendance + projects + expenses; **no invoices**)
-6. Office **expenses** sheet (chai, bills, electricity, gas, solar, parties)
+5. Distinct **HR** login + office **expenses** + receipts — **done**
+6. Demo role isolation — **done**
+7. Site-wide maroon (replace bright red) — **done** on web; PDF leftover in P0
 
 ## Explicitly deferred (need you / later machine)
 

@@ -185,6 +185,63 @@ class DashFinance(BaseModel):
     late: list[DashLateInvoice] = Field(default_factory=list)
 
 
+class DashPartnerShares(BaseModel):
+    """Admin/partner-only. Never returned for HR / employee / demo / manager."""
+
+    year: int
+    month: Optional[int] = None
+    currency: str = "USD"
+    display_currency: str = "PKR"
+    usd_pkr_rate: float = 0
+    rate_date: Optional[str] = None
+    rate_note: str = ""
+    partner_a_name: str = "Faisal Khan"
+    partner_b_name: str = "Asad Khan"
+    paid_invoices_usd: float = 0
+    paid_invoices_pkr: float = 0
+    paid_invoice_count: int = 0
+    expenses_pkr: float = 0
+    expenses_usd: float = 0
+    expense_count: int = 0
+    net_usd: float = 0
+    net_pkr: float = 0
+    faisal_share_usd: float = 0
+    faisal_share_pkr: float = 0
+    asad_share_usd: float = 0
+    asad_share_pkr: float = 0
+    split_percent: int = 50
+
+
+class PartnerSharePaidRow(BaseModel):
+    id: str
+    number: str = ""
+    client_name: str = ""
+    amount: float = 0
+    amount_usd: Optional[float] = None
+    amount_pkr: Optional[float] = None
+    currency: str = "USD"
+    invoice_date: Optional[str] = None
+    usd_pkr_rate: Optional[float] = None
+    rate_date: Optional[str] = None
+    in_pool: bool = True
+
+
+class PartnerShareExpenseRow(BaseModel):
+    id: str
+    spent_on: str = ""
+    category: str = ""
+    amount_pkr: float = 0
+    amount_usd: float = 0
+    usd_pkr_rate: float = 0
+    rate_date: str = ""
+    vendor_note: str = ""
+
+
+class PartnerSharesOut(DashPartnerShares):
+    paid_rows: list[PartnerSharePaidRow] = Field(default_factory=list)
+    expense_rows: list[PartnerShareExpenseRow] = Field(default_factory=list)
+
+
 class DashboardOut(BaseModel):
     generated_at: str
     timezone: str = "Asia/Karachi"
@@ -199,6 +256,7 @@ class DashboardOut(BaseModel):
     sparkline: list[float]
     roster: list[DashRosterRow]
     finance: Optional[DashFinance] = None
+    partner_shares: Optional[DashPartnerShares] = None
 
 
 class ClientIn(BaseModel):
@@ -269,6 +327,7 @@ class InvoiceLineItemIn(BaseModel):
     rate: str = Field("", max_length=80)
     comments: str = Field("", max_length=500)
     unpaid: bool = False
+    cell_colors: dict[str, str] = Field(default_factory=dict)
 
 
 class InvoiceSettingsIn(BaseModel):

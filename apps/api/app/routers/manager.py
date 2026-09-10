@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy.orm import selectinload
 
-from app.auth import ALGORITHM, get_current_user, is_finance, is_manager, require_manager, require_office_or_demo
+from app.auth import ALGORITHM, get_current_user, is_finance, is_manager, is_partner, require_manager, require_office_or_demo
 from app.services.data_scope import wants_demo_rows
 from app.config import get_settings
 from app.db import SessionLocal, get_db
@@ -35,6 +35,7 @@ from app.schemas import (
     DashFinance,
     DashHourDay,
     DashLateInvoice,
+    DashPartnerShares,
     DashPipeline,
     DashRosterRow,
     DashboardOut,
@@ -55,6 +56,7 @@ from app.services.hours import (
     merge_punch_lists,
     work_bounds_by_pkt_day,
 )
+from app.services.partner_shares import compute_partner_shares
 from app.services.payments import delayed_days
 from app.services.pdf_report import build_daily_pdf, build_monthly_pdf
 from app.services.timeutil import format_pk_time, monday_of, now_pk, to_pk, today_pk
@@ -527,6 +529,34 @@ async def dashboard_summary(
             late=late[:40],
         )
 
+    partner_shares: DashPartnerShares | None = None
+    if is_partner(user) and not demo:
+        raw = await compute_partner_shares(db, year=today.year, month=today.month)
+        partner_shares = DashPartnerShares(
+            year=raw["year"],
+            month=raw["month"],
+            currency=raw["currency"],
+            display_currency=raw.get("display_currency", "PKR"),
+            usd_pkr_rate=raw["usd_pkr_rate"],
+            rate_date=raw.get("rate_date"),
+            rate_note=raw.get("rate_note", ""),
+            partner_a_name=raw["partner_a_name"],
+            partner_b_name=raw["partner_b_name"],
+            paid_invoices_usd=raw["paid_invoices_usd"],
+            paid_invoices_pkr=raw["paid_invoices_pkr"],
+            paid_invoice_count=raw["paid_invoice_count"],
+            expenses_pkr=raw["expenses_pkr"],
+            expenses_usd=raw["expenses_usd"],
+            expense_count=raw["expense_count"],
+            net_usd=raw["net_usd"],
+            net_pkr=raw["net_pkr"],
+            faisal_share_usd=raw["faisal_share_usd"],
+            faisal_share_pkr=raw["faisal_share_pkr"],
+            asad_share_usd=raw["asad_share_usd"],
+            asad_share_pkr=raw["asad_share_pkr"],
+            split_percent=raw["split_percent"],
+        )
+
     generated = now_pk().strftime("%H:%M")
     spark = [this_totals[d] for d in this_days]
     return DashboardOut(
@@ -543,6 +573,7 @@ async def dashboard_summary(
         sparkline=[round(x, 2) for x in spark],
         roster=roster,
         finance=finance,
+        partner_shares=partner_shares,
     )
 
 

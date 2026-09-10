@@ -55,6 +55,20 @@ Every audio from the client chats that shaped this product. Transcripts live und
 
 ---
 
+## 3 Sep 2026 (6:39–7:19 PM) — invoice PDF + partner shares
+
+| File | Core |
+|---|---|
+| `…6.39.08 PM (1)` | Invoice PDF must match his format after Add New Invoice. **Faisal / Asad share**: invoices − CFS expenses → ÷ 2, visible. |
+| `…7.18.29 PM` | No bright **red** (maroon). **Remove COMMENTS** column. Exact same invoice pattern. USD Account Details slightly lower. |
+| `…7.19.31 PM` | Spacing: Account Details, Invoice To, Thank you — all a bit lower to match sample. |
+
+**Plan:** `docs/45-client-voice-2026-09-03-plan.md`  
+**Transcripts:** `references/client-voice-2026-09-03/`  
+**Reference PDF:** `c:\Users\hp\Downloads\Invoice - Faisal - CFS Designers (30-07-26).pdf` (Harbour / Cydney style; COST + TOTAL BUDGET)
+
+---
+
 ## Chat text (not audio)
 
 - “THIS IS LOOKING GREAT”
