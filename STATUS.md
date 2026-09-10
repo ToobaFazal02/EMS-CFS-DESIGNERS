@@ -32,6 +32,12 @@ See `docs/45-client-voice-2026-09-03-plan.md`. Q1–Q5 locked 7 Sep.
 
 See `docs/42-client-voice-2026-08-30-plan.md`.
 
+## In Progress (11 Sep 2026)
+
+**Phase 1: Desktop App (Tauri)** — Manager software with Windows installer, native feel like VSCode — `docs/47-cross-device-roadmap.md`, `docs/48-phase1-tauri-desktop.md`
+
+## Next (ops — not code blockers)
+
 1. Add staff + enroll Agent PCs + short install video
 2. Screenshots + net hours in daily use
 

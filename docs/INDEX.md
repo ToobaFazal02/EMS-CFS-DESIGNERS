@@ -19,6 +19,8 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | `42-client-voice-2026-08-30-plan.md` | Employees first, HR, expenses |
 | `45-client-voice-2026-09-03-plan.md` | **Latest client voice** — invoice PDF parity + Faisal/Asad shares |
 | `46-production-audit-2026-09-09.md` | **Production audit DONE** — 404/403, security, deploy gate |
+| `47-cross-device-roadmap.md` | **11 Sep 2026** Multi-device software plan — Tauri desktop + PWA mobile |
+| `48-phase1-tauri-desktop.md` | **Phase 1 implementation** — Desktop app (Windows installer) step-by-step |
 | `43-lovable-dashboard-prompt.md` | Copy-paste Lovable prompt — **Dashboard tab only** |
 | `44-dashboard-predeploy.md` | **1 Sep 2026** Dashboard data + ultra-wide type + what to click before VPS |
 | `04-non-functional-requirements.md` | **All NFR** (perf, scale, security bar) |
