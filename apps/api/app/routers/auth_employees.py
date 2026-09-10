@@ -65,12 +65,12 @@ async def employee_to_out(db: AsyncSession, emp: Employee) -> EmployeeOut:
 async def login(body: LoginIn, request: Request, db: Annotated[AsyncSession, Depends(get_db)]) -> TokenOut:
     hit(f"login:{client_ip(request)}", limit=20, window_seconds=300)
     email = (body.email or "").strip().lower()
-    result = await db.execute(select(Employee).where(Employee.email == email))
+    result = await db.execute(
+        select(Employee).where(Employee.email == email, Employee.active == True)  # noqa: E712
+    )
     emp = result.scalar_one_or_none()
     if not emp or not emp.password_hash or not verify_password(body.password, emp.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    if not emp.active:
-        raise HTTPException(status_code=403, detail="Account inactive")
     # Admin/manager = full web. Employee = limited web (no finance). Agent = separate device token.
     token = create_access_token(emp)
     return TokenOut(
@@ -118,12 +118,17 @@ async def create_employee(
     db: Annotated[AsyncSession, Depends(get_db)],
     actor: Annotated[Employee, Depends(require_manager)],
 ) -> EmployeeOut:
-    existing = await db.execute(select(Employee).where(Employee.code == body.code))
+    # Soft-deleted rows keep history; codes/emails may be reused for new active staff.
+    existing = await db.execute(
+        select(Employee).where(Employee.code == body.code, Employee.active == True)  # noqa: E712
+    )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Code already exists")
     email = (body.email or "").strip().lower() or None
     if email:
-        taken = await db.execute(select(Employee).where(Employee.email == email))
+        taken = await db.execute(
+            select(Employee).where(Employee.email == email, Employee.active == True)  # noqa: E712
+        )
         if taken.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Email already in use")
     if body.role == Role.admin:
@@ -183,10 +188,22 @@ async def update_employee(
     password = (body.password or "").strip() or None
     if password is not None and len(password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-    taken_code = await db.execute(select(Employee).where(Employee.code == code, Employee.id != emp.id))
+    taken_code = await db.execute(
+        select(Employee).where(
+            Employee.code == code,
+            Employee.id != emp.id,
+            Employee.active == True,  # noqa: E712
+        )
+    )
     if taken_code.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Code already exists")
-    taken_email = await db.execute(select(Employee).where(Employee.email == email, Employee.id != emp.id))
+    taken_email = await db.execute(
+        select(Employee).where(
+            Employee.email == email,
+            Employee.id != emp.id,
+            Employee.active == True,  # noqa: E712
+        )
+    )
     if taken_email.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already in use")
     emp.code = code
@@ -219,8 +236,10 @@ async def deactivate_employee(
         raise HTTPException(status_code=403, detail="Only admin/manager can remove HR accounts")
     if emp.role == Role.demo and not is_finance(actor):
         raise HTTPException(status_code=403, detail="Only admin/manager can remove demo accounts")
+    # Soft-delete: keep attendance history, free email so it can be reassigned.
     emp.active = False
     emp.password_hash = None
+    emp.email = None
     # Invalidate device enrollments
     devices = list((await db.execute(select(Device).where(Device.employee_id == emp.id))).scalars().all())
     for d in devices:
@@ -253,7 +272,13 @@ async def set_employee_credentials(
         raise HTTPException(status_code=400, detail="Valid email required")
     if len(password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-    taken = await db.execute(select(Employee).where(Employee.email == email, Employee.id != emp.id))
+    taken = await db.execute(
+        select(Employee).where(
+            Employee.email == email,
+            Employee.id != emp.id,
+            Employee.active == True,  # noqa: E712
+        )
+    )
     if taken.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already in use")
     emp.email = email
@@ -289,7 +314,13 @@ async def change_my_email(
     email = (body.email or "").strip().lower()
     if not email or "@" not in email:
         raise HTTPException(status_code=400, detail="Valid email required")
-    taken = await db.execute(select(Employee).where(Employee.email == email, Employee.id != user.id))
+    taken = await db.execute(
+        select(Employee).where(
+            Employee.email == email,
+            Employee.id != user.id,
+            Employee.active == True,  # noqa: E712
+        )
+    )
     if taken.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email already in use")
     user.email = email
