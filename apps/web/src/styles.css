@@ -4264,23 +4264,7 @@ html[data-theme="light"] .dash-pill-idle {
 }
 .exp-year-footer { justify-content: space-between; }
 
-.exp-del {
-  background: transparent !important;
-  border: 1px solid transparent !important;
-  color: #c9a8ae !important;
-  font-size: 13px;
-  font-weight: 650;
-  padding: 6px 10px !important;
-  min-height: 0 !important;
-  border-radius: 8px;
-  box-shadow: none !important;
-}
-.exp-del:hover {
-  background: #7a1f2e !important;
-  border-color: #92263a !important;
-  color: #ffffff !important;
-  text-decoration: none;
-}
+/* Expense row delete uses shared .btn-danger / .btn-row-del (maroon) */
 
 .exp-file-link {
   align-self: flex-start;

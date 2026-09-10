@@ -549,7 +549,12 @@ export function ExpensesPage() {
                     <td data-label="Amount">{formatPkr(r.amount_pkr)}</td>
                     <td data-label="Running">{formatPkr(r.running)}</td>
                     <td data-label="">
-                      <button type="button" className="exp-del" onClick={() => setPendingDelete(r.id)} aria-label="Delete">
+                      <button
+                        type="button"
+                        className="btn-danger btn-row-del"
+                        onClick={() => setPendingDelete(r.id)}
+                        aria-label="Delete expense"
+                      >
                         Remove
                       </button>
                     </td>
