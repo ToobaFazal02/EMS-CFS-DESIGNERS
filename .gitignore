@@ -17,6 +17,8 @@ logs/
 *.zip
 !apps/web/public/downloads/
 !apps/web/public/downloads/**
+# Large Agent pack — upload to VPS separately (too big for git)
+apps/web/public/downloads/CFS-Agent-Install.zip
 *.tsbuildinfo
 .DS_Store
 Thumbs.db

@@ -1,71 +1,200 @@
+import { useToast } from "../components/ToastProvider";
+
+const MANAGER_SETUP = "/downloads/CFS-Designers-Manager-Setup.exe";
+const MANAGER_MSI = "/downloads/CFS-Designers-Manager.msi";
+const AGENT_ZIP = "/downloads/CFS-Agent-Install.zip";
+
+function DownloadIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 4v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M8 11l4 4 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 19h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function MonitorIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 20h8M12 16v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChipIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="7" y="7" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M9 3v4M12 3v4M15 3v4M9 17v4M12 17v4M15 17v4M3 9h4M3 12h4M3 15h4M17 9h4M17 12h4M17 15h4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ShieldIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /**
- * Public downloads hub — Manager desktop app + Employee Agent.
+ * Public downloads hub — Lovable-matched layout.
  * Enroll code still required (security); staff install themselves.
  */
 export function DownloadsPage() {
-  const managerSetupUrl = "/downloads/CFS-Designers-Manager-Setup.exe";
-  const managerMsiUrl = "/downloads/CFS-Designers-Manager.msi";
-  const agentUrl = "/downloads/CFS-Agent-Install.zip";
+  const toast = useToast();
+
+  async function startDownload(url: string, label: string) {
+    try {
+      const head = await fetch(url, { method: "HEAD", cache: "no-store" });
+      if (!head.ok) {
+        toast.error(`${label} is not on the server yet. Ask admin to upload it.`);
+        return;
+      }
+    } catch {
+      /* HEAD may fail on some hosts — still try GET */
+    }
+    toast.success(`Downloading ${label}… Check your Downloads folder.`);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "";
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
 
   return (
-    <div className="downloads-page">
-      <div className="toolbar">
-        <div>
-          <h2 style={{ margin: 0 }}>Downloads</h2>
-          <p className="muted page-sub">Install CFS Designers software on your devices</p>
-        </div>
-      </div>
+    <div className="downloads-page downloads-lovable">
+      <header className="dl-hero">
+        <p className="dl-eyebrow">CFS Designers EMS</p>
+        <h2 className="dl-title">Downloads</h2>
+        <p className="dl-lead muted">
+          Install CFS Designers software on your devices. Choose the build that matches your role —
+          managers get the desktop app, employees get the tracking agent.
+        </p>
+      </header>
 
       <div className="downloads-grid">
         <article className="card downloads-card">
-          <p className="downloads-kicker">Admin · HR · Partners</p>
+          <div className="dl-card-head">
+            <span className="dl-card-icon" aria-hidden>
+              <MonitorIcon />
+            </span>
+            <p className="downloads-kicker">Admin · HR · Partners</p>
+          </div>
           <h3>Manager Desktop App</h3>
           <p className="muted">
-            Windows software — Dashboard, Employees, Payments, Expenses. Opens like VS Code (no browser
-            bar). Same login as the website.
+            Windows app for Dashboard, Employees, Payments, and Expenses. Opens like a native app (no
+            browser bar). Same login as the website.
           </p>
           <ol className="downloads-steps">
-            <li>Download and run the installer</li>
-            <li>Open <strong>CFS Designers</strong> from Start Menu</li>
-            <li>Sign in with your office email</li>
+            <li>
+              <span className="dl-step-num">1</span>
+              <span>Download the installer below.</span>
+            </li>
+            <li>
+              <span className="dl-step-num">2</span>
+              <span>
+                Find <strong>CFS Designers</strong> in the Start Menu.
+              </span>
+            </li>
+            <li>
+              <span className="dl-step-num">3</span>
+              <span>Sign in with your office email.</span>
+            </li>
           </ol>
           <div className="downloads-btn-row">
-            <a className="downloads-btn" href={managerSetupUrl} download>
-              Download Setup (.exe)
-            </a>
-            <a className="downloads-btn downloads-btn-secondary" href={managerMsiUrl} download>
-              Download MSI
-            </a>
+            <button
+              type="button"
+              className="downloads-btn"
+              onClick={() => startDownload(MANAGER_SETUP, "Manager Setup (.exe)")}
+            >
+              <DownloadIcon /> Download Setup (.exe)
+            </button>
+            <button
+              type="button"
+              className="downloads-btn downloads-btn-secondary"
+              onClick={() => startDownload(MANAGER_MSI, "Manager MSI")}
+            >
+              <DownloadIcon /> Download MSI
+            </button>
           </div>
           <p className="muted downloads-hint">Windows 10 / 11 · Prefer Setup.exe · Requires internet</p>
         </article>
 
         <article className="card downloads-card">
-          <p className="downloads-kicker">Employees · Office PCs</p>
+          <div className="dl-card-head">
+            <span className="dl-card-icon" aria-hidden>
+              <ChipIcon />
+            </span>
+            <p className="downloads-kicker downloads-kicker-muted">Employees · Office PCs</p>
+          </div>
           <h3>Employee Agent</h3>
           <p className="muted">
-            Tracking app for CAD PCs — Sign In / Out and screenshots. Install yourself; ask Admin for an
-            enroll code (do not share codes publicly).
+            Tracking app for CAD PCs — Sign In / Out and screenshots. Install yourself; Admin sends a
+            one-time enroll code.
           </p>
           <ol className="downloads-steps">
-            <li>Download the Agent zip on your work PC</li>
-            <li>Extract → run <code>INSTALL-AGENT.bat</code> (or follow README inside)</li>
-            <li>Admin → Employees → Enroll PC → paste the code in Agent</li>
-            <li>Sign In when you start work</li>
+            <li>
+              <span className="dl-step-num">1</span>
+              <span>Download the zip.</span>
+            </li>
+            <li>
+              <span className="dl-step-num">2</span>
+              <span>
+                Extract and run <code>INSTALL-AGENT.bat</code>.
+              </span>
+            </li>
+            <li>
+              <span className="dl-step-num">3</span>
+              <span>Admin enrolls the PC and sends a code.</span>
+            </li>
+            <li>
+              <span className="dl-step-num">4</span>
+              <span>Paste the code, then Sign In at work.</span>
+            </li>
           </ol>
-          <a className="downloads-btn downloads-btn-secondary" href={agentUrl} download>
-            Download Agent (.zip)
-          </a>
-          <p className="muted downloads-hint">One enroll code per employee PC · Admin only generates codes</p>
+          <div className="downloads-btn-row">
+            <button
+              type="button"
+              className="downloads-btn downloads-btn-secondary"
+              onClick={() => startDownload(AGENT_ZIP, "Employee Agent (.zip)")}
+            >
+              <DownloadIcon /> Download Agent (.zip)
+            </button>
+          </div>
+          <p className="muted downloads-hint">One enroll code per PC · Admin generates codes</p>
         </article>
       </div>
 
       <article className="card downloads-security">
-        <h3>Security (why enroll codes)</h3>
+        <div className="dl-sec-head">
+          <span className="dl-sec-icon" aria-hidden>
+            <ShieldIcon />
+          </span>
+          <div>
+            <h3>Security</h3>
+            <span className="dl-sec-badge">Enroll codes</span>
+          </div>
+        </div>
         <p className="muted" style={{ marginBottom: 0 }}>
           Anyone can download Agent, but it cannot send attendance or screenshots until Admin creates an
           enroll code for that person. Codes are one-time and tied to one PC. Never put passwords in
-          URLs or chat screenshots.
+          URLs.
         </p>
       </article>
     </div>

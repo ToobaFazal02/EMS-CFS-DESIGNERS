@@ -4,12 +4,18 @@
 |------|---------|
 | `CFS-Designers-Manager-Setup.exe` | Preferred Windows installer (NSIS) |
 | `CFS-Designers-Manager.msi` | Alternate MSI |
-| `CFS-Agent-Install.zip` | Employee Agent pack — upload from packaging / Desktop |
+| `CFS-Agent-Install.zip` | Employee Agent (~50MB) — **not in git**; copy from Desktop pack |
 
-Rebuild Manager after code changes:
+## Agent zip (local)
 
 ```powershell
-cd apps\web
-npm run tauri:build
-# then copy from Tauri bundle output → these filenames
+Copy-Item "$env:USERPROFILE\Desktop\CFS-Agent-Install.zip" `
+  D:\imp\ems-cfs-designers\apps\web\public\downloads\CFS-Agent-Install.zip
+```
+
+## Agent zip (VPS)
+
+```bash
+# from your PC:
+scp CFS-Agent-Install.zip root@YOUR_VPS_IP:/var/www/ems/downloads/
 ```
