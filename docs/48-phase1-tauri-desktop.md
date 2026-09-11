@@ -8,6 +8,7 @@
 - [x] `@tauri-apps/cli@latest` in `apps/web`
 - [x] `src-tauri/` init — product **CFS Designers**, id `com.cfsdesigners.ems`
 - [x] CFS logo icons (`npx tauri icon app-icon-source.png`)
+- [x] NSIS `installerIcon` / `uninstallerIcon` → `icons/icon.ico` (Setup.exe shows CFS, not default NSIS)
 - [x] Desktop production API → `https://ems.cfsdesigners.com` (Tauri non-dev)
 - [x] `/downloads` page — Manager `.msi` + Agent `.zip` + enroll security note
 - [x] Login link → Downloads (public, no login required for staff)
