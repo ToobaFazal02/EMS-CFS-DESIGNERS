@@ -648,8 +648,42 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   background: linear-gradient(90deg, var(--accent) 0%, rgba(201, 162, 39, 0.35) 40%, transparent 100%);
   border-radius: 0;
 }
-.brand { font-size: 22px; font-weight: 700; letter-spacing: 0.01em; }
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
 .brand span { color: var(--accent); }
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid rgba(201, 162, 39, 0.35);
+}
+.login-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 0 8px;
+}
+.login-brand-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid rgba(201, 162, 39, 0.4);
+}
+.nav-drawer-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 .nav {
   display: flex;
   gap: 8px;
@@ -4726,6 +4760,8 @@ html[data-theme="light"] .not-found-kicker {
 .dl-progress {
   margin-bottom: 18px;
   border-color: rgba(201, 162, 39, 0.35);
+  /* Keep progress visible below sticky topbar after scroll-into-view */
+  scroll-margin-top: 88px;
 }
 .dl-progress-top {
   display: flex;
@@ -4735,10 +4771,37 @@ html[data-theme="light"] .not-found-kicker {
   margin-bottom: 10px;
   font-size: 0.95rem;
 }
-.dl-progress-top span {
+.dl-progress-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.dl-progress-pct {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
   color: var(--accent);
+}
+.dl-progress-cancel {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(122, 31, 46, 0.55) !important;
+  background: rgba(122, 31, 46, 0.16) !important;
+  color: #c47a86 !important;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+.dl-progress-cancel:hover {
+  background: rgba(122, 31, 46, 0.28) !important;
+  color: #f0c4cb !important;
+  border-color: #7a1f2e !important;
 }
 .dl-progress-track {
   height: 10px;
@@ -4757,6 +4820,15 @@ html[data-theme="light"] .not-found-kicker {
 .dl-progress-cap {
   margin: 8px 0 0;
   font-size: 0.85rem;
+}
+html[data-theme="light"] .dl-progress-cancel {
+  color: #7a1f2e !important;
+  background: rgba(122, 31, 46, 0.1) !important;
+  border-color: rgba(122, 31, 46, 0.45) !important;
+}
+html[data-theme="light"] .dl-progress-cancel:hover {
+  background: rgba(122, 31, 46, 0.18) !important;
+  color: #5c1520 !important;
 }
 
 /* Light theme: cream cards + dark readable text (no dark gradient) */

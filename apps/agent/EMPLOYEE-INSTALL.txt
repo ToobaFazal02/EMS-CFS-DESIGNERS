@@ -3,11 +3,16 @@ CFS Designers Agent - install on your PC
 
 You do NOT need Python or any extra software.
 
-1. Copy the whole CFS-Agent-Install folder to this PC.
-   Good place:  C:\CFS-Designers-Agent
-   Do not leave it in Downloads or on a USB after install.
+IMPORTANT
+---------
+Do NOT open INSTALL-AGENT.bat from inside WinRAR / 7-Zip.
+Always EXTRACT the zip to a real folder first.
 
-2. Open that folder. Double-click  INSTALL-AGENT.bat
+1. Right-click  CFS-Agent-Install.zip  →  Extract All...
+   Good place:  C:\CFS-Designers-Agent
+   (Extract the whole zip - you should see CFS-Designers-Agent.exe)
+
+2. Open that extracted folder. Double-click  INSTALL-AGENT.bat
 
 3. If Windows says "Windows protected your PC":
    click More info, then Run anyway.
@@ -23,7 +28,7 @@ You do NOT need Python or any extra software.
    Break In / Break Out if you take a break.
 
 7. To hide the window, click Minimize.
-   The gold CFS icon stays in the tray (near the clock).
+   The CFS icon stays in the tray (near the clock).
    Click that icon to open the Agent again.
 
 8. To close the Agent, click the X, then Quit (or Cancel to stay).

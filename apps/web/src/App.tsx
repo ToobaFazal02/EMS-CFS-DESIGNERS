@@ -83,7 +83,8 @@ function LoginPage() {
       <div className="login-shell">
         <LoginStage3D />
         <form className="login-card login-card-3d" onSubmit={onSubmit} noValidate>
-          <h1>
+          <h1 className="login-brand-row">
+            <img className="login-brand-mark" src="/favicon-192.png?v=2" alt="" width={48} height={48} />
             <span className="login-brand">CFS Designers</span>
           </h1>
           <p className="login-sub">Sign in to continue</p>
@@ -338,6 +339,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <header className="topbar">
         <div className="topbar-lead">
           <div className="brand">
+            <img className="brand-mark" src="/favicon-192.png?v=2" alt="" width={32} height={32} />
             <span>CFS Designers</span>
             {!office && !demo ? <small className="muted"> Staff</small> : null}
             {role === "hr" ? <span className="role-pill">HR View</span> : null}
@@ -457,7 +459,10 @@ function Shell({ children }: { children: React.ReactNode }) {
             onClick={() => setNavOpen(false)}
           >
             <div className="nav-drawer-head">
-              <span className="nav-drawer-title">CFS Designers</span>
+              <span className="nav-drawer-title">
+                <img className="brand-mark" src="/favicon-192.png?v=2" alt="" width={28} height={28} />
+                CFS Designers
+              </span>
               <button
                 type="button"
                 className="nav-close"

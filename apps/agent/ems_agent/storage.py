@@ -196,20 +196,39 @@ class ApiClient:
         return r.status_code < 300
 
     def enroll(self, code: str, hostname: str) -> dict:
-        r = httpx.post(
-            f"{self.base}/api/v1/devices/enroll",
-            json={"enroll_code": code, "hostname": hostname},
-            timeout=20,
-        )
+        url = f"{self.base}/api/v1/devices/enroll"
+        try:
+            r = httpx.post(
+                url,
+                json={"enroll_code": code, "hostname": hostname},
+                timeout=12.0,
+            )
+        except httpx.TimeoutException as e:
+            raise RuntimeError(
+                "Server timed out while checking the enroll code.\n\n"
+                "Check your internet, or ask the office if EMS is online.\n"
+                f"Server: {self.base}"
+            ) from e
+        except httpx.ConnectError as e:
+            raise RuntimeError(
+                "Cannot reach the EMS server.\n\n"
+                "Check your internet connection, then try again.\n"
+                f"Server: {self.base}"
+            ) from e
+        except httpx.HTTPError as e:
+            raise RuntimeError(
+                f"Could not contact the EMS server ({e.__class__.__name__}).\n"
+                f"Server: {self.base}"
+            ) from e
         if r.status_code < 300:
             return r.json()
         detail = self._detail(r)
         # Map common API messages to client-friendly copy
         low = detail.lower()
-        if "invalid enroll" in low or "not found" in low:
+        if "invalid" in low or "already used" in low or "not found" in low:
             raise RuntimeError(
-                "This enroll code is invalid or already used.\n\n"
-                "Ask the manager to click Enroll PC / Re-enroll PC and enter the new code here."
+                "Wrong enroll code (invalid or already used).\n\n"
+                "Ask the manager to click Enroll PC / Re-enroll PC and paste the new code here."
             )
         if "employee" in low:
             raise RuntimeError("Employee record is missing. Ask the manager to check Employees.")

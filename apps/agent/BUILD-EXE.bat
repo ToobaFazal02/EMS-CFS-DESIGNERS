@@ -29,6 +29,7 @@ if errorlevel 1 (
 
 copy /Y config.production.json "dist\CFS-Designers-Agent\config.json" >nul
 copy /Y INSTALL-AGENT.bat "dist\CFS-Designers-Agent\" >nul
+copy /Y EMPLOYEE-INSTALL.txt "dist\CFS-Designers-Agent\" >nul
 copy /Y create-shortcuts.ps1 "dist\CFS-Designers-Agent\" >nul
 copy /Y REMOVE-AUTOSTART.bat "dist\CFS-Designers-Agent\" >nul
 if exist assets xcopy /E /I /Q /Y assets "dist\CFS-Designers-Agent\assets" >nul

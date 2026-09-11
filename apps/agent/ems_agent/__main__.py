@@ -399,6 +399,8 @@ def _app_icon() -> QIcon:
 
 
 class MainWindow(QWidget):
+    enroll_finished = Signal(object, str)  # data dict or None, error message
+
     def __init__(self) -> None:
         super().__init__()
         self.svc = CaptureService()
@@ -418,6 +420,8 @@ class MainWindow(QWidget):
         self._apply_theme()
         self._tray: QSystemTrayIcon | None = None
         self._force_quit = False
+        self._enroll_busy = False
+        self.enroll_finished.connect(self._on_enroll_finished)
 
         self.live = QLabel("OFF")
         self.live.setAlignment(Qt.AlignCenter)
@@ -870,6 +874,8 @@ class MainWindow(QWidget):
             QTimer.singleShot(2500, self._tick_screenshot)
 
     def do_enroll(self) -> None:
+        if self._enroll_busy:
+            return
         if self.svc.cfg.get("device_token"):
             name = self.svc.cfg.get("employee_name") or "an employee"
             _notice(self, "This PC is already enrolled.", f"Linked to {name}.")
@@ -877,11 +883,45 @@ class MainWindow(QWidget):
             return
         code = self.enroll.text().strip()
         if not code:
+            self.enroll_status.setText("Enter the enroll code from your manager.")
+            self.enroll_status.setStyleSheet("color: #E8A0A8; font-weight: 600;")
             _notice(self, "Enter the enroll code from your manager.")
             return
-        try:
-            client = ApiClient(self.svc.cfg["api_base"], "")
-            data = client.enroll(code, socket.gethostname())
+
+        self._enroll_busy = True
+        self.btn_enroll.setEnabled(False)
+        self.btn_enroll.setText("Connecting...")
+        self.enroll.setEnabled(False)
+        self.enroll_status.setText("Checking enroll code with server...")
+        self.enroll_status.setStyleSheet("color: #C9A227; font-weight: 600;")
+        self.sync.setText("Connection: Checking...")
+
+        api_base = str(self.svc.cfg.get("api_base") or "").rstrip("/")
+        hostname = socket.gethostname()
+
+        def work() -> None:
+            try:
+                client = ApiClient(api_base, "")
+                data = client.enroll(code, hostname)
+                self.enroll_finished.emit(data, "")
+            except Exception as e:
+                msg = str(e).strip() or "Enroll failed. Try again."
+                if "For more information check" in msg or "httpx" in msg.lower() or "Bad Request" in msg:
+                    msg = (
+                        "Wrong enroll code (invalid or already used).\n\n"
+                        "Ask your manager for a new code."
+                    )
+                self.enroll_finished.emit(None, msg)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_enroll_finished(self, data: object, err: str) -> None:
+        self._enroll_busy = False
+        self.enroll.setEnabled(True)
+        self.btn_enroll.setEnabled(True)
+        self.btn_enroll.setText("Enroll this PC")
+
+        if data and isinstance(data, dict):
             self.svc.cfg["device_token"] = data["device_token"]
             self.svc.cfg["employee_name"] = data.get("employee_name", "")
             self.svc.cfg["employee_code"] = data.get("employee_code", "")
@@ -895,12 +935,21 @@ class MainWindow(QWidget):
                 f"Linked to {data.get('employee_name')} ({data.get('employee_code')}). You can sign in now.",
                 kind="success",
             )
-        except Exception as e:
-            msg = str(e)
-            # Strip raw httpx noise if anything leaked
-            if "For more information check" in msg or "httpx" in msg.lower() or "Bad Request" in msg:
-                msg = "This code is invalid or already used. Ask your manager for a new one."
-            _notice(self, "Enroll failed.", msg)
+            return
+
+        msg = err or "Enroll failed. Try again."
+        self.enroll_status.setText(msg)
+        self.enroll_status.setStyleSheet("color: #E8A0A8; font-weight: 600;")
+        low = msg.lower()
+        if "wrong enroll" in low or "invalid" in low or "already used" in low:
+            self.sync.setText("Connection: Wrong code")
+            _notice(self, "Wrong enroll code.", msg, kind="danger")
+        elif "timed out" in low or "cannot reach" in low or "could not contact" in low:
+            self.sync.setText("Connection: Offline")
+            _notice(self, "Cannot reach server.", msg, kind="danger")
+        else:
+            self.sync.setText("Connection: Enroll failed")
+            _notice(self, "Enroll failed.", msg, kind="danger")
 
     def _tick_activity(self) -> None:
         if self.svc.state not in ("working", "break", "idle"):

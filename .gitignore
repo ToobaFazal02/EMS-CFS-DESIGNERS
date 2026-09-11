@@ -15,10 +15,16 @@ uploads/
 logs/
 *.exe
 *.zip
+# Selectively allow the downloads folder (README only; binaries uploaded to VPS separately)
 !apps/web/public/downloads/
-!apps/web/public/downloads/**
-# Large Agent pack — upload to VPS separately (too big for git)
+!apps/web/public/downloads/README.md
+# Large installers — scp to VPS; never commit to git (>400 MB)
 apps/web/public/downloads/CFS-Agent-Install.zip
+apps/web/public/downloads/*.exe
+apps/web/public/downloads/*.msi
+# Debug/temp icon proofs
+apps/web/public/downloads/_*.png
+apps/web/public/downloads/_*.log
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
