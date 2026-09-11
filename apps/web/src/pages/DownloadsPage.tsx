@@ -1,8 +1,11 @@
+import { useRef, useState } from "react";
 import { useToast } from "../components/ToastProvider";
 
 const MANAGER_SETUP = "/downloads/CFS-Designers-Manager-Setup.exe";
 const MANAGER_MSI = "/downloads/CFS-Designers-Manager.msi";
 const AGENT_ZIP = "/downloads/CFS-Agent-Install.zip";
+
+type ProgressState = { label: string; pct: number } | null;
 
 function DownloadIcon() {
   return (
@@ -50,43 +53,97 @@ function ShieldIcon() {
   );
 }
 
+function fileNameFromUrl(url: string) {
+  try {
+    return decodeURIComponent(url.split("/").pop() || "download");
+  } catch {
+    return "download";
+  }
+}
+
 /**
- * Public downloads hub — Lovable-matched layout.
- * Enroll code still required (security); staff install themselves.
+ * Downloads hub — login required (office + staff).
+ * Enroll code still required for Agent (security).
  */
 export function DownloadsPage() {
   const toast = useToast();
+  const [progress, setProgress] = useState<ProgressState>(null);
+  const busyRef = useRef(false);
 
   async function startDownload(url: string, label: string) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setProgress({ label, pct: 0 });
     try {
-      const head = await fetch(url, { method: "HEAD", cache: "no-store" });
-      if (!head.ok) {
-        toast.error(`${label} is not on the server yet. Ask admin to upload it.`);
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) {
+        toast.error(`${label} is not available yet. Ask admin to upload the file.`);
+        setProgress(null);
         return;
       }
+      const total = Number(res.headers.get("Content-Length") || 0);
+      const reader = res.body?.getReader();
+      if (!reader) {
+        toast.error("Download failed. Try again.");
+        setProgress(null);
+        return;
+      }
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          received += value.length;
+          const pct = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : Math.min(99, Math.round(received / 1024 / 50));
+          setProgress({ label, pct });
+        }
+      }
+      setProgress({ label, pct: 100 });
+      const blob = new Blob(chunks as BlobPart[]);
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = fileNameFromUrl(url);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+      toast.success(`${label} downloaded (${Math.round(received / 1024 / 1024) || 1} MB).`);
+      window.setTimeout(() => setProgress(null), 1200);
     } catch {
-      /* HEAD may fail on some hosts — still try GET */
+      toast.error(`Could not download ${label}. Check your connection.`);
+      setProgress(null);
+    } finally {
+      busyRef.current = false;
     }
-    toast.success(`Downloading ${label}… Check your Downloads folder.`);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "";
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
   }
+
+  const downloading = Boolean(progress);
 
   return (
     <div className="downloads-page downloads-lovable">
-      <header className="dl-hero">
-        <p className="dl-eyebrow">CFS Designers EMS</p>
-        <h2 className="dl-title">Downloads</h2>
-        <p className="dl-lead muted">
-          Install CFS Designers software on your devices. Choose the build that matches your role —
-          managers get the desktop app, employees get the tracking agent.
-        </p>
-      </header>
+      <div className="toolbar">
+        <div>
+          <h2 style={{ margin: 0 }}>Downloads</h2>
+        </div>
+      </div>
+
+      {progress ? (
+        <div className="dl-progress card" role="status" aria-live="polite">
+          <div className="dl-progress-top">
+            <strong>{progress.label}</strong>
+            <span>{progress.pct}%</span>
+          </div>
+          <div className="dl-progress-track" aria-hidden>
+            <i className="dl-progress-bar" style={{ width: `${progress.pct}%` }} />
+          </div>
+          <p className="muted dl-progress-cap">
+            {progress.pct < 100 ? "Downloading… please wait" : "Saving file…"}
+          </p>
+        </div>
+      ) : null}
 
       <div className="downloads-grid">
         <article className="card downloads-card">
@@ -104,12 +161,12 @@ export function DownloadsPage() {
           <ol className="downloads-steps">
             <li>
               <span className="dl-step-num">1</span>
-              <span>Download the installer below.</span>
+              <span>Download Setup (.exe) — recommended.</span>
             </li>
             <li>
               <span className="dl-step-num">2</span>
               <span>
-                Find <strong>CFS Designers</strong> in the Start Menu.
+                Open <strong>CFS Designers</strong> from Start Menu.
               </span>
             </li>
             <li>
@@ -121,6 +178,7 @@ export function DownloadsPage() {
             <button
               type="button"
               className="downloads-btn"
+              disabled={downloading}
               onClick={() => startDownload(MANAGER_SETUP, "Manager Setup (.exe)")}
             >
               <DownloadIcon /> Download Setup (.exe)
@@ -128,12 +186,15 @@ export function DownloadsPage() {
             <button
               type="button"
               className="downloads-btn downloads-btn-secondary"
+              disabled={downloading}
               onClick={() => startDownload(MANAGER_MSI, "Manager MSI")}
             >
               <DownloadIcon /> Download MSI
             </button>
           </div>
-          <p className="muted downloads-hint">Windows 10 / 11 · Prefer Setup.exe · Requires internet</p>
+          <p className="muted downloads-hint">
+            Setup.exe = easy double-click installer. MSI = IT / Group Policy install. Same app.
+          </p>
         </article>
 
         <article className="card downloads-card">
@@ -172,6 +233,7 @@ export function DownloadsPage() {
             <button
               type="button"
               className="downloads-btn downloads-btn-secondary"
+              disabled={downloading}
               onClick={() => startDownload(AGENT_ZIP, "Employee Agent (.zip)")}
             >
               <DownloadIcon /> Download Agent (.zip)
@@ -192,9 +254,8 @@ export function DownloadsPage() {
           </div>
         </div>
         <p className="muted" style={{ marginBottom: 0 }}>
-          Anyone can download Agent, but it cannot send attendance or screenshots until Admin creates an
-          enroll code for that person. Codes are one-time and tied to one PC. Never put passwords in
-          URLs.
+          Anyone with the zip still needs an Admin enroll code before attendance or screenshots can
+          upload. Codes are one-time and tied to one PC.
         </p>
       </article>
     </div>

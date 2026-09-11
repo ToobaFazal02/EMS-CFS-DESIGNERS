@@ -87,9 +87,6 @@ function LoginPage() {
             <span className="login-brand">CFS Designers</span>
           </h1>
           <p className="login-sub">Sign in to continue</p>
-          <p className="login-download-link">
-            <Link to="/downloads">Download Manager app or Employee Agent →</Link>
-          </p>
           {formError ? (
             <div className="alert-danger login-alert" role="alert" aria-live="assertive">
               <span className="alert-danger-icon" aria-hidden>
@@ -270,6 +267,7 @@ function MainNavLinks({
     <>
       {myId ? <NavLink to={`/day/${myId}`}>My Day</NavLink> : null}
       <NavLink to="/projects">My Projects</NavLink>
+      <NavLink to="/downloads">Downloads</NavLink>
     </>
   );
 }
@@ -486,26 +484,11 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 function DownloadsRoute() {
-  const token = localStorage.getItem("ems_token");
-  if (token) {
-    return (
-      <Shell>
-        <DownloadsPage />
-      </Shell>
-    );
-  }
+  if (!localStorage.getItem("ems_token")) return <Navigate to="/login" replace />;
   return (
-    <div className="downloads-public">
-      <header className="downloads-public-bar">
-        <span className="brand">
-          <span>CFS Designers</span>
-        </span>
-        <Link to="/login" className="downloads-back">
-          Sign in →
-        </Link>
-      </header>
+    <Shell>
       <DownloadsPage />
-    </div>
+    </Shell>
   );
 }
 
