@@ -4492,3 +4492,106 @@ html[data-theme="light"] .not-found-msg {
 html[data-theme="light"] .not-found-kicker {
   color: #7a1f2e;
 }
+
+/* —— Downloads hub —— */
+.downloads-page {
+  max-width: 960px;
+}
+.downloads-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.downloads-card h3 {
+  margin: 0 0 8px;
+}
+.downloads-kicker {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.downloads-steps {
+  margin: 12px 0 16px;
+  padding-left: 1.2rem;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+.downloads-steps code {
+  font-size: 0.88em;
+  color: var(--accent);
+}
+.downloads-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.downloads-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-weight: 700;
+  text-decoration: none;
+  color: #0a0a0a !important;
+  background: var(--accent);
+  border: 1px solid #b8921f;
+}
+.downloads-btn:hover {
+  filter: brightness(1.08);
+}
+.downloads-btn-secondary {
+  background: transparent;
+  color: var(--accent) !important;
+  border: 1px solid var(--accent);
+}
+.downloads-btn-secondary:hover {
+  background: rgba(201, 162, 39, 0.12);
+  filter: none;
+}
+.downloads-hint {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+}
+.downloads-security h3 {
+  margin-top: 0;
+}
+.downloads-public {
+  min-height: 100vh;
+  padding: 0 20px 40px;
+  background: var(--bg);
+}
+.downloads-public-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 20px 0 8px;
+}
+.downloads-back {
+  color: var(--accent);
+  font-weight: 650;
+  text-decoration: none;
+}
+.downloads-back:hover {
+  text-decoration: underline;
+}
+.login-download-link {
+  margin: -4px 0 14px;
+  font-size: 0.92rem;
+}
+.login-download-link a {
+  color: var(--accent);
+  font-weight: 650;
+  text-decoration: none;
+}
+.login-download-link a:hover {
+  text-decoration: underline;
+}

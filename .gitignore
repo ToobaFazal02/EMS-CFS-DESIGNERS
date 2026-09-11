@@ -15,6 +15,8 @@ uploads/
 logs/
 *.exe
 *.zip
+!apps/web/public/downloads/
+!apps/web/public/downloads/**
 *.tsbuildinfo
 .DS_Store
 Thumbs.db

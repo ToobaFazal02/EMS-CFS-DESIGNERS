@@ -1,4 +1,22 @@
-const API = "";
+/** Empty = same-origin (web + vite proxy). Desktop production → live EMS. */
+function resolveApiBase(): string {
+  const fromEnv = String(import.meta.env.VITE_API_BASE || "")
+    .trim()
+    .replace(/\/$/, "");
+  if (fromEnv) return fromEnv;
+  try {
+    // Tauri 2 injects this in the desktop webview
+    if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+      if (import.meta.env.DEV) return ""; // tauri:dev uses Vite proxy → local API
+      return "https://ems.cfsdesigners.com";
+    }
+  } catch {
+    /* ignore */
+  }
+  return "";
+}
+
+const API = resolveApiBase();
 
 export type LiveEmployee = {
   employee_id: string;
