@@ -18,6 +18,19 @@ function resolveApiBase(): string {
 
 const API = resolveApiBase();
 
+/**
+ * Convert a server-relative path like "/api/v1/screenshots/x/file" to an
+ * absolute URL.  In the browser the origin is ems.cfsdesigners.com so a
+ * relative fetch works fine; in the Tauri Desktop App the webview origin is
+ * "tauri://localhost", so relative paths 404.  Always use this for any URL
+ * that goes to the EMS API (screenshots, PDFs, etc.).
+ */
+export function resolveUrl(path: string): string {
+  if (!path) return "";
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  return `${API}${path.startsWith("/") ? "" : "/"}${path}`;
+}
+
 export type LiveEmployee = {
   employee_id: string;
   code: string;

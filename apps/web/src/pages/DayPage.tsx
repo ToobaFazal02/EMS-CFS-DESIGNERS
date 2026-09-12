@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useParams } from "react-router-dom";
-import { fetchDay, fetchShots } from "../api";
+import { fetchDay, fetchShots, resolveUrl } from "../api";
 import { AuthedImg } from "../components/AuthedImg";
 import { useToast } from "../components/ToastProvider";
 import { formatHoursLabel, formatMinutesAsHours } from "../formatHours";
@@ -90,7 +90,7 @@ export function DayPage() {
   }, [lightbox, shots.length]);
 
   const token = localStorage.getItem("ems_token") || "";
-  const pdfHref = `/api/v1/employees/${id}/day.pdf?date=${date}&v=${Date.now()}`;
+  const pdfHref = resolveUrl(`/api/v1/employees/${id}/day.pdf?date=${date}&v=${Date.now()}`);
 
   const manager = (() => {
     const r = localStorage.getItem("ems_role") || "";
@@ -135,7 +135,7 @@ export function DayPage() {
               return;
             }
             const r = await fetch(
-              `/api/v1/employees/${id}/day.pdf?date=${date}&inline=1&v=${Date.now()}`,
+              resolveUrl(`/api/v1/employees/${id}/day.pdf?date=${date}&inline=1&v=${Date.now()}`),
               { headers: { Authorization: `Bearer ${token}` } }
             );
             if (!r.ok) {

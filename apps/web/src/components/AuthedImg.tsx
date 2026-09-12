@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { resolveUrl } from "../api";
 
 export function AuthedImg({
   path,
@@ -20,7 +21,7 @@ export function AuthedImg({
     setSrc("");
     setFailed(false);
     const token = localStorage.getItem("ems_token") || "";
-    const clean = path.split("?")[0];
+    const clean = resolveUrl(path.split("?")[0]);
     const fetchPath = audit ? `${clean}${clean.includes("?") ? "&" : "?"}audit=1` : clean;
     fetch(fetchPath, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })
       .then((r) => {
