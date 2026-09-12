@@ -154,7 +154,10 @@ class CaptureService(QObject):
         if not mss or not Image:
             return None
         with mss.mss() as sct:
-            mon = sct.monitors[1]
+            # monitors[0] = combined virtual screen covering ALL monitors.
+            # monitors[1] = primary only, monitors[2] = secondary, etc.
+            # Using [0] ensures dual-monitor setups are fully captured.
+            mon = sct.monitors[0]
             shot = sct.grab(mon)
             img = Image.frombytes("RGB", shot.size, shot.rgb)
             # Discard near-blank captures (sleep wake / lid closed / black screen)
@@ -167,7 +170,9 @@ class CaptureService(QObject):
             peak = max(hist) if hist else 0
             if peak > 0.92 * sum(hist):
                 return None
-            img.thumbnail((1600, 900))
+            # Keep width ≤ 1920 so dual-monitor shots (e.g. 3840×1080) stay
+            # readable without ballooning file size.
+            img.thumbnail((1920, 1080))
             # Optional privacy blur (config.json: screenshot_blur true)
             if bool(self.cfg.get("screenshot_blur", False)):
                 try:
