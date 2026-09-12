@@ -65,7 +65,7 @@ DEFAULT_CONFIG = {
     "screenshot_blur": False,
     "screenshot_blur_radius": 2,
     "activity_interval_seconds": 15,
-    "idle_seconds": 180,
+    "idle_seconds": 30,
     "auto_sign_out_idle_seconds": 1800,
     "auto_sign_out_on_sleep": True,
     "sleep_gap_seconds": 120,
