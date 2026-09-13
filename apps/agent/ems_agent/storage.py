@@ -183,6 +183,8 @@ class ApiClient:
 
     def activity(self, payload: dict) -> bool:
         r = httpx.post(f"{self.base}/api/v1/agent/activity", json=payload, headers=self._headers(), timeout=20)
+        if r.status_code == 401:
+            raise PermissionError(self._detail(r))  # caught by caller to trigger re-enroll
         return r.status_code < 300
 
     def screenshot(self, jpeg_bytes: bytes) -> bool:

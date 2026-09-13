@@ -18,6 +18,23 @@ from app.schemas import ActivityIn, PunchIn, PunchOut
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 settings = get_settings()
 
+# ── Agent version endpoint (no auth — called before enroll) ───────────────
+# Bump LATEST_AGENT_VERSION whenever a new Agent build is released.
+LATEST_AGENT_VERSION = "1.1.0"
+
+
+@router.get("/version", tags=["agent"])
+async def agent_version() -> dict:
+    """
+    Returns the latest published agent version and download URL.
+    Agents call this on startup to detect updates.
+    No authentication required.
+    """
+    return {
+        "agent_version": LATEST_AGENT_VERSION,
+        "download_url": "https://ems.cfsdesigners.com/downloads",
+    }
+
 
 def _bucket_floor(dt: datetime) -> datetime:
     minute = (dt.minute // 30) * 30

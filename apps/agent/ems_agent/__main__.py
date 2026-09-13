@@ -275,6 +275,19 @@ class CaptureService(QObject):
 
 
 APP_DISPLAY_NAME = "CFS Designers Agent"
+# Bump this on every release so the auto-update check can compare versions.
+AGENT_VERSION = "1.1.0"
+DOWNLOADS_URL = "https://ems.cfsdesigners.com/downloads"
+
+
+def _version_gt(a: str, b: str) -> bool:
+    """Return True if version string a > b (e.g. '1.2.0' > '1.1.0')."""
+    def parts(v: str) -> tuple:
+        try:
+            return tuple(int(x) for x in v.strip().split("."))
+        except Exception:
+            return (0,)
+    return parts(a) > parts(b)
 
 
 class AppDialog(QDialog):
@@ -404,7 +417,9 @@ def _app_icon() -> QIcon:
 
 
 class MainWindow(QWidget):
-    enroll_finished = Signal(object, str)  # data dict or None, error message
+    enroll_finished = Signal(object, str)   # data dict or None, error message
+    invalid_token_detected = Signal()       # fired from activity/screenshot threads
+    update_available = Signal(str, str)     # (latest_version, download_url)
 
     def __init__(self) -> None:
         super().__init__()
@@ -426,7 +441,10 @@ class MainWindow(QWidget):
         self._tray: QSystemTrayIcon | None = None
         self._force_quit = False
         self._enroll_busy = False
+        self._invalid_token_shown = False   # suppress repeated prompts
         self.enroll_finished.connect(self._on_enroll_finished)
+        self.invalid_token_detected.connect(self._on_invalid_token)
+        self.update_available.connect(self._on_update_available)
 
         self.live = QLabel("OFF")
         self.live.setAlignment(Qt.AlignCenter)
@@ -449,6 +467,25 @@ class MainWindow(QWidget):
         self.enroll_status = QLabel("")
         self.enroll_status.setObjectName("enrollHint")
         self.enroll_status.setWordWrap(True)
+
+        # Re-enroll link — visible only when already enrolled (device change / token revoked)
+        self.btn_reenroll = QPushButton("Re-enroll this PC (device changed or token revoked)")
+        self.btn_reenroll.setObjectName("linkBtn")
+        self.btn_reenroll.setCursor(Qt.PointingHandCursor)
+        self.btn_reenroll.clicked.connect(self._do_reenroll)
+        self.btn_reenroll.hide()
+
+        # Update banner — shown when a newer agent version is detected
+        self.update_banner = QLabel("")
+        self.update_banner.setObjectName("updateBanner")
+        self.update_banner.setWordWrap(True)
+        self.update_banner.setAlignment(Qt.AlignCenter)
+        self.update_banner.hide()
+        self.btn_download_update = QPushButton("Download Update")
+        self.btn_download_update.setObjectName("primary")
+        self.btn_download_update.setCursor(Qt.PointingHandCursor)
+        self.btn_download_update.hide()
+        self._update_url = DOWNLOADS_URL
 
         self.btn_in = QPushButton("Sign In")
         self.btn_in.setObjectName("success")
@@ -513,9 +550,12 @@ class MainWindow(QWidget):
         top.addLayout(text_col, 1)
         layout.addWidget(status)
 
+        layout.addWidget(self.update_banner)
+        layout.addWidget(self.btn_download_update)
         layout.addWidget(self.enroll_status)
         layout.addWidget(self.enroll)
         layout.addWidget(self.btn_enroll)
+        layout.addWidget(self.btn_reenroll)
         layout.addWidget(self.btn_in)
         row = QHBoxLayout()
         row.setSpacing(8)
@@ -557,6 +597,12 @@ class MainWindow(QWidget):
         self.session_timer = QTimer(self)
         self.session_timer.timeout.connect(self._sync_server_session)
         self.session_timer.start(45_000)
+
+        # Connect update download button
+        self.btn_download_update.clicked.connect(self._open_download_page)
+
+        # Check for agent updates 10 s after startup (non-blocking)
+        QTimer.singleShot(10_000, self._start_update_check)
 
         self._setup_tray()
 
@@ -742,6 +788,16 @@ class MainWindow(QWidget):
                 border-radius: 7px; color: #FFFFFF;
             }
             QLineEdit:focus { border: 1px solid #C9A227; }
+            QPushButton#linkBtn {
+                background: transparent; color: #8A8A8A; font-size: 12px;
+                border: none; padding: 4px 0; text-decoration: underline;
+            }
+            QPushButton#linkBtn:hover { color: #C9A227; }
+            QLabel#updateBanner {
+                background: #1B3A1B; color: #4ADE80; font-size: 13px;
+                font-weight: 600; border-radius: 7px; padding: 8px 12px;
+                border: 1px solid #166534;
+            }
             """
         )
 
@@ -809,12 +865,14 @@ class MainWindow(QWidget):
             # Keep window title = app name so Windows does not show "Name - CFS Designers Agent"
             self.enroll_status.setText(f"Enrolled as {who}\nThis PC: {host}")
             self.enroll_status.show()
+            self.btn_reenroll.show()   # allow re-enroll if device changes
             self.setWindowTitle(APP_DISPLAY_NAME)
         else:
             self.enroll.show()
             self.btn_enroll.show()
             self.btn_enroll.setText("Enroll this PC")
             self.btn_enroll.setEnabled(True)
+            self.btn_reenroll.hide()
             self.enroll_status.setText("Not enrolled. Paste the manager code, then Enroll this PC.")
             self.enroll_status.setStyleSheet("color: #A3A3A3;")
             self.setWindowTitle(APP_DISPLAY_NAME)
@@ -868,6 +926,10 @@ class MainWindow(QWidget):
                     self._sync_server_session()
                     return
         if not ok:
+            low_err = (err or "").lower()
+            if "invalid" in low_err and "token" in low_err or "re-enroll" in low_err or "revoked" in low_err:
+                self._on_invalid_token()
+                return
             _notice(self, "Could not save.", err or "Check your connection and try again.")
             return
         if punch_type == "sign_out":
@@ -956,6 +1018,96 @@ class MainWindow(QWidget):
             self.sync.setText("Connection: Enroll failed")
             _notice(self, "Enroll failed.", msg, kind="danger")
 
+    # ── Re-enroll helpers ──────────────────────────────────────────────────
+
+    def _do_reenroll(self) -> None:
+        """Clear device token and show the enroll form so employee can re-enroll."""
+        from PySide6.QtWidgets import QMessageBox
+        confirm = QMessageBox(self)
+        confirm.setWindowTitle("Re-enroll this PC")
+        confirm.setText(
+            "This will clear the current device link.\n\n"
+            "Ask your manager for a new enroll code, then enter it to re-enroll."
+        )
+        confirm.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
+        confirm.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        if confirm.exec() != QMessageBox.StandardButton.Ok:
+            return
+        # Sign out first if active
+        if self.svc.state not in ("offline",):
+            self.svc.punch("sign_out")
+            self.svc.set_state("offline")
+            self._server_signed_in = False
+        # Clear token from config
+        self.svc.cfg["device_token"] = ""
+        self.svc.cfg["employee_name"] = ""
+        self.svc.cfg["employee_code"] = ""
+        save_config(self.svc.cfg)
+        self._invalid_token_shown = False
+        self._refresh_enroll_ui()
+        self._update_buttons()
+        self.info.setText("Sign in to start tracking")
+        self.sync.setText("Connection: —")
+
+    def _on_invalid_token(self) -> None:
+        """Called (on main thread) when the server rejects our device token."""
+        if self._invalid_token_shown:
+            return
+        self._invalid_token_shown = True
+        from PySide6.QtWidgets import QMessageBox
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle("Device token invalid")
+        dlg.setText(
+            "This PC's enroll token was rejected by the server.\n\n"
+            "This happens when the token is revoked or the device is re-enrolled elsewhere.\n\n"
+            "Click 'Re-enroll' to link this PC again with a new code from your manager."
+        )
+        re_btn = dlg.addButton("Re-enroll this PC", QMessageBox.ButtonRole.AcceptRole)
+        dlg.addButton("Dismiss", QMessageBox.ButtonRole.RejectRole)
+        dlg.exec()
+        if dlg.clickedButton() == re_btn:
+            self._do_reenroll()
+
+    # ── Auto-update helpers ────────────────────────────────────────────────
+
+    def _start_update_check(self) -> None:
+        """Background thread: check API for newer agent version."""
+        api_base = str(self.svc.cfg.get("api_base") or "").rstrip("/")
+        if not api_base or "127.0.0.1" in api_base or "localhost" in api_base:
+            return  # skip update check in local/dev mode
+
+        def check() -> None:
+            try:
+                import httpx
+                r = httpx.get(f"{api_base}/api/v1/agent/version", timeout=10)
+                if r.status_code == 200:
+                    data = r.json()
+                    latest = str(data.get("agent_version") or "").strip()
+                    url = str(data.get("download_url") or DOWNLOADS_URL).strip()
+                    if latest and latest != AGENT_VERSION and _version_gt(latest, AGENT_VERSION):
+                        self.update_available.emit(latest, url)
+            except Exception:
+                pass  # network error — silently skip
+
+        threading.Thread(target=check, daemon=True).start()
+
+    def _on_update_available(self, latest: str, url: str) -> None:
+        """Called on main thread when a newer version is detected."""
+        self._update_url = url
+        self.update_banner.setText(
+            f"⬆  Update available: v{latest}  (you have v{AGENT_VERSION})\n"
+            "Download and run the new installer — your data is safe."
+        )
+        self.update_banner.show()
+        self.btn_download_update.setText(f"Download v{latest}")
+        self.btn_download_update.show()
+
+    def _open_download_page(self) -> None:
+        import webbrowser
+        webbrowser.open(self._update_url)
+
+    # ── Timers ──────────────────────────────────────────────────────────────
+
     def _tick_activity(self) -> None:
         if self.svc.state not in ("working", "break", "idle"):
             return
@@ -1006,6 +1158,9 @@ class MainWindow(QWidget):
         try:
             ApiClient(self.svc.cfg["api_base"], token).activity(payload)
             self.svc.sync_changed.emit("Online")
+        except PermissionError:
+            # 401 from server → token revoked / invalid; prompt re-enroll on main thread
+            self.invalid_token_detected.emit()
         except Exception:
             enqueue("activity", payload)
             self.svc.sync_changed.emit("Offline — queued")
