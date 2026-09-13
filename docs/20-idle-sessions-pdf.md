@@ -9,7 +9,7 @@ Flow: kaam se pehle **Sign In** → kaam → (optional Break) → **Sign Out**. 
 
 ## Idle / away / static screen (MUST — employer can see)
 
-If mouse + keyboard quiet for a configurable time (default **3 minutes**, Hubstaff/DeskTime style):
+If mouse + keyboard quiet for a configurable time (default **30 seconds** as of Sep 2026 client request; was 3 minutes):
 
 | What happens | Manager sees |
 |---|---|

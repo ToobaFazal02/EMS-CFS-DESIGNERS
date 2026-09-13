@@ -33,6 +33,25 @@ Always EXTRACT the zip to a real folder first.
 
 8. To close the Agent, click the X, then Quit (or Cancel to stay).
 
+Re-enroll (new PC, or "Invalid device token")
+---------------------------------------------
+- Ask your manager for a NEW enroll code (Employees → Re-enroll).
+- In the Agent, click  Re-enroll this PC  (or clear and enroll again).
+- Paste the new code → Enroll this PC → Sign In.
+
+Software updates
+----------------
+- When a newer Agent is released, the app may show an Update available banner.
+- Click Download Update, get the new zip from the office Downloads page,
+  extract, and run INSTALL-AGENT.bat again (same folder is fine).
+- You do not need to uninstall first. Keep your enroll unless the manager
+  sent a new code.
+
+Idle / screenshots
+------------------
+- If you do not move mouse or keyboard for about 30 seconds, status becomes Idle.
+- Screenshots cover all monitors attached to this PC (1, 2, or more).
+
 Do not delete or move this folder after install.
 The Agent starts automatically when Windows starts.
 

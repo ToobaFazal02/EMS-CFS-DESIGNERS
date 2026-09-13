@@ -35,6 +35,11 @@ Do **not** skip local checks and go straight to production.
 - [ ] While checking: button shows **Connecting...**
 - [ ] Valid enroll code → enrolled, then Sign In / Break / Sign Out
 - [ ] Tray / taskbar shows monogram
+- [ ] Idle: no mouse/keyboard ~**30s** → status Idle (Live / Agent)
+- [ ] One monitor + dual monitors: screenshots cover all displays
+- [ ] **Re-enroll this PC** works after admin Re-enroll + new code
+- [ ] Invalid token on Sign In → dialog offers Re-enroll (not endless “Could not save”)
+- [ ] After v1.1.0+: if API version higher → update banner + Download button
 
 ### Data safety
 
@@ -44,7 +49,11 @@ Do **not** skip local checks and go straight to production.
 
 ## Deploy order (when tests pass)
 
-1. Push code to GitHub
-2. On VPS: `git pull` → API restart if needed → `npm run build` → copy `dist` to `/var/www/ems`
-3. Upload **new** `CFS-Agent-Install.zip` and Manager Setup/MSI to `/var/www/ems/downloads/` (scp; large files)
-4. Spot-check production Downloads + one enroll on a test PC
+See **`51-deploy-sep13-idle-reenroll-update.md`** for full steps.
+
+1. Push code to GitHub (keep repo **private** if possible + VPS deploy key)
+2. On VPS: `git pull` → `npm run build` → copy `dist` to `/var/www/ems` → `systemctl restart ems-api`
+3. Confirm `GET /api/v1/agent/version` → `1.1.0`
+4. Upload **new** `CFS-Agent-Install.zip` and Manager Setup to `/var/www/ems/downloads/`
+5. Spot-check production Downloads + one enroll on a test PC
+6. Tell client: **first** Agent/Manager install of this build is required; later releases use the in-app update banner
