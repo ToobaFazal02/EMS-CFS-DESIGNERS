@@ -426,7 +426,7 @@ class MainWindow(QWidget):
         self.svc = CaptureService()
         self.setWindowTitle(APP_DISPLAY_NAME)
         self.setWindowIcon(_app_icon())
-        self.setMinimumSize(420, 470)
+        self.setMinimumSize(420, 500)
         self.setMaximumWidth(460)
         # Keep Close + Minimize. Do not use MSWindowsFixedSizeDialogHint —
         # on Windows that can grey out / disable the title-bar X.
@@ -539,15 +539,18 @@ class MainWindow(QWidget):
 
         status = QWidget()
         status.setObjectName("statusCard")
+        status.setMinimumHeight(96)
         top = QHBoxLayout(status)
-        top.setContentsMargins(14, 14, 16, 14)
+        top.setContentsMargins(16, 16, 16, 16)
         top.setSpacing(14)
-        top.addWidget(self.live, 0, Qt.AlignmentFlag.AlignTop)
+        top.addWidget(self.live, 0, Qt.AlignmentFlag.AlignVCenter)
         text_col = QVBoxLayout()
-        text_col.setSpacing(4)
-        text_col.setContentsMargins(0, 6, 0, 0)
+        text_col.setSpacing(6)
+        text_col.setContentsMargins(0, 0, 0, 0)
+        text_col.addStretch(1)
         text_col.addWidget(self.info)
         text_col.addWidget(self.sync)
+        text_col.addStretch(1)
         top.addLayout(text_col, 1)
         layout.addWidget(status)
 
