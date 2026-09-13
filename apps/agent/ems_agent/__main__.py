@@ -454,9 +454,11 @@ class MainWindow(QWidget):
         self.info = QLabel("Sign in to start tracking")
         self.info.setObjectName("statusTitle")
         self.info.setWordWrap(True)
+        self.info.setMinimumHeight(22)
         self.sync = QLabel("Connection: —")
         self.sync.setObjectName("statusMeta")
         self.sync.setWordWrap(True)
+        self.sync.setMinimumHeight(18)
 
         self.enroll = QLineEdit()
         self.enroll.setPlaceholderText("Enroll code from your manager")
@@ -761,8 +763,8 @@ class MainWindow(QWidget):
                 border: 1px solid #2C2C2C;
                 border-radius: 10px;
             }
-            QLabel#statusTitle { color: #FFFFFF; font-size: 15px; font-weight: 600; }
-            QLabel#statusMeta { color: #8A8A8A; font-size: 12px; }
+            QLabel#statusTitle { color: #FFFFFF; font-size: 15px; font-weight: 600; padding: 2px 0; }
+            QLabel#statusMeta { color: #8A8A8A; font-size: 12px; padding: 2px 0; }
             QLabel#enrollHint { color: #C9A227; font-size: 13px; }
             QPushButton {
                 border: none; padding: 11px 14px;

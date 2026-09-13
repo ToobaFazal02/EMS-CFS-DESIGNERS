@@ -32,9 +32,20 @@ See `docs/45-client-voice-2026-09-03-plan.md`. Q1–Q5 locked 7 Sep.
 
 See `docs/42-client-voice-2026-08-30-plan.md`.
 
-## In Progress (11 Sep 2026)
+## In Progress (13 Sep 2026)
 
-**Phase 1: Desktop App (Tauri)** — Manager software with Windows installer, native feel like VSCode — `docs/47-cross-device-roadmap.md`, `docs/48-phase1-tauri-desktop.md`
+**Ship binaries to production** — code on `main` includes idle 30s, multi-monitor screenshots, Tauri `resolveUrl`, Agent re-enroll + update banner (`1.1.0`).
+
+See **`docs/51-deploy-sep13-idle-reenroll-update.md`**.
+
+| Still needed | Why |
+|---|---|
+| VPS `git pull` + web build + `ems-api` restart | Serves new API version endpoint + web fix |
+| `BUILD-EXE.bat` → upload Agent zip | Employees get idle/monitors/re-enroll/banner |
+| `REBUILD-MANAGER-ICON.bat` → upload Setup.exe | Official Manager icon |
+| One-time install on each PC | Old Agents do not auto-update themselves |
+
+**Auto-update honesty:** banner + download only (not silent install). Next version bumps after this deploy is stable.
 
 ## Next (ops — not code blockers)
 
