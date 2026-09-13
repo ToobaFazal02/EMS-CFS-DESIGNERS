@@ -468,10 +468,11 @@ class MainWindow(QWidget):
         self.enroll_status.setObjectName("enrollHint")
         self.enroll_status.setWordWrap(True)
 
-        # Re-enroll link — visible only when already enrolled (device change / token revoked)
-        self.btn_reenroll = QPushButton("Re-enroll this PC (device changed or token revoked)")
-        self.btn_reenroll.setObjectName("linkBtn")
+        # Re-enroll — visible only when already enrolled (device change / token revoked)
+        self.btn_reenroll = QPushButton("Re-enroll")
+        self.btn_reenroll.setObjectName("secondary")
         self.btn_reenroll.setCursor(Qt.PointingHandCursor)
+        self.btn_reenroll.setToolTip("Use when this PC changed or the manager sent a new enroll code")
         self.btn_reenroll.clicked.connect(self._do_reenroll)
         self.btn_reenroll.hide()
 
@@ -788,11 +789,6 @@ class MainWindow(QWidget):
                 border-radius: 7px; color: #FFFFFF;
             }
             QLineEdit:focus { border: 1px solid #C9A227; }
-            QPushButton#linkBtn {
-                background: transparent; color: #8A8A8A; font-size: 12px;
-                border: none; padding: 4px 0; text-decoration: underline;
-            }
-            QPushButton#linkBtn:hover { color: #C9A227; }
             QLabel#updateBanner {
                 background: #1B3A1B; color: #4ADE80; font-size: 13px;
                 font-weight: 600; border-radius: 7px; padding: 8px 12px;
@@ -1062,7 +1058,7 @@ class MainWindow(QWidget):
             "This happens when the token is revoked or the device is re-enrolled elsewhere.\n\n"
             "Click 'Re-enroll' to link this PC again with a new code from your manager."
         )
-        re_btn = dlg.addButton("Re-enroll this PC", QMessageBox.ButtonRole.AcceptRole)
+        re_btn = dlg.addButton("Re-enroll", QMessageBox.ButtonRole.AcceptRole)
         dlg.addButton("Dismiss", QMessageBox.ButtonRole.RejectRole)
         dlg.exec()
         if dlg.clickedButton() == re_btn:

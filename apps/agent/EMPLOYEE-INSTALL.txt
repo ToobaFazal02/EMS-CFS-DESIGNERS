@@ -36,7 +36,7 @@ Always EXTRACT the zip to a real folder first.
 Re-enroll (new PC, or "Invalid device token")
 ---------------------------------------------
 - Ask your manager for a NEW enroll code (Employees → Re-enroll).
-- In the Agent, click  Re-enroll this PC  (or clear and enroll again).
+- In the Agent, click  Re-enroll  (or clear and enroll again).
 - Paste the new code → Enroll this PC → Sign In.
 
 Software updates
