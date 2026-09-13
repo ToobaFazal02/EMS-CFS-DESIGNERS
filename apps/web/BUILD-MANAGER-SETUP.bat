@@ -1,31 +1,25 @@
 @echo off
 setlocal EnableExtensions
-title CFS Designers - Build Manager Setup (OOM-safe)
+title CFS Manager Setup Build
 cd /d "%~dp0"
 
-echo.
 echo ============================================================
-echo   Manager Setup.exe — low-RAM build
-echo   CLOSE Chrome, Docker, Cursor heavy tabs first.
-echo   Do NOT close this window (15-30 min).
+echo   Building Manager Setup.exe (15-30 min)
+echo   Do NOT close. Close Chrome/Docker first.
 echo ============================================================
 echo.
 
+REM Kill lingering processes
 taskkill /IM rustc.exe /F >nul 2>&1
 taskkill /IM cargo.exe /F >nul 2>&1
 taskkill /IM link.exe /F >nul 2>&1
 taskkill /IM app.exe /F >nul 2>&1
 timeout /t 2 /nobreak >nul
 
-echo [1/5] Wiping Rust target (kills corrupt 4GB rlib)...
+echo [1/4] Wiping old target...
 if exist "src-tauri\target" rd /s /q "src-tauri\target"
 
-echo [2/5] Low-RAM env...
-set "CARGO_BUILD_JOBS=1"
-set "CARGO_INCREMENTAL=0"
-set "CARGO_TERM_PROGRESS_WHEN=always"
-
-echo [3/5] Frontend build...
+echo [2/4] Frontend...
 call npm run build
 if errorlevel 1 (
   echo FRONTEND FAILED
@@ -33,9 +27,11 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [4/5] Cargo release (lib then bin) — watch for OOM...
+echo [3/4] Rust (slow step, no progress bar)...
 cd src-tauri
-cargo build --release -j 1
+set "CARGO_BUILD_JOBS=1"
+set "CARGO_INCREMENTAL=0"
+cargo build --release
 if errorlevel 1 (
   echo CARGO FAILED
   cd ..
@@ -43,19 +39,20 @@ if errorlevel 1 (
   exit /b 1
 )
 
-REM Fail fast if rlib is absurdly huge again (corrupt)
+REM Check rlib size - corrupt if over 200MB
 for %%F in ("target\release\deps\libapp_lib.rlib") do (
+  set /a size_mb=%%~zF/1048576
   if %%~zF GTR 200000000 (
-    echo ERROR: libapp_lib.rlib is %%~zF bytes — corrupt again. Restart PC and retry.
+    echo ERROR: rlib corrupt (%%~zF bytes). Restart PC.
     cd ..
     pause
     exit /b 1
   )
-  echo OK rlib size=%%~zF bytes
+  echo rlib OK: %%~zF bytes
 )
 cd ..
 
-echo [5/5] Bundle NSIS Setup only (no MSI)...
+echo [4/4] NSIS bundle...
 call npx tauri build --bundles nsis
 if errorlevel 1 (
   echo BUNDLE FAILED
@@ -65,9 +62,8 @@ if errorlevel 1 (
 
 echo.
 echo ============================================================
-echo   SUCCESS — Setup.exe:
+echo   SUCCESS - Setup here:
 dir /b "src-tauri\target\release\bundle\nsis\*.exe"
-echo   Full path:
 echo   %CD%\src-tauri\target\release\bundle\nsis\
 echo ============================================================
 pause
