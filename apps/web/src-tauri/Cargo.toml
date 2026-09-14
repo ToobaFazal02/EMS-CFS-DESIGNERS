@@ -27,11 +27,12 @@ log = "0.4"
 tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 
-# Low-RAM release: avoid LTO / fat opt which OOMs this PC during link.
+# Low-RAM release (16GB PCs): no LTO, mild opt, more codegen units = less peak RSS.
+# Prefer GitHub Actions (.github/workflows/build-manager-setup.yml) for Setup.exe.
 [profile.release]
 lto = false
 codegen-units = 16
-opt-level = 2
+opt-level = 1
 strip = true
 debug = false
 incremental = false

@@ -23,6 +23,7 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | `48-phase1-tauri-desktop.md` | **Phase 1 implementation** — Desktop app (Windows installer) step-by-step |
 | `50-pre-production-test-checklist.md` | Smoke tests before live (icons, enroll UX, downloads) |
 | `51-deploy-sep13-idle-reenroll-update.md` | **13 Sep 2026** Idle 30s, multi-monitor, re-enroll, update banner — deploy + honesty on auto-update |
+| `52-manager-build-16gb-ram.md` | **14 Sep 2026** Why local Tauri OOM on 16GB — use GitHub Actions for Setup.exe |
 | `43-lovable-dashboard-prompt.md` | Copy-paste Lovable prompt — **Dashboard tab only** |
 | `44-dashboard-predeploy.md` | **1 Sep 2026** Dashboard data + ultra-wide type + what to click before VPS |
 | `04-non-functional-requirements.md` | **All NFR** (perf, scale, security bar) |
@@ -81,5 +82,4 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | Report hours as **8.1 / 8.2** | **Done** on web (day + dashboard). PDF may still use `2h 32m` |
 | Hubstaff dashboard / gear / scrollbars | **Done** — real API data, device type scale (`docs/19`, `docs/44`) |
 | Dark / Light + first-5-visit guides | **Done** — Account appearance; Skip/Next cards (`docs/14`) |
-| Idle 30s + multi-monitor SS + re-enroll + update banner | **Code done** 13 Sep — ship binaries via `docs/51` |
-| Silent force auto-update (no click) | **Later** — not in v1.1.0 (banner + download only) |
+| Idle 30s + multi-monitor SS + re-enroll + update banner | **Code done** 13 Sep — ship bi
