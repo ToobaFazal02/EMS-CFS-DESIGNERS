@@ -2673,11 +2673,26 @@ p.line-hint {
   border-radius: 0;
   padding: 0;
   min-height: 0;
+  min-width: 0;
+  /* Must beat global `button` / `button:hover` (gold accent) — backdrop is a <button> */
   background: rgba(0, 0, 0, 0.72);
+  color: transparent;
+  box-shadow: none;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.28s ease;
   cursor: pointer;
+}
+button.nav-backdrop,
+button.nav-backdrop:hover,
+button.nav-backdrop:focus,
+button.nav-backdrop:focus-visible,
+button.nav-backdrop:active {
+  background: rgba(0, 0, 0, 0.72);
+  color: transparent;
+  outline: none;
+  box-shadow: none;
+  border: none;
 }
 .nav-backdrop.is-visible {
   opacity: 1;
@@ -3552,12 +3567,13 @@ p.line-hint {
     position: relative;
     z-index: 6020;
   }
+  /* Settings live inside the hamburger drawer on small screens */
+  .topbar-actions .gear-wrap {
+    display: none;
+  }
   .topbar {
     position: relative;
     z-index: 6025;
-  }
-  .gear-menu {
-    z-index: 6030;
   }
   .nav-desktop {
     display: none;
@@ -3653,6 +3669,57 @@ p.line-hint {
     color: var(--accent);
     background: rgba(201, 162, 39, 0.12);
     box-shadow: inset -3px 0 0 var(--accent);
+  }
+  .nav-mobile-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-top: auto;
+    padding: 12px 0 max(16px, env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(201, 162, 39, 0.22);
+    flex-shrink: 0;
+  }
+  .nav-mobile-settings-label {
+    padding: 10px 20px 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(201, 162, 39, 0.85);
+  }
+  .nav-mobile-settings .gear-theme {
+    padding: 8px 16px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .nav-mobile-settings a,
+  .nav-mobile-settings button.gear-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    justify-content: flex-start;
+    padding: 16px 20px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    border-radius: 0;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.82);
+    min-height: 48px;
+    box-shadow: none;
+  }
+  .nav-mobile-settings a:hover,
+  .nav-mobile-settings button.gear-item:hover {
+    color: var(--accent);
+    background: rgba(201, 162, 39, 0.08);
+  }
+  .nav-mobile-settings button.gear-logout {
+    color: #e8a0a8;
+  }
+  .nav-mobile-settings button.gear-logout:hover {
+    color: #ffb4ba;
+    background: rgba(180, 35, 24, 0.12);
   }
   .user-chip {
     gap: 8px;
@@ -3935,6 +4002,12 @@ html[data-theme="light"] .nav-close {
 html[data-theme="light"] .nav-close:hover {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
+}
+html[data-theme="light"] button.nav-backdrop,
+html[data-theme="light"] button.nav-backdrop:hover,
+html[data-theme="light"] button.nav-backdrop:focus,
+html[data-theme="light"] button.nav-backdrop:active {
+  background: rgba(0, 0, 0, 0.55);
 }
 html[data-theme="light"] .nav a.active {
   background: rgba(201, 162, 39, 0.22);

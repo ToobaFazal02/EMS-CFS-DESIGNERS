@@ -478,6 +478,43 @@ function Shell({ children }: { children: React.ReactNode }) {
               </button>
             </div>
             <MainNavLinks office={office} finance={finance} partner={partner} demo={demo} myId={myId} />
+            <div
+              className="nav-mobile-settings"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <p className="nav-mobile-settings-label">Settings</p>
+              <div className="gear-theme">
+                <ThemeSwitch variant="menu" />
+              </div>
+              <Link to="/account" className="gear-item" onClick={() => setNavOpen(false)}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.8" />
+                  <path
+                    d="M5 19.5c1.6-3 4-4.5 7-4.5s5.4 1.5 7 4.5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                Account
+              </Link>
+              <button
+                type="button"
+                className="gear-item gear-logout"
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  logout();
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path d="M10 7V5a2 2 0 012-2h7v18h-7a2 2 0 01-2-2v-2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M14 12H4m0 0l3-3m-3 3l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Logout
+              </button>
+            </div>
           </nav>
         </>,
         document.body,
