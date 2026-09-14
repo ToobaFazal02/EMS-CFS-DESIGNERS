@@ -47,11 +47,11 @@ from app.schemas import (
 from app.services.duration import hours_to_hm
 from app.services.excel_report import build_attendance_xlsx, build_monthly_xlsx
 from app.services.hours import (
-    activity_fallback_hours,
     clock_for_day,
     compute_sessions,
     day_bounds_utc,
     first_work_at,
+    inferred_work_session,
     last_work_at,
     merge_punch_lists,
     work_bounds_by_pkt_day,
@@ -341,9 +341,11 @@ def _day_net_hours(
         clicks = sum(b.mouse_clicks for b in day_buckets)
         keys = sum(b.key_presses for b in day_buckets)
         idle_sec = sum(b.idle_seconds for b in day_buckets)
-        if clicks or keys:
+        if clicks or keys or day_shots:
             first = first_work_at(buckets=day_buckets, windows=day_windows, screenshots=day_shots)
-            net = activity_fallback_hours(first_at=first, last_at=work_at, idle_seconds=idle_sec)
+            net, _ = inferred_work_session(
+                first_at=first, last_at=work_at, idle_seconds=idle_sec
+            )
     return round(float(net or 0), 2)
 
 
@@ -674,9 +676,11 @@ async def employee_day(
     idle_sec = sum(b.idle_seconds for b in buckets)
     net = sum(s["net_hours"] for s in sessions)
     brk = sum(s["break_minutes"] for s in sessions) / 60.0
-    if not sessions and (clicks or keys):
+    if not sessions and (clicks or keys or shots):
         first = first_work_at(buckets=list(buckets), windows=list(windows), screenshots=list(shots))
-        net = activity_fallback_hours(first_at=first, last_at=work_at, idle_seconds=idle_sec)
+        net, sessions = inferred_work_session(
+            first_at=first, last_at=work_at, idle_seconds=idle_sec
+        )
     return DaySummaryOut(
         employee_id=employee_id,
         date=date,
@@ -852,13 +856,17 @@ async def daily_pdf(
     idle_min = sum(b.idle_seconds for b in buckets) / 60.0
     # Activity without Sign In (agent desync) — still show honest Start/End/Hours
     overview_note = None
-    if not sessions and (sum(b.mouse_clicks for b in buckets) or sum(b.key_presses for b in buckets)):
-        net = activity_fallback_hours(
+    if not sessions and (
+        sum(b.mouse_clicks for b in buckets)
+        or sum(b.key_presses for b in buckets)
+        or shots
+    ):
+        net, sessions = inferred_work_session(
             first_at=first_at,
             last_at=work_at,
             idle_seconds=sum(b.idle_seconds for b in buckets),
         )
-        overview_note = "No Sign In recorded — hours estimated from activity"
+        overview_note = "No Sign In recorded — hours estimated from activity/screenshots"
     series_map: dict[str, float] = defaultdict(float)
     for b in buckets:
         local = to_pk(b.bucket_start) or b.bucket_start

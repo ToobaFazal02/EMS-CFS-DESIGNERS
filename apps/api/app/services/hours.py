@@ -343,3 +343,31 @@ def activity_fallback_hours(
         return 0.0
     gross = (last_at - first_at).total_seconds()
     return round(max(gross - max(idle_seconds, 0.0), 0.0) / 3600.0, 2)
+
+
+def inferred_work_session(
+    *,
+    first_at: datetime | None,
+    last_at: datetime | None,
+    idle_seconds: float = 0.0,
+) -> tuple[float, list[dict]]:
+    """Build one estimated session from proof-of-work (clicks, keys, or screenshots).
+
+    Used when punches are missing but the agent still uploaded activity evidence.
+    Does not invent Sign In punches in the DB — display/report only.
+    """
+    net = activity_fallback_hours(
+        first_at=first_at, last_at=last_at, idle_seconds=idle_seconds
+    )
+    if not first_at or not last_at:
+        return 0.0, []
+    return net, [
+        {
+            "session_id": "inferred-activity",
+            "sign_in": first_at,
+            "sign_out": last_at if last_at > first_at else None,
+            "break_minutes": 0.0,
+            "net_hours": net,
+            "status": "inferred",
+        }
+    ]

@@ -45,6 +45,7 @@ function minutesToHm(minutes: number | string | null | undefined): string {
 }
 
 function statusLabel(s: any): string {
+  if (s.status === "inferred") return "Estimated (no Sign In)";
   if (s.sign_out) return "Ended";
   if (s.status === "on_break") return "On break";
   if (s.status === "inactive") return "Inactive";
