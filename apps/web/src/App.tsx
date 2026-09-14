@@ -483,9 +483,9 @@ function Shell({ children }: { children: React.ReactNode }) {
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
             >
-              <p className="nav-mobile-settings-label">Settings</p>
-              <div className="gear-theme">
-                <ThemeSwitch variant="menu" />
+              <div className="nav-mobile-theme-row">
+                <span className="nav-mobile-theme-label">Appearance</span>
+                <ThemeSwitch />
               </div>
               <Link to="/account" className="gear-item" onClick={() => setNavOpen(false)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>

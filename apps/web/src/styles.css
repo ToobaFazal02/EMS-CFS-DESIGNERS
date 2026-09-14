@@ -3675,21 +3675,25 @@ button.nav-backdrop:active {
     flex-direction: column;
     gap: 0;
     margin-top: auto;
-    padding: 12px 0 max(16px, env(safe-area-inset-bottom));
-    border-top: 1px solid rgba(201, 162, 39, 0.22);
+    padding: 8px 0 max(12px, env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(201, 162, 39, 0.2);
     flex-shrink: 0;
   }
-  .nav-mobile-settings-label {
-    padding: 10px 20px 6px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: rgba(201, 162, 39, 0.85);
-  }
-  .nav-mobile-settings .gear-theme {
-    padding: 8px 16px 12px;
+  .nav-mobile-theme-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .nav-mobile-theme-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.82);
+  }
+  .nav-mobile-theme-row .theme-switch-row {
+    margin: 0;
   }
   .nav-mobile-settings a,
   .nav-mobile-settings button.gear-item {
@@ -3698,15 +3702,15 @@ button.nav-backdrop:active {
     gap: 10px;
     width: 100%;
     justify-content: flex-start;
-    padding: 16px 20px;
-    font-size: 1.05rem;
+    padding: 12px 20px;
+    font-size: 1rem;
     font-weight: 600;
     border-radius: 0;
     border: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     background: transparent;
     color: rgba(255, 255, 255, 0.82);
-    min-height: 48px;
+    min-height: 44px;
     box-shadow: none;
   }
   .nav-mobile-settings a:hover,
