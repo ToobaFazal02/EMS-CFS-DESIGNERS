@@ -276,7 +276,7 @@ class CaptureService(QObject):
 
 APP_DISPLAY_NAME = "CFS Designers Agent"
 # Bump this on every release so the auto-update check can compare versions.
-AGENT_VERSION = "1.1.0"
+AGENT_VERSION = "1.1.1"
 DOWNLOADS_URL = "https://ems.cfsdesigners.com/downloads"
 
 
@@ -587,8 +587,8 @@ class MainWindow(QWidget):
 
         self.shot_timer = QTimer(self)
         self.shot_timer.timeout.connect(self._tick_screenshot)
-        # First capture soon after Sign In; recurring interval from config (default 5 min)
-        self.shot_timer.start(int(self.svc.cfg.get("screenshot_interval_seconds", 300)) * 1000)
+        # First capture soon after Sign In; recurring ~3 min with jitter (see _arm_screenshot_timer)
+        self._arm_screenshot_timer(first_delay_ms=2500)
 
         self._auto_out_busy = False
         self._skip_shots_until = 0.0
@@ -939,7 +939,7 @@ class MainWindow(QWidget):
             self._server_signed_in = True
         self._sync_server_session()
         if punch_type == "sign_in":
-            QTimer.singleShot(2500, self._tick_screenshot)
+            QTimer.singleShot(2500, lambda: self._arm_screenshot_timer(first_delay_ms=100))
 
     def do_enroll(self) -> None:
         if self._enroll_busy:
@@ -1166,40 +1166,59 @@ class MainWindow(QWidget):
             enqueue("activity", payload)
             self.svc.sync_changed.emit("Offline — queued")
 
-    def _tick_screenshot(self) -> None:
-        if self.svc.state not in ("working", "idle"):
-            return
-        # skip while idle (professional default)
-        if self.svc.state == "idle":
-            return
-        if time.time() < self._skip_shots_until:
-            return
-        data = self.svc.take_screenshot_jpeg()
-        if not data:
-            return
-        from pathlib import Path
-        import uuid
+    def _arm_screenshot_timer(self, first_delay_ms: int | None = None) -> None:
+        """Professional timing: base interval (~3 min) ± ~20% random jitter so captures are not predictable."""
+        import random
 
-        path = Path(__file__).resolve().parents[1] / "agent_data" / "shots"
-        path.mkdir(parents=True, exist_ok=True)
-        f = path / f"{uuid.uuid4()}.jpg"
-        f.write_bytes(data)
-        token = self.svc.cfg.get("device_token") or ""
-        if not token:
-            return
+        base = int(self.svc.cfg.get("screenshot_interval_seconds", 180) or 180)
+        base = max(60, min(base, 900))
+        jitter = int(base * 0.2)
+        delay_s = base + random.randint(-jitter, jitter) if jitter else base
+        delay_s = max(45, delay_s)
+        ms = first_delay_ms if first_delay_ms is not None else delay_s * 1000
+        self.shot_timer.stop()
+        self.shot_timer.setSingleShot(True)
+        self.shot_timer.start(int(ms))
+
+    def _tick_screenshot(self) -> None:
         try:
-            ok = ApiClient(self.svc.cfg["api_base"], token).screenshot(data)
-            if ok:
-                self.svc.sync_changed.emit("Online")
-                try:
-                    f.unlink()
-                except OSError:
-                    pass
-            else:
+            if self.svc.state not in ("working", "idle"):
+                return
+            # skip while idle (professional default)
+            if self.svc.state == "idle":
+                return
+            if time.time() < self._skip_shots_until:
+                return
+            data = self.svc.take_screenshot_jpeg()
+            if not data:
+                return
+            from pathlib import Path
+            import uuid
+
+            path = Path(__file__).resolve().parents[1] / "agent_data" / "shots"
+            path.mkdir(parents=True, exist_ok=True)
+            f = path / f"{uuid.uuid4()}.jpg"
+            f.write_bytes(data)
+            token = self.svc.cfg.get("device_token") or ""
+            if not token:
+                return
+            try:
+                ok = ApiClient(self.svc.cfg["api_base"], token).screenshot(data)
+                if ok:
+                    self.svc.sync_changed.emit("Online")
+                    try:
+                        f.unlink()
+                    except OSError:
+                        pass
+                else:
+                    enqueue("screenshot", {"path": str(f)})
+            except Exception:
                 enqueue("screenshot", {"path": str(f)})
-        except Exception:
-            enqueue("screenshot", {"path": str(f)})
-            self.svc.sync_changed.emit("Offline — shot queued")
+                self.svc.sync_changed.emit("Offline — shot queued")
+        finally:
+            # Always schedule the next capture (jittered) while signed in
+            if self.svc.state in ("working", "idle", "break"):
+                self._arm_screenshot_timer()
 
 
 def _hide_windows_console() -> None:

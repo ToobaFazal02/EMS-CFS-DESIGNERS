@@ -61,7 +61,7 @@ class Counters:
 DEFAULT_CONFIG = {
     "api_base": "http://127.0.0.1:8000",
     "device_token": "",
-    "screenshot_interval_seconds": 300,
+    "screenshot_interval_seconds": 180,
     "screenshot_blur": False,
     "screenshot_blur_radius": 2,
     "activity_interval_seconds": 15,
@@ -72,6 +72,18 @@ DEFAULT_CONFIG = {
     "employee_name": "",
     "employee_code": "",
 }
+
+# Keys that may be upgraded on install without wiping enroll / identity.
+_POLICY_KEYS = (
+    "screenshot_interval_seconds",
+    "idle_seconds",
+    "auto_sign_out_idle_seconds",
+    "activity_interval_seconds",
+    "auto_sign_out_on_sleep",
+    "sleep_gap_seconds",
+    "screenshot_blur",
+    "screenshot_blur_radius",
+)
 
 
 def load_config() -> dict:
@@ -90,6 +102,30 @@ def load_config() -> dict:
     cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     for k, v in DEFAULT_CONFIG.items():
         cfg.setdefault(k, v)
+
+    # Merge policy from shipped config.production.json (keeps device_token / name / code).
+    # Fixes: reinstall kept idle=180 / screenshots=300 from an old config.json.
+    changed = False
+    prod_path = ROOT / "config.production.json"
+    if not prod_path.is_file():
+        prod_path = bundle_dir() / "config.production.json"
+    if prod_path.is_file():
+        try:
+            prod = json.loads(prod_path.read_text(encoding="utf-8"))
+            for k in _POLICY_KEYS:
+                if k in prod and cfg.get(k) != prod[k]:
+                    cfg[k] = prod[k]
+                    changed = True
+            # Production builds should always hit live API if still on localhost.
+            if getattr(sys, "frozen", False):
+                base = str(cfg.get("api_base") or "")
+                if "127.0.0.1" in base or "localhost" in base:
+                    cfg["api_base"] = str(prod.get("api_base") or "https://ems.cfsdesigners.com")
+                    changed = True
+        except Exception:
+            pass
+    if changed:
+        save_config(cfg)
     return cfg
 
 

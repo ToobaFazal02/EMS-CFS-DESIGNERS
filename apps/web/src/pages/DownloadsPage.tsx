@@ -3,7 +3,6 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useToast } from "../components/ToastProvider";
 
 const MANAGER_SETUP = "/downloads/CFS-Designers-Manager-Setup.exe";
-const MANAGER_MSI = "/downloads/CFS-Designers-Manager.msi";
 const AGENT_ZIP = "/downloads/CFS-Agent-Install.zip";
 
 type ProgressState = {
@@ -307,7 +306,7 @@ export function DownloadsPage() {
           <ol className="downloads-steps">
             <li>
               <span className="dl-step-num">1</span>
-              <span>Download Setup (.exe) — recommended (~58 MB).</span>
+              <span>Download Setup (.exe) — recommended.</span>
             </li>
             <li>
               <span className="dl-step-num">2</span>
@@ -329,17 +328,9 @@ export function DownloadsPage() {
             >
               <DownloadIcon /> Download Setup (.exe)
             </button>
-            <button
-              type="button"
-              className="downloads-btn downloads-btn-secondary"
-              disabled={downloading}
-              onClick={() => startDownload(MANAGER_MSI, "Manager MSI")}
-            >
-              <DownloadIcon /> Download MSI
-            </button>
           </div>
           <p className="muted downloads-hint">
-            Setup.exe = easy double-click installer. MSI = IT / Group Policy install. Same app.
+            Setup.exe installs the Manager desktop app. Requires Windows WebView2 (usually already installed).
           </p>
         </article>
 

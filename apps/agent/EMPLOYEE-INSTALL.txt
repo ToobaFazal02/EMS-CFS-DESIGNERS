@@ -51,6 +51,8 @@ Idle / screenshots
 ------------------
 - If you do not move mouse or keyboard for about 30 seconds, status becomes Idle.
 - Screenshots cover all monitors attached to this PC (1, 2, or more).
+- While you are working, screenshots are taken about every 3 minutes (random timing).
+- While Idle, screenshots pause (status still shows Idle for the office).
 
 Do not delete or move this folder after install.
 The Agent starts automatically when Windows starts.

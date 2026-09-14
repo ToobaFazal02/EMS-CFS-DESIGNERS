@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg: #0a0a0a;
   --surface: #141414;
   --surface-2: #1f1f1f;
@@ -310,30 +310,41 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 .password-wrap {
   position: relative;
-  display: flex;
-  align-items: center;
+  display: block;
 }
 .password-wrap input {
+  width: 100%;
   padding-right: 52px;
+  box-sizing: border-box;
 }
 .password-toggle {
   position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  min-height: 36px;
+  right: 8px;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+  height: 100%;
+  min-height: 0;
   min-width: 40px;
-  padding: 6px;
-  display: grid;
-  place-items: center;
+  margin: 0;
+  padding: 0;
+  transform: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   color: var(--accent);
   border: 1px solid transparent;
   border-radius: 8px;
+  line-height: 0;
 }
 .password-toggle:hover {
   background: rgba(201, 162, 39, 0.12);
   border-color: var(--accent);
+}
+.password-toggle svg {
+  display: block;
+  flex-shrink: 0;
 }
 
 .money-field {
@@ -655,8 +666,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   font-size: 22px;
   font-weight: 700;
   letter-spacing: 0.01em;
+  flex-shrink: 0;
+  max-width: min(42vw, 280px);
 }
-.brand span { color: var(--accent); }
+.brand span {
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .brand-mark {
   width: 32px;
   height: 32px;
@@ -2605,6 +2623,7 @@ p.line-hint {
   align-items: center;
   gap: 10px;
   min-width: 0;
+  flex-shrink: 0;
 }
 .nav-toggle {
   display: none;
@@ -3522,7 +3541,7 @@ p.line-hint {
   .dash-late li > b { grid-area: amt; align-self: center; }
 }
 
-@media (max-width: 1139px) {
+@media (max-width: 1479px) {
   .topbar {
     flex-wrap: nowrap;
     align-items: center;

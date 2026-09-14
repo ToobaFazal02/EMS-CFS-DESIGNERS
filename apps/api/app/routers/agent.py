@@ -20,7 +20,7 @@ settings = get_settings()
 
 # ── Agent version endpoint (no auth — called before enroll) ───────────────
 # Bump LATEST_AGENT_VERSION whenever a new Agent build is released.
-LATEST_AGENT_VERSION = "1.1.0"
+LATEST_AGENT_VERSION = "1.1.1"
 
 
 @router.get("/version", tags=["agent"])
