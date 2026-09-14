@@ -143,7 +143,7 @@ export function DashboardPage() {
             <article className="card dash-stat dash-stat-ok">
               <p className="dash-stat-kicker">Live now</p>
               <strong className="dash-stat-num">{liveNow}</strong>
-              <p className="dash-stat-cap">of {staff} staff signed in</p>
+              <p className="dash-stat-cap">of {staff} staff working now</p>
               <Sparkline values={spark} color="#4ade80" />
             </article>
             <article className="card dash-stat dash-stat-warn">
@@ -155,7 +155,7 @@ export function DashboardPage() {
             <article className="card dash-stat dash-stat-bad">
               <p className="dash-stat-kicker">Offline</p>
               <strong className="dash-stat-num">{offline}</strong>
-              <p className="dash-stat-cap">not clocked in today</p>
+              <p className="dash-stat-cap">currently offline (may have worked earlier)</p>
               <Sparkline values={spark} color="#f87171" />
             </article>
             <article className="card dash-stat dash-stat-mute">
