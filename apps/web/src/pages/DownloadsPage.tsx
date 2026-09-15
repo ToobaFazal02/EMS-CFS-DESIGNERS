@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useToast } from "../components/ToastProvider";
+import { resolveUrl } from "../api";
 
-const MANAGER_SETUP = "/downloads/CFS-Designers-Manager-Setup.exe";
-const AGENT_ZIP = "/downloads/CFS-Agent-Install.zip";
+const MANAGER_SETUP = resolveUrl("/downloads/CFS-Designers-Manager-Setup.exe");
+const AGENT_ZIP = resolveUrl("/downloads/CFS-Agent-Install.zip");
 
 type ProgressState = {
   label: string;

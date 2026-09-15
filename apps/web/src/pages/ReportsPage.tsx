@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { fetchAuthedBlob, triggerBlobDownload } from "../api";
+import { PdfPreviewModal } from "../components/PdfPreviewModal";
 import { useToast } from "../components/ToastProvider";
 
 function todayLocalISO(): string {
@@ -38,33 +40,33 @@ export function ReportsPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [preview, setPreview] = useState<PreviewState>(null);
-  const token = localStorage.getItem("ems_token") || "";
+  const [pdfPreview, setPdfPreview] = useState<{ url: string; title: string } | null>(null);
 
   async function fetchBlob(path: string): Promise<Blob | null> {
-    const r = await fetch(path, { headers: { Authorization: `Bearer ${token}` } });
-    if (!r.ok) {
-      let msg = `Request failed (${r.status})`;
-      try {
-        const j = await r.json();
-        if (typeof j?.detail === "string") msg = j.detail;
-      } catch {
-        /* ignore */
-      }
-      toast.error(msg);
+    const res = await fetchAuthedBlob(path);
+    if ("error" in res) {
+      toast.error(res.error);
       return null;
     }
-    return r.blob();
+    return res.blob;
   }
 
   async function download(path: string, filename: string) {
     const blob = await fetchBlob(path);
     if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    triggerBlobDownload(blob, filename);
+  }
+
+  async function viewPdf(path: string, title: string) {
+    const blob = await fetchBlob(path);
+    if (!blob) return;
+    if (pdfPreview?.url) URL.revokeObjectURL(pdfPreview.url);
+    setPdfPreview({ url: URL.createObjectURL(blob), title });
+  }
+
+  function closePdfPreview() {
+    if (pdfPreview?.url) URL.revokeObjectURL(pdfPreview.url);
+    setPdfPreview(null);
   }
 
   async function viewCsv(path: string, title: string) {
@@ -133,6 +135,12 @@ export function ReportsPage() {
 
   return (
     <div>
+      <PdfPreviewModal
+        open={Boolean(pdfPreview)}
+        title={pdfPreview?.title}
+        blobUrl={pdfPreview?.url || null}
+        onClose={closePdfPreview}
+      />
       <h2>Reports</h2>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -236,15 +244,12 @@ export function ReportsPage() {
             type="button"
             className="secondary"
             onClick={() =>
-              guardMonthThen(async () => {
-                const blob = await fetchBlob(
-                  `/api/v1/reports/monthly.pdf?year=${year}&month=${month}&inline=1`
-                );
-                if (!blob) return;
-                const url = URL.createObjectURL(blob);
-                window.open(url, "_blank", "noopener,noreferrer");
-                setTimeout(() => URL.revokeObjectURL(url), 60_000);
-              })
+              guardMonthThen(() =>
+                viewPdf(
+                  `/api/v1/reports/monthly.pdf?year=${year}&month=${month}&inline=1`,
+                  `Monthly PDF — ${year}-${monthPad}`
+                )
+              )
             }
           >
             View PDF

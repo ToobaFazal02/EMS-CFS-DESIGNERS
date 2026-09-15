@@ -27,7 +27,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [3/4] Rust (slow step, no progress bar)...
+echo [3/4] Rust compile...
 cd src-tauri
 set "CARGO_BUILD_JOBS=1"
 set "CARGO_INCREMENTAL=0"
@@ -38,21 +38,9 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-
-REM Check rlib size - corrupt if over 200MB
-for %%F in ("target\release\deps\libapp_lib.rlib") do (
-  set /a size_mb=%%~zF/1048576
-  if %%~zF GTR 200000000 (
-    echo ERROR: rlib corrupt (%%~zF bytes). Restart PC.
-    cd ..
-    pause
-    exit /b 1
-  )
-  echo rlib OK: %%~zF bytes
-)
 cd ..
 
-echo [4/4] NSIS bundle...
+echo [4/4] Bundle NSIS Setup...
 call npx tauri build --bundles nsis
 if errorlevel 1 (
   echo BUNDLE FAILED
@@ -62,8 +50,9 @@ if errorlevel 1 (
 
 echo.
 echo ============================================================
-echo   SUCCESS - Setup here:
+echo   SUCCESS - Setup.exe:
 dir /b "src-tauri\target\release\bundle\nsis\*.exe"
+echo   Full path:
 echo   %CD%\src-tauri\target\release\bundle\nsis\
 echo ============================================================
 pause

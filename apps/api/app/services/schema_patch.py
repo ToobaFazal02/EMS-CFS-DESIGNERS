@@ -21,6 +21,7 @@ INVOICE_COLS = {
     "bill_to_phone": "VARCHAR(40) DEFAULT ''",
     "line_items": "TEXT DEFAULT '[]'",
     "invoice_notes": "TEXT DEFAULT ''",
+    "invoice_prep": "VARCHAR(24) DEFAULT 'unprepared'",
     "is_demo": "BOOLEAN DEFAULT 0",
 }
 

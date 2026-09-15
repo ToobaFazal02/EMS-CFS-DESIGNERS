@@ -24,6 +24,7 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | `50-pre-production-test-checklist.md` | Smoke tests before live (icons, enroll UX, downloads) |
 | `51-deploy-sep13-idle-reenroll-update.md` | **13 Sep 2026** Idle 30s, multi-monitor, re-enroll, update banner — deploy + honesty on auto-update |
 | `52-manager-build-16gb-ram.md` | **14 Sep 2026** Why local Tauri OOM on 16GB — use GitHub Actions for Setup.exe |
+| `53-finalize-desktop-web-then-mobile-plan.md` | **14–15 Sep** Desktop+Web → Agent → Projects → Admin PWA; **Phase E** click-update; **P0 today pack** for 4pm reinstall |
 | `43-lovable-dashboard-prompt.md` | Copy-paste Lovable prompt — **Dashboard tab only** |
 | `44-dashboard-predeploy.md` | **1 Sep 2026** Dashboard data + ultra-wide type + what to click before VPS |
 | `04-non-functional-requirements.md` | **All NFR** (perf, scale, security bar) |

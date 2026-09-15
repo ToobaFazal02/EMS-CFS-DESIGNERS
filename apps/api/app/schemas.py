@@ -365,6 +365,7 @@ class InvoiceIn(BaseModel):
     status: str = "pending"
     client_comments: str = Field("", max_length=4000)
     kind: str = "deposit"
+    invoice_prep: str = Field("unprepared", max_length=24)
     bill_to_name: str = Field("", max_length=120)
     bill_to_location: str = Field("", max_length=200)
     bill_to_phone: str = Field("", max_length=40)
@@ -387,6 +388,7 @@ class InvoiceOut(BaseModel):
     status: str
     client_comments: str = ""
     kind: str = "deposit"
+    invoice_prep: str = "unprepared"
     bill_to_name: str = ""
     bill_to_location: str = ""
     bill_to_phone: str = ""

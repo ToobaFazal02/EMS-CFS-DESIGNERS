@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import {
   deleteInvoice,
+  fetchAuthedBlob,
   fetchClients,
   fetchInvoiceSettings,
   fetchInvoices,
   fetchProjects,
   saveInvoice,
   saveInvoiceSettings,
+  triggerBlobDownload,
   type ClientRow,
   type InvoiceLineItem,
   type InvoiceRow,
@@ -16,10 +19,17 @@ import {
 import { CellColorPicker } from "../components/CellColorPicker";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { CurrencySelect } from "../components/CurrencySelect";
+import { PdfPreviewModal } from "../components/PdfPreviewModal";
 import { RefreshButton } from "../components/RefreshButton";
 import { useToast } from "../components/ToastProvider";
 import { formatMoney, guessCurrencyFromLocation, normalizeCurrencyCode } from "../components/currencies";
-import { invoiceStatusLabel, invoiceStatusTextClass } from "../components/invoiceStatus";
+import {
+  INVOICE_PREP,
+  invoicePrepLabel,
+  invoicePrepTextClass,
+  invoiceStatusLabel,
+  invoiceStatusTextClass,
+} from "../components/invoiceStatus";
 
 const STATUSES = ["proforma", "sent", "pending", "paid", "overdue", "info_sent", "unpaid_info"];
 
@@ -35,6 +45,7 @@ type FormState = {
   follow_up_at: string;
   status: string;
   kind: string;
+  invoice_prep: string;
   client_comments: string;
   bill_to_name: string;
   bill_to_location: string;
@@ -65,6 +76,7 @@ const emptyForm: FormState = {
   follow_up_at: "",
   status: "pending",
   kind: "deposit",
+  invoice_prep: "unprepared",
   client_comments: "",
   bill_to_name: "",
   bill_to_location: "",
@@ -151,7 +163,56 @@ export function PaymentsPage() {
   const [q, setQ] = useState("");
   const [pendingDelete, setPendingDelete] = useState<InvoiceRow | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const token = localStorage.getItem("ems_token") || "";
+  const [pdfPreview, setPdfPreview] = useState<{ url: string; title: string } | null>(null);
+  const [actionsMenu, setActionsMenu] = useState<{
+    id: string;
+    top: number;
+    left: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!actionsMenu) return;
+    function onDoc(e: MouseEvent) {
+      const t = e.target as HTMLElement | null;
+      if (t?.closest?.(".payments-actions-menu")) return;
+      if (t?.closest?.(".payments-actions-dropdown-fixed")) return;
+      setActionsMenu(null);
+    }
+    function onScroll() {
+      setActionsMenu(null);
+    }
+    document.addEventListener("mousedown", onDoc);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [actionsMenu]);
+
+  function toggleActionsMenu(e: MouseEvent<HTMLButtonElement>, id: string) {
+    e.stopPropagation();
+    if (actionsMenu?.id === id) {
+      setActionsMenu(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuW = 156;
+    const menuH = 180;
+    let left = rect.right - menuW;
+    if (left < 8) left = 8;
+    if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
+    let top = rect.bottom + 6;
+    if (top + menuH > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - menuH - 6);
+    }
+    setActionsMenu({ id, top, left });
+  }
+
+  function closeActionsMenu() {
+    setActionsMenu(null);
+  }
 
   const computedTotal = useMemo(() => lineTotal(form.line_items), [form.line_items]);
 
@@ -279,6 +340,7 @@ export function PaymentsPage() {
       follow_up_at: isoDate(r.follow_up_at),
       status: r.status,
       kind: r.kind || "deposit",
+      invoice_prep: (r.invoice_prep || "unprepared").toLowerCase(),
       client_comments: r.client_comments || "",
       bill_to_name: r.bill_to_name || r.client_name || "",
       bill_to_location: r.bill_to_location || r.location || "",
@@ -394,6 +456,7 @@ export function PaymentsPage() {
         follow_up_at: form.follow_up_at ? `${form.follow_up_at}T12:00:00` : null,
         status: form.status,
         kind: form.kind,
+        invoice_prep: form.invoice_prep || "unprepared",
         client_comments: form.client_comments.trim(),
         bill_to_name: form.bill_to_name.trim(),
         bill_to_location: form.bill_to_location.trim(),
@@ -461,69 +524,110 @@ export function PaymentsPage() {
   }
 
   async function downloadXlsx() {
-    const r = await fetch("/api/v1/reports/payments.xlsx", { headers: { Authorization: `Bearer ${token}` } });
-    if (!r.ok) {
-      toast.error("Excel download failed");
+    const res = await fetchAuthedBlob("/api/v1/reports/payments.xlsx");
+    if ("error" in res) {
+      toast.error(res.error || "Excel download failed");
       return;
     }
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "CFS_Payments_Tracking.xlsx";
-    a.click();
-    URL.revokeObjectURL(url);
+    triggerBlobDownload(res.blob, "CFS_Payments_Tracking.xlsx");
   }
 
   async function downloadInvoicePdf(inv: InvoiceRow, inline = false) {
     const qs = inline ? "?inline=1" : "";
-    const r = await fetch(`/api/v1/invoices/${inv.id}/pdf${qs}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!r.ok) {
-      let msg = "Invoice PDF failed";
-      try {
-        const j = await r.json();
-        if (typeof j?.detail === "string" && j.detail) msg = j.detail;
-      } catch {
-        /* ignore */
-      }
-      toast.error(msg);
+    const res = await fetchAuthedBlob(`/api/v1/invoices/${inv.id}/pdf${qs}`);
+    if ("error" in res) {
+      toast.error(res.error || "Invoice PDF failed");
       return;
     }
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
     if (inline) {
-      window.open(url, "_blank", "noopener,noreferrer");
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      if (pdfPreview?.url) URL.revokeObjectURL(pdfPreview.url);
+      setPdfPreview({
+        url: URL.createObjectURL(res.blob),
+        title: `Invoice ${inv.number || inv.id}`,
+      });
       return;
     }
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `CFS_Invoice_${inv.number || inv.id}.pdf`;
-    a.click();
-    URL.revokeObjectURL(url);
+    triggerBlobDownload(res.blob, `CFS_Invoice_${inv.number || inv.id}.pdf`);
   }
 
   async function downloadInvoiceXlsx(inv: InvoiceRow) {
-    const r = await fetch(`/api/v1/invoices/${inv.id}/xlsx`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!r.ok) {
-      toast.error("Invoice Excel download failed");
+    const res = await fetchAuthedBlob(`/api/v1/invoices/${inv.id}/xlsx`);
+    if ("error" in res) {
+      toast.error(res.error || "Invoice Excel download failed");
       return;
     }
-    const blob = await r.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `CFS_Invoice_${inv.number || inv.id}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    triggerBlobDownload(res.blob, `CFS_Invoice_${inv.number || inv.id}.xlsx`);
+  }
+
+  function closePdfPreview() {
+    if (pdfPreview?.url) URL.revokeObjectURL(pdfPreview.url);
+    setPdfPreview(null);
   }
 
   return (
     <div>
+      {actionsMenu
+        ? createPortal(
+            <div
+              className="payments-actions-dropdown-fixed"
+              role="menu"
+              style={{ top: actionsMenu.top, left: actionsMenu.left }}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const inv = rows.find((x) => x.id === actionsMenu.id);
+                  closeActionsMenu();
+                  if (inv) downloadInvoicePdf(inv, true);
+                }}
+              >
+                View
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const inv = rows.find((x) => x.id === actionsMenu.id);
+                  closeActionsMenu();
+                  if (inv) downloadInvoicePdf(inv, false);
+                }}
+              >
+                PDF
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const inv = rows.find((x) => x.id === actionsMenu.id);
+                  closeActionsMenu();
+                  if (inv) downloadInvoiceXlsx(inv);
+                }}
+              >
+                Excel
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="is-danger"
+                onClick={() => {
+                  const inv = rows.find((x) => x.id === actionsMenu.id);
+                  closeActionsMenu();
+                  if (inv) setPendingDelete(inv);
+                }}
+              >
+                Delete
+              </button>
+            </div>,
+            document.body
+          )
+        : null}
+      <PdfPreviewModal
+        open={Boolean(pdfPreview)}
+        title={pdfPreview?.title}
+        blobUrl={pdfPreview?.url || null}
+        onClose={closePdfPreview}
+      />
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         title="Delete invoice?"
@@ -663,7 +767,7 @@ export function PaymentsPage() {
                   />
                 </div>
                 <div className="field">
-                  <label>Follow up date</label>
+                  <label>FOLLOW UP DATE</label>
                   <input
                     type="date"
                     value={form.follow_up_at}
@@ -671,7 +775,20 @@ export function PaymentsPage() {
                   />
                 </div>
                 <div className="field">
-                  <label>Status</label>
+                  <label>INVOICE</label>
+                  <select
+                    value={form.invoice_prep}
+                    onChange={(e) => setForm({ ...form, invoice_prep: e.target.value })}
+                  >
+                    {INVOICE_PREP.map((s) => (
+                      <option key={s} value={s}>
+                        {invoicePrepLabel(s)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>INVOICE STATUS</label>
                   <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                     {STATUSES.map((s) => (
                       <option key={s} value={s}>
@@ -922,16 +1039,37 @@ export function PaymentsPage() {
               <thead>
                 <tr>
                   <th className="col-num">S/No.</th>
-                  <th className="col-client">Client</th>
-                  <th className="col-location">Location</th>
+                  <th className="col-client">
+                    <span className="th-inline">CLIENT NAME</span>
+                    <span className="th-stack">CLIENT<br />NAME</span>
+                  </th>
+                  <th className="col-location">LOCATION</th>
                   <th className="col-project">Project</th>
-                  <th className="col-invoice">Invoice</th>
-                  <th className="col-money">Value</th>
-                  <th className="col-date">Invoice date</th>
-                  <th className="col-date">Follow up</th>
-                  <th className="col-days">Delayed (days)</th>
-                  <th className="col-status">Status</th>
-                  <th className="col-comments">Comments</th>
+                  <th className="col-invoice">INVOICE</th>
+                  <th className="col-money">
+                    <span className="th-inline">INVOICE VALUE</span>
+                    <span className="th-stack">INVOICE<br />VALUE</span>
+                  </th>
+                  <th className="col-date">
+                    <span className="th-inline">INVOICE DATE</span>
+                    <span className="th-stack">INVOICE<br />DATE</span>
+                  </th>
+                  <th className="col-date">
+                    <span className="th-inline">FOLLOW UP DATE</span>
+                    <span className="th-stack">FOLLOW UP<br />DATE</span>
+                  </th>
+                  <th className="col-days">
+                    <span className="th-inline">INVOICE DELAYED (DAYS)</span>
+                    <span className="th-stack">DELAYED<br />(DAYS)</span>
+                  </th>
+                  <th className="col-status">
+                    <span className="th-inline">INVOICE STATUS</span>
+                    <span className="th-stack">INVOICE<br />STATUS</span>
+                  </th>
+                  <th className="col-comments">
+                    <span className="th-inline">Comments From Clients</span>
+                    <span className="th-stack">Comments<br />From Clients</span>
+                  </th>
                   <th className="col-actions">Actions</th>
                 </tr>
               </thead>
@@ -951,7 +1089,12 @@ export function PaymentsPage() {
                       <span className="cell-text">{r.project_name || "—"}</span>
                     </td>
                     <td className="col-invoice" onClick={() => startEdit(r)}>
-                      <span className="cell-text">{r.number}</span>
+                      <span className={invoicePrepTextClass(r.invoice_prep || "unprepared")}>
+                        {invoicePrepLabel(r.invoice_prep || "unprepared")}
+                      </span>
+                      <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
+                        #{r.number}
+                      </div>
                     </td>
                     <td className="col-money" onClick={() => startEdit(r)}>
                       {formatMoney(Number(r.amount), r.currency)}
@@ -970,47 +1113,46 @@ export function PaymentsPage() {
                     <td className="col-comments" onClick={() => startEdit(r)}>
                       <span className="cell-text">{r.client_comments || "—"}</span>
                     </td>
-                    <td className="col-actions">
-                      <div className="row-actions">
+                    <td className="col-actions" onClick={(e) => e.stopPropagation()}>
+                      <div className="row-actions payments-actions-full">
                         <button
                           type="button"
                           className="secondary btn-row"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadInvoicePdf(r, true);
-                          }}
+                          onClick={() => downloadInvoicePdf(r, true)}
                         >
                           View
                         </button>
                         <button
                           type="button"
                           className="secondary btn-row"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadInvoicePdf(r, false);
-                          }}
+                          onClick={() => downloadInvoicePdf(r, false)}
                         >
                           PDF
                         </button>
                         <button
                           type="button"
                           className="secondary btn-row"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadInvoiceXlsx(r);
-                          }}
+                          onClick={() => downloadInvoiceXlsx(r)}
                         >
                           Excel
                         </button>
                         <button
                           type="button"
                           className="btn-danger btn-row-del"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPendingDelete(r);
-                          }}
+                          onClick={() => setPendingDelete(r)}
                         >
                           Delete
+                        </button>
+                      </div>
+                      <div className="payments-actions-menu">
+                        <button
+                          type="button"
+                          className="secondary btn-row payments-actions-toggle"
+                          aria-expanded={actionsMenu?.id === r.id}
+                          aria-haspopup="menu"
+                          onClick={(e) => toggleActionsMenu(e, r.id)}
+                        >
+                          Actions ▾
                         </button>
                       </div>
                     </td>

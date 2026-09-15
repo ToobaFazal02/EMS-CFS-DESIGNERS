@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useParams } from "react-router-dom";
-import { fetchDay, fetchShots, resolveUrl } from "../api";
+import { fetchAuthedBlob, fetchDay, fetchShots, triggerBlobDownload } from "../api";
 import { AuthedImg } from "../components/AuthedImg";
+import { PdfPreviewModal } from "../components/PdfPreviewModal";
 import { useToast } from "../components/ToastProvider";
 import { formatHoursLabel, formatMinutesAsHours } from "../formatHours";
 
@@ -61,6 +62,12 @@ export function DayPage() {
   const [day, setDay] = useState<any>(null);
   const [shots, setShots] = useState<{ id: string; captured_at: string; url: string }[]>([]);
   const [lightbox, setLightbox] = useState<number | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<{ url: string; title: string } | null>(null);
+
+  function closePdfPreview() {
+    if (pdfPreview?.url) URL.revokeObjectURL(pdfPreview.url);
+    setPdfPreview(null);
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -90,9 +97,6 @@ export function DayPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [lightbox, shots.length]);
 
-  const token = localStorage.getItem("ems_token") || "";
-  const pdfHref = resolveUrl(`/api/v1/employees/${id}/day.pdf?date=${date}&v=${Date.now()}`);
-
   const manager = (() => {
     const r = localStorage.getItem("ems_role") || "";
     return r === "admin" || r === "manager";
@@ -100,6 +104,12 @@ export function DayPage() {
 
   return (
     <div>
+      <PdfPreviewModal
+        open={Boolean(pdfPreview)}
+        title={pdfPreview?.title}
+        blobUrl={pdfPreview?.url || null}
+        onClose={closePdfPreview}
+      />
       <p>
         {manager ? (
           <Link to="/live">← Live</Link>
@@ -135,18 +145,15 @@ export function DayPage() {
               toast.error(`Future dates are not allowed. Today is ${maxDate}.`);
               return;
             }
-            const r = await fetch(
-              resolveUrl(`/api/v1/employees/${id}/day.pdf?date=${date}&inline=1&v=${Date.now()}`),
-              { headers: { Authorization: `Bearer ${token}` } }
+            const res = await fetchAuthedBlob(
+              `/api/v1/employees/${id}/day.pdf?date=${date}&inline=1&v=${Date.now()}`
             );
-            if (!r.ok) {
-              toast.error(`PDF failed (${r.status})`);
+            if ("error" in res) {
+              toast.error(res.error || `PDF failed`);
               return;
             }
-            const blob = await r.blob();
-            const url = URL.createObjectURL(blob);
-            window.open(url, "_blank", "noopener,noreferrer");
-            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+            if (pdfPreview?.url) URL.revokeObjectURL(pdfPreview.url);
+            setPdfPreview({ url: URL.createObjectURL(res.blob), title: `Day PDF — ${date}` });
           }}
         >
           View PDF
@@ -159,25 +166,14 @@ export function DayPage() {
                 toast.error(`Future dates are not allowed. Today is ${maxDate}.`);
                 return;
               }
-              const r = await fetch(pdfHref, { headers: { Authorization: `Bearer ${token}` } });
-              if (!r.ok) {
-                let msg = `PDF failed (${r.status})`;
-                try {
-                  const j = await r.json();
-                  if (typeof j?.detail === "string") msg = j.detail;
-                } catch {
-                  /* ignore */
-                }
-                toast.error(msg);
+              const res = await fetchAuthedBlob(
+                `/api/v1/employees/${id}/day.pdf?date=${date}&v=${Date.now()}`
+              );
+              if ("error" in res) {
+                toast.error(res.error || `PDF failed`);
                 return;
               }
-              const blob = await r.blob();
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `daily_${date}.pdf`;
-              a.click();
-              URL.revokeObjectURL(url);
+              triggerBlobDownload(res.blob, `daily_${date}.pdf`);
             }}
           >
             Download PDF

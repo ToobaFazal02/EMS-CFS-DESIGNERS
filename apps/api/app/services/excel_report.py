@@ -238,18 +238,19 @@ def build_payments_xlsx(rows: list[dict]) -> bytes:
         else:
             fol_s = str(follow)[:10] if follow else ""
         status_raw = str(row.get("status") or "")
+        prep_raw = str(row.get("invoice_prep") or "unprepared")
         delayed = int(row.get("delayed_days") or 0)
         values = [
             r_i,
             row.get("client_name") or "",
             row.get("location") or "",
             row.get("project_name") or "",
-            row.get("number") or "",
+            prep_raw.replace("_", " ").upper(),
             f"{row.get('currency') or 'USD'} {float(row.get('amount') or 0):,.2f}",
             inv_s,
             fol_s,
             delayed,
-            status_raw.replace("_", " ").upper(),
+            ("SENT TO CLIENT" if status_raw.lower() == "sent" else status_raw.replace("_", " ").upper()),
             row.get("client_comments") or "",
         ]
         status_font = _payment_status_font(status_raw)

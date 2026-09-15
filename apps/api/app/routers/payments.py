@@ -68,6 +68,7 @@ def _out(inv: Invoice) -> InvoiceOut:
         status=inv.status,
         client_comments=inv.client_comments or "",
         kind=inv.kind or "deposit",
+        invoice_prep=(getattr(inv, "invoice_prep", None) or "unprepared").lower(),
         bill_to_name=inv.bill_to_name or "",
         bill_to_location=inv.bill_to_location or "",
         bill_to_phone=inv.bill_to_phone or "",
@@ -135,6 +136,10 @@ def _apply_invoice_fields(inv: Invoice, body: InvoiceIn, client: Client) -> None
     inv.line_items = serialize_line_items(items)
     inv.invoice_notes = (body.invoice_notes or "").strip()[:4000]
     inv.client_comments = (body.client_comments or "").strip()[:4000]
+    prep = (body.invoice_prep or "unprepared").strip().lower()
+    if prep not in ("prepared", "preparing", "unprepared"):
+        raise HTTPException(status_code=400, detail="INVOICE prep must be prepared, preparing, or unprepared")
+    inv.invoice_prep = prep
 
 
 async def _validate_invoice_refs(db: AsyncSession, body: InvoiceIn) -> Client:

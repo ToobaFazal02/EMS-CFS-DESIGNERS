@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { fetchLive, LoginError, login, type LiveEmployee } from "./api";
+import { fetchLive, LoginError, login, resolveWsUrl, type LiveEmployee } from "./api";
 import { LoginStage3D } from "./components/LoginStage3D";
 import { useToast } from "./components/ToastProvider";
 import { AuthedImg } from "./components/AuthedImg";
@@ -605,8 +605,7 @@ function LivePage() {
     const t = setInterval(() => refresh(false), 5000);
     let ws: WebSocket | null = null;
     try {
-      const proto = location.protocol === "https:" ? "wss" : "ws";
-      ws = new WebSocket(`${proto}://${location.host}/api/v1/ws/live?token=${encodeURIComponent(token)}`);
+      ws = new WebSocket(`${resolveWsUrl("/api/v1/ws/live")}?token=${encodeURIComponent(token)}`);
       ws.onmessage = () => refresh(false);
     } catch {
       /* poll only */

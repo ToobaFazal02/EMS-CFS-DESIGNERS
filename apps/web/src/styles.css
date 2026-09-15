@@ -2109,6 +2109,117 @@ button.linkish:hover { text-decoration: underline; background: transparent; }
   z-index: 2;
   box-shadow: -8px 0 8px -8px rgba(0,0,0,0.8);
 }
+/* Wide desktop (≥1920): keep 4 action buttons. Laptops / mid widths: dropdown + stacked headers. */
+.payments-actions-dropdown-fixed {
+  position: fixed;
+  z-index: 5000;
+  min-width: 156px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.payments-actions-dropdown-fixed button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.payments-actions-dropdown-fixed button:hover {
+  background: rgba(201, 162, 39, 0.14);
+  color: var(--gold);
+}
+.payments-actions-dropdown-fixed button.is-danger {
+  color: #f0a0a8;
+}
+.payments-actions-dropdown-fixed button.is-danger:hover {
+  background: rgba(122, 31, 46, 0.2);
+}
+.payments-actions-menu {
+  display: none;
+  position: relative;
+  z-index: 5;
+}
+/* legacy in-cell dropdown unused — keep harmless */
+.payments-actions-dropdown {
+  display: none;
+}
+.payments-table th .th-stack {
+  display: none;
+}
+.payments-table th .th-inline {
+  display: inline;
+}
+
+@media (max-width: 1919px) {
+  .payments-table .payments-actions-full {
+    display: none !important;
+  }
+  .payments-table .payments-actions-menu {
+    display: inline-block !important;
+  }
+  .payments-table .col-actions {
+    min-width: 118px;
+    width: 118px;
+    z-index: 6;
+  }
+  .payments-table th {
+    white-space: normal;
+    line-height: 1.25;
+    vertical-align: bottom;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    padding: 10px 8px;
+  }
+  .payments-table th .th-inline {
+    display: none;
+  }
+  .payments-table th .th-stack {
+    display: block;
+  }
+  .payments-table .col-comments {
+    max-width: 110px;
+    width: 110px;
+  }
+  .payments-table .col-comments .cell-text {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.3;
+    font-size: 12px;
+  }
+  .payments-table .col-project {
+    max-width: 140px;
+  }
+  .payments-table .col-project .cell-text {
+    white-space: normal;
+    line-height: 1.3;
+  }
+  .payments-table .col-days {
+    max-width: 72px;
+    width: 72px;
+  }
+  .payments-table .col-status {
+    max-width: 100px;
+  }
+  .payments-table .col-invoice {
+    max-width: 110px;
+  }
+}
 @media (max-width: 900px) {
   .payments-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3562,6 +3673,7 @@ button.nav-backdrop:active {
     align-items: center;
     gap: 10px;
   }
+  /* Payments Actions: moved to @media (max-width: 1919px) — laptops still need dropdown even when nav is full */
   .nav-toggle {
     display: flex;
     position: relative;
@@ -5026,4 +5138,42 @@ html[data-theme="light"] .gear-menu .gear-logout {
 html[data-theme="light"] .gear-menu .gear-logout:hover {
   background: rgba(122, 31, 46, 0.1) !important;
   color: #7a1f2e !important;
+}
+
+/* In-app PDF preview (Day / Payments / Reports — works in Tauri) */
+.pdf-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3200;
+  background: rgba(0, 0, 0, 0.78);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.pdf-preview-panel {
+  width: min(1100px, 100%);
+  height: min(92vh, 900px);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+.pdf-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.pdf-preview-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pdf-preview-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #111;
 }

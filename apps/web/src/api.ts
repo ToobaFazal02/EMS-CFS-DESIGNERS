@@ -31,6 +31,47 @@ export function resolveUrl(path: string): string {
   return `${API}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
+/** Live WebSocket URL — browser uses page host; Tauri desktop uses production API host. */
+export function resolveWsUrl(path: string): string {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  if (API) {
+    try {
+      const u = new URL(API);
+      const proto = u.protocol === "https:" ? "wss" : "ws";
+      return `${proto}://${u.host}${p}`;
+    } catch {
+      /* fall through */
+    }
+  }
+  const proto = typeof location !== "undefined" && location.protocol === "https:" ? "wss" : "ws";
+  const host = typeof location !== "undefined" ? location.host : "127.0.0.1";
+  return `${proto}://${host}${p}`;
+}
+
+export async function fetchAuthedBlob(path: string): Promise<{ blob: Blob } | { error: string; status: number }> {
+  const r = await fetch(resolveUrl(path), { headers: authHeaders() });
+  if (!r.ok) {
+    let msg = `Request failed (${r.status})`;
+    try {
+      const j = await r.json();
+      if (typeof j?.detail === "string" && j.detail) msg = j.detail;
+    } catch {
+      /* ignore */
+    }
+    return { error: msg, status: r.status };
+  }
+  return { blob: await r.blob() };
+}
+
+export function triggerBlobDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export type LiveEmployee = {
   employee_id: string;
   code: string;
@@ -395,6 +436,7 @@ export type InvoiceRow = {
   status: string;
   client_comments: string;
   kind: string;
+  invoice_prep: string;
   bill_to_name: string;
   bill_to_location: string;
   bill_to_phone: string;

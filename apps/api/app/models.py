@@ -228,6 +228,8 @@ class Invoice(Base):
     bill_to_phone: Mapped[str] = mapped_column(String(40), default="")
     line_items: Mapped[str] = mapped_column(Text, default="[]")
     invoice_notes: Mapped[str] = mapped_column(Text, default="")
+    # Sheet column "INVOICE": prepared | preparing | unprepared
+    invoice_prep: Mapped[str] = mapped_column(String(24), default="unprepared")
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
