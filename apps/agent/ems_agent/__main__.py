@@ -276,8 +276,9 @@ class CaptureService(QObject):
 
 APP_DISPLAY_NAME = "CFS Designers Agent"
 # Bump this on every release so the auto-update check can compare versions.
-AGENT_VERSION = "1.1.1"
+AGENT_VERSION = "1.1.2"
 DOWNLOADS_URL = "https://ems.cfsdesigners.com/downloads"
+AGENT_PACKAGE_URL = f"{DOWNLOADS_URL}/CFS-Agent-Install.zip"
 
 
 def _version_gt(a: str, b: str) -> bool:
@@ -419,7 +420,10 @@ def _app_icon() -> QIcon:
 class MainWindow(QWidget):
     enroll_finished = Signal(object, str)   # data dict or None, error message
     invalid_token_detected = Signal()       # fired from activity/screenshot threads
-    update_available = Signal(str, str)     # (latest_version, download_url)
+    update_available = Signal(str, str, str)  # latest, page_url, package_url
+    update_progress = Signal(str)             # status line while downloading
+    update_ready_exit = Signal()              # download staged — quit so apply script can run
+    update_failed = Signal(str)               # show error, keep Agent running
 
     def __init__(self) -> None:
         super().__init__()
@@ -445,6 +449,11 @@ class MainWindow(QWidget):
         self.enroll_finished.connect(self._on_enroll_finished)
         self.invalid_token_detected.connect(self._on_invalid_token)
         self.update_available.connect(self._on_update_available)
+        self.update_progress.connect(self._on_update_progress)
+        self.update_ready_exit.connect(self._on_update_ready_exit)
+        self.update_failed.connect(self._on_update_failed)
+        self._update_busy = False
+        self._update_package_url = AGENT_PACKAGE_URL
 
         self.live = QLabel("OFF")
         self.live.setAlignment(Qt.AlignCenter)
@@ -604,8 +613,8 @@ class MainWindow(QWidget):
         self.session_timer.timeout.connect(self._sync_server_session)
         self.session_timer.start(45_000)
 
-        # Connect update download button
-        self.btn_download_update.clicked.connect(self._open_download_page)
+        # Click → background download + apply (keeps enroll / agent_data)
+        self.btn_download_update.clicked.connect(self._start_background_update)
 
         # Check for agent updates 10 s after startup (non-blocking)
         QTimer.singleShot(10_000, self._start_update_check)
@@ -1084,28 +1093,92 @@ class MainWindow(QWidget):
                 if r.status_code == 200:
                     data = r.json()
                     latest = str(data.get("agent_version") or "").strip()
-                    url = str(data.get("download_url") or DOWNLOADS_URL).strip()
+                    page = str(data.get("download_url") or DOWNLOADS_URL).strip()
+                    pkg = str(
+                        data.get("agent_package_url")
+                        or data.get("agent_download_url")
+                        or AGENT_PACKAGE_URL
+                    ).strip()
                     if latest and latest != AGENT_VERSION and _version_gt(latest, AGENT_VERSION):
-                        self.update_available.emit(latest, url)
+                        self.update_available.emit(latest, page, pkg)
             except Exception:
                 pass  # network error — silently skip
 
         threading.Thread(target=check, daemon=True).start()
 
-    def _on_update_available(self, latest: str, url: str) -> None:
+    def _on_update_available(self, latest: str, page_url: str, package_url: str) -> None:
         """Called on main thread when a newer version is detected."""
-        self._update_url = url
+        self._update_url = page_url or DOWNLOADS_URL
+        self._update_package_url = package_url or AGENT_PACKAGE_URL
         self.update_banner.setText(
             f"⬆  Update available: v{latest}  (you have v{AGENT_VERSION})\n"
-            "Download and run the new installer — your data is safe."
+            "Click Update — installs in the background. Enroll data stays on this PC."
         )
         self.update_banner.show()
-        self.btn_download_update.setText(f"Download v{latest}")
+        self.btn_download_update.setText(f"Update to v{latest}")
+        self.btn_download_update.setEnabled(True)
         self.btn_download_update.show()
 
-    def _open_download_page(self) -> None:
-        import webbrowser
-        webbrowser.open(self._update_url)
+    def _on_update_progress(self, message: str) -> None:
+        self.update_banner.setText(message)
+        self.update_banner.show()
+
+    def _on_update_ready_exit(self) -> None:
+        self.update_banner.setText("Restarting Agent to finish update…")
+        self._force_quit = True
+        QTimer.singleShot(350, lambda: QApplication.instance().quit())
+
+    def _on_update_failed(self, err: str) -> None:
+        self._update_busy = False
+        self.btn_download_update.setEnabled(True)
+        self.btn_download_update.setText("Retry update")
+        self.update_banner.setText(
+            f"Update failed: {err}\nRetry, or open {DOWNLOADS_URL} for a manual install."
+        )
+
+    def _start_background_update(self) -> None:
+        """User clicked Update: download zip → apply on restart (no server data wipe)."""
+        import sys
+
+        if self._update_busy:
+            return
+        if not getattr(sys, "frozen", False):
+            _notice(
+                self,
+                "Dev mode",
+                "Background update runs only from the installed Agent exe. Opening Downloads page.",
+            )
+            import webbrowser
+            webbrowser.open(self._update_url)
+            return
+
+        if not _ask(
+            self,
+            "Install update now? Agent will restart. Your Sign In enroll stays — server data is safe.",
+            confirm="Update now",
+            kind="success",
+        ):
+            return
+
+        self._update_busy = True
+        self.btn_download_update.setEnabled(False)
+        self.btn_download_update.setText("Updating…")
+        self.update_banner.setText("Downloading update in the background…")
+        package_url = self._update_package_url or AGENT_PACKAGE_URL
+
+        def worker() -> None:
+            try:
+                from ems_agent.self_update import apply_update_and_exit
+
+                def prog(_frac, msg: str) -> None:
+                    self.update_progress.emit(str(msg))
+
+                apply_update_and_exit(package_url, on_progress=prog)
+                self.update_ready_exit.emit()
+            except Exception as exc:
+                self.update_failed.emit(str(exc) or "Unknown error")
+
+        threading.Thread(target=worker, daemon=True).start()
 
     # ── Timers ──────────────────────────────────────────────────────────────
 

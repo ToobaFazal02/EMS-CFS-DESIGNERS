@@ -1,32 +1,34 @@
 # Finalize Desktop + Web, then Admin Mobile — PLAN (LOCKED SEQUENCE)
 
-**Status:** Implementation in progress (local). **You push + deploy** — agent does not push unless asked.  
-**Deadline note (15 Sep):** Client reinstalls office-wide ~**16:00** — ship **P0 today pack** first (below).  
+**Status:** Phase A live; Phase E click→background update MVP in code (doc **54**). Phase B audited leave-as-is. Phase C next after E ship.  
+**Deadline note (15 Sep):** Client reinstalls office-wide ~**16:00** — ship Agent **1.1.2** + Manager **0.1.2** binaries + VPS pull.  
 **Git:** Do not push unless you ask. You review + test locally, then **you** push.  
 **Date:** 14–15 Sep 2026  
 
-**Decisions locked 14 Sep (you):**
+**Decisions locked 14–15 Sep (you):**
 
 | # | Decision | Locked answer |
 |---|---|---|
-| 1 | Screenshots without Sign In | **Hard-block** — no screenshots until server Sign In / attendance open. Proof after proper punch only. |
-| 2 | Phase C timing | **After** attendance stable (after Phase B) |
+| 1 | Screenshots without Sign In | **Hard-block** planned; **15 Sep audit:** Agent+activity already OK for normal use — **do not touch now**. Screenshot API Sign In check = optional later. |
+| 2 | Phase C timing | **After** attendance stable / after E MVP ship |
 | 3 | Mobile | **PWA only** first (admin-only); no store apps yet |
+| 4 | Auto-update (15 Sep) | Option **1**: click Update → **background install + restart** (doc 54). Not full signed Tauri updater yet. |
 
 ---
 
-## Production vs local (15 Sep morning — honest)
+## Production vs local (15 Sep midday — after VPS deploy)
 
 | Layer | On production now? | Notes |
 |---|---|---|
-| Hours fallback when Sign In missing + dashboard offline caption | **Likely yes** (pushed earlier: `3c5ef2a`, `7ed0550`) | Only if VPS still has that `git pull` |
-| Agent zip **1.1.1** on `/downloads` | **Likely yes** if you uploaded Sep 14 | Re-enroll, idle 30s, **Update available banner** (download page — not silent install) |
-| Phase A web/desktop: PDF modal, Tauri Reports/Payments URLs, payments sheet columns, Actions dropdown, `invoice_prep` | **NO — local only, not on GitHub `origin/main`** | Must commit → push → VPS build **before** 4pm if client should see them |
-| Phase B Sign In gate for screenshots | **Not done** | |
+| Phase A web (Payments Actions, PDF modal, invoice_prep, etc.) | **Yes** after morning deploy `86c532f`+ | Hard refresh if cache |
+| Hours fallback / dashboard labels | **Yes** | |
+| Agent zip **1.1.1** on `/downloads` | **Likely** (Sep 14 upload) | Reinstall still needed for banner |
+| Phase E click→background update (Agent 1.1.2 / Manager 0.1.2) | **Code local until you push + upload binaries** | See `docs/54-phase-e-click-background-update.md` |
+| Phase B API screenshot Sign In gate | **Not done** (audit: leave alone) | |
 | Phase C project codes / daily % | **Not done** | |
-| Silent one-click background install | **Not done** (never was) | Banner + Download only on Agent 1.1.0+ |
+| Signed Tauri plugin-updater | **Not done** (later polish) | |
 
-**Bottom line for 4pm:** Jo local Phase A changes hain woh **production pe nahi** jab tak tum push + VPS deploy na karo. Agent reinstall ke liye **zip pehle se 1.1.1** hona chahiye; future “Update available” uske baad kaam karega.
+**Bottom line for 4pm:** Push Phase E code → build Agent zip + Manager Setup → upload downloads → VPS pull/build/restart API. Staff install **1.1.2** once; later versions click-update.
 
 ---
 
@@ -36,19 +38,20 @@
 
 | App | Today ship | Click behavior |
 |---|---|---|
-| **Agent** | Already in 1.1.1 zip | Banner → Download → install zip |
-| **Manager Desktop** | Banner in Tauri app (v0.1.1) + API `manager_version` | Banner → Download Setup.exe |
+| **Agent** | **1.1.2** zip with `self_update.py` | Banner → **Update** → background zip apply → restart |
+| **Manager Desktop** | **0.1.2** Setup + Rust `start_silent_manager_update` | Banner → **Update** → download Setup → NSIS `/S` → relaunch |
 
-Silent background install still Phase E polish later — today = **professional Update available + download** on **both**.
+Signed Tauri updater plugin = later polish. Mobile (Phase D) stays **last**.
 
-Mobile (Phase D) stays **last / least priority**.
+See **`docs/54-phase-e-click-background-update.md`**.
 
 ### P0 deploy steps after push
 
-1. VPS: fix `tsbuildinfo` → `git pull` → web build → restart API  
-2. Confirm `/api/v1/agent/version` has `agent_version` + `manager_version`  
-3. Staff reinstall Agent 1.1.1; managers reinstall Setup when new build uploaded  
-4. Honest client line: Update available dikhega; install still Download + run (safe for data)
+1. Build + upload **CFS-Agent-Install.zip** (1.1.2) and **CFS-Designers-Manager-Setup.exe** (0.1.2)  
+2. VPS: `tsbuildinfo` discard → `git pull` → web build → `systemctl restart ems-api`  
+3. Confirm `/api/v1/agent/version` has `agent_version` **1.1.2**, `agent_package_url`, `manager_version` **0.1.2**  
+4. Staff install Agent **1.1.2** once; managers install Setup **0.1.2** once  
+5. Client line: Update available → click → background install + restart; **server data safe**
 
 ---
 
@@ -58,14 +61,14 @@ Mobile (Phase D) stays **last / least priority**.
 
 **Ask:** App use karte waqt **“New update available”** dikhe; click pe update **background** mein install ho jaye.
 
-| App | Kal live / Agent 1.1.1 zip | Today |
+| App | Before 15 Sep | 15 Sep MVP (doc 54) |
 |---|---|---|
-| **Employee Agent** | **Haan** — banner “Update available” + Download button → downloads page | Same (not silent install yet) |
-| **Manager Desktop (Tauri)** | **Nahi** — koi updater nahi | Phase E mein add |
+| **Employee Agent** | Banner → open Downloads page | Banner → **Update** → zip download + apply + restart |
+| **Manager Desktop** | Banner → open Setup URL | Banner → **Update** → Setup `/S` + relaunch |
 
-**Do not promise full Phase E (silent install) for 4pm.** Promise today: reinstall Agent **1.1.1** now; uske baad **next** Agent releases pe banner dikhega. Manager desktop update banner = Phase E work.
+Signed `@tauri-apps/plugin-updater` = later. Do **not** wipe DB.
 
-**Order locked:** … → B → C → **E (auto-update both apps)** → **D (admin mobile last)**.
+**Order locked:** A done → B leave → **E MVP today** → C → E signed polish → **D last**.
 
 ---
 

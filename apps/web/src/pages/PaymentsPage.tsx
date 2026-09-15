@@ -998,7 +998,7 @@ export function PaymentsPage() {
                   + Add line item
                 </button>
                 <p className="line-hint">
-                  Paint any cell: click the small color chip on Project / Scope / Area / Rate / COST — Yellow for Detailing (like the client PDF), Maroon for unpaid COST, or any custom color. PDF matches your picks.
+                  Paint any cell: click the small color chip on Project / Scope / Area / Rate / COST. PDF matches your picks.
                 </p>
 
               <div className="invoice-notes-block">

@@ -5169,6 +5169,7 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
   justify-content: center;
   min-height: 36px;
   padding: 0 16px;
+  border: 0;
   border-radius: 8px;
   background: var(--gold);
   color: #111 !important;
@@ -5176,9 +5177,15 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
   font-size: 13px;
   text-decoration: none !important;
   white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
 }
 .app-update-banner-btn:hover {
   filter: brightness(1.05);
+}
+.app-update-banner-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
 }
 .pdf-preview-backdrop {
   position: fixed;

@@ -3,80 +3,41 @@
 | Key | Value |
 |---|---|
 | EXECUTION_APPROVED | **yes** |
-| Current phase | **Production ready (code)** — see `docs/46-production-audit-2026-09-09.md` |
-| Code allowed | Phases 1–5 + hardening + doc 45 + 404/403 |
-| Approved by | User 24 Aug 2026 (product); **9 Sep 2026** production audit DONE |
+| Current phase | **Phase E click→background update MVP** (doc 54) + Phase A live |
+| Code allowed | Phases 1–5 + hardening + A + E MVP; B leave alone; C not started |
+| Approved by | User 15 Sep 2026 — option 1 silent/background update today |
 
-## Done
+## Done (production / recent)
 
-- Workforce: agent, live, day, PDF/Excel, sleep hours fix, OT, Work/Browser/Other
-- Projects Design Queue + 50/50 payment gates + manager override UI
-- Payments CRUD + delayed days + Excel
-- Auto-seed admin + SAMPLE clients/projects/invoices on API start
-- Screenshot audit only on day lightbox (`audit=1`)
-- Re-enroll revokes old device tokens
-- Screenshot files auto-delete after **60 days**
-- Phone-responsive manager web (hamburger, screenshot fill, staff cards)
-- Dashboard as home; gear menu; gold scrollbars; day hours as **8.1 h**
-- Dashboard: real API data only (no fake invoice rows / no hour-preview flash); 2560 fills like 1440 (`docs/44-dashboard-predeploy.md`)
-- Account **Dark / Light** + first-5-visit Skip/Next guide cards (`docs/14-ui-theme.md`)
+- Workforce: agent, live, day, PDF/Excel, idle 30s, multi-monitor, re-enroll
+- Phase A: Payments sheet columns, Actions dropdown, Tauri URL helpers, PDF modal
+- Phase E partial: version API + banners (1.1.1 / 0.1.1 era = download page only)
+- Phase B audit 15 Sep: normal Sign In → screenshots OK — **do not change** unless bug
 
-## Latest client voice (3 Sep 2026) — implementing
+## In progress (15 Sep afternoon)
 
-See `docs/45-client-voice-2026-09-03-plan.md`. Q1–Q5 locked 7 Sep.
+**Click → background update** — see `docs/54-phase-e-click-background-update.md`
 
-1. **P0** Invoice PDF exact match (COST $, drop COMMENTS, spacing, maroon) — **code done**
-2. **P1** Faisal / Asad share: paid invoices − expenses → ÷ 2 (admin/partner only) — **code done**
-
-## Ops still open (30–31 Aug)
-
-See `docs/42-client-voice-2026-08-30-plan.md`.
-
-## In Progress (13 Sep 2026)
-
-**Ship binaries to production** — code on `main` includes idle 30s, multi-monitor screenshots, Tauri `resolveUrl`, Agent re-enroll + update banner (`1.1.0`).
-
-See **`docs/51-deploy-sep13-idle-reenroll-update.md`**.
-
-| Still needed | Why |
+| Still needed (ops) | Why |
 |---|---|
-| VPS `git pull` + web build + `ems-api` restart | Serves new API version endpoint + web fix |
-| `BUILD-EXE.bat` → upload Agent zip | Employees get idle/monitors/re-enroll/banner |
-| `REBUILD-MANAGER-ICON.bat` → upload Setup.exe | Official Manager icon |
-| One-time install on each PC | Old Agents do not auto-update themselves |
+| You push code | Agent `self_update`, Manager silent command, API 1.1.2 / 0.1.2 |
+| `BUILD-EXE.bat` → upload Agent zip **1.1.2** | Employees get background update |
+| GitHub Actions Manager Setup **0.1.2** → upload | Managers get silent `/S` update |
+| VPS pull + web build + `ems-api` restart | Serves new version JSON + web banner |
+| One office install of 1.1.2 / 0.1.2 | Unlocks future click-updates |
 
-**Auto-update honesty:** banner + download only (not silent install). Next version bumps after this deploy is stable.
+**Data:** Never wipe `/var/lib/ems/ems.db`. Updates replace local binaries only.
 
-## Next (ops — not code blockers)
+## Next after E MVP stable
 
-1. Add staff + enroll Agent PCs + short install video
-2. Screenshots + net hours in daily use
+1. Phase C — project codes / scopes / multi-assignee / daily %  
+2. Optional: screenshot API Sign In hard-block  
+3. Signed Tauri `plugin-updater`  
+4. Phase D — admin PWA last  
 
-## Shipped since pilot docs
+## Auto-update honesty (client line)
 
-See `docs/41-post-pilot-backlog.md`.
-
-1. Hubstaff-style **Dashboard** as home — **done**
-2. Header **gear** → Account + Logout — **done**
-3. Thin **theme** scrollbars — **done**
-4. Hours as **8.1 h** on day web — **done** (PDF still `2h 32m`)
-5. Distinct **HR** login + office **expenses** + receipts — **done**
-6. Demo role isolation — **done**
-7. Site-wide maroon (replace bright red) — **done** on web; PDF leftover in P0
-
-## Explicitly deferred (need you / later machine)
-
-| Item | What I need from you |
-|---|---|
-| Inno `.exe` installer | Optional — install Inno Setup later; pilot uses `INSTALL-AGENT.bat` |
-| Google Sheet sync | **Not recommended** — app replaces Excel; export already exists |
-| Postgres | **Not yet** — SQLite fine for pilot (&lt;50 users) |
-| Office LAN IP | Only when other PCs connect — put in agent `api_base` |
-
-## Roles (client req — done)
-
-- Admin/CEO: full web including Payments $
-- Employee web: My Day + My Projects only (no $)
-- Agent: Sign In/Out on Windows PC
-
-Test: `docs/37-client-handover-ur-en.md` + images in `docs/visuals/`
+- Banner: **Update available**  
+- Click: download + install in background + restart  
+- Server / hours / screenshots data: **safe**  
+- First install of the new build: still extract/Setup once per PC  

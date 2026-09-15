@@ -20,9 +20,10 @@ settings = get_settings()
 
 # ── App version endpoints (no auth — Agent / Manager check on startup) ────
 # Bump these whenever you ship a new Agent zip or Manager Setup.exe.
-LATEST_AGENT_VERSION = "1.1.1"
-LATEST_MANAGER_VERSION = "0.1.1"
+LATEST_AGENT_VERSION = "1.1.2"
+LATEST_MANAGER_VERSION = "0.1.2"
 DOWNLOADS_PAGE = "https://ems.cfsdesigners.com/downloads"
+AGENT_PACKAGE_URL = f"{DOWNLOADS_PAGE}/CFS-Agent-Install.zip"
 MANAGER_SETUP_URL = f"{DOWNLOADS_PAGE}/CFS-Designers-Manager-Setup.exe"
 
 
@@ -30,12 +31,14 @@ MANAGER_SETUP_URL = f"{DOWNLOADS_PAGE}/CFS-Designers-Manager-Setup.exe"
 async def agent_version() -> dict:
     """
     Latest Agent + Manager versions and download URLs.
-    Agents and the Manager desktop app call this to show "Update available".
-    No authentication required.
+    Agents and the Manager desktop app call this to show "Update available"
+    and (from 1.1.2 / 0.1.2) to run click → background install.
+    No authentication required. Does not touch SQLite / employee data.
     """
     return {
         "agent_version": LATEST_AGENT_VERSION,
         "download_url": DOWNLOADS_PAGE,
+        "agent_package_url": AGENT_PACKAGE_URL,
         "manager_version": LATEST_MANAGER_VERSION,
         "manager_download_url": MANAGER_SETUP_URL,
     }
