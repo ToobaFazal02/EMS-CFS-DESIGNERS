@@ -726,6 +726,43 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   text-decoration: none;
   white-space: nowrap;
 }
+/* Mid-width Manager / laptop: keep full desktop nav, compact so brand never overlaps */
+@media (min-width: 1024px) and (max-width: 1599px) {
+  .brand {
+    font-size: 17px;
+    max-width: min(28vw, 200px);
+    gap: 8px;
+  }
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+  }
+  .nav-desktop {
+    gap: 2px;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nav-desktop::-webkit-scrollbar {
+    display: none;
+  }
+  .nav-desktop a {
+    padding: 8px 9px;
+    font-size: 13px;
+  }
+  .user-chip-role {
+    display: none;
+  }
+  .user-chip-name {
+    max-width: 110px;
+  }
+  .topbar {
+    gap: 10px;
+  }
+  .topbar-actions {
+    gap: 6px;
+  }
+}
 .nav a.active {
   color: var(--accent);
   background: rgba(201, 162, 39, 0.16);
@@ -2729,12 +2766,20 @@ p.line-hint {
   background: var(--scrollbar-track);
 }
 
-.topbar-lead {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  flex-shrink: 0;
+.app-shell-desktop .nav-toggle {
+  display: none !important;
+}
+.app-shell-desktop .topbar-actions .gear-wrap {
+  display: block !important;
+}
+.app-shell-desktop .nav-desktop {
+  display: flex !important;
+}
+.app-shell-desktop .nav-mobile,
+.app-shell-desktop .nav-backdrop {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 .nav-toggle {
   display: none;
@@ -2799,11 +2844,14 @@ button.nav-backdrop:hover,
 button.nav-backdrop:focus,
 button.nav-backdrop:focus-visible,
 button.nav-backdrop:active {
-  background: rgba(0, 0, 0, 0.72);
-  color: transparent;
+  background: rgba(0, 0, 0, 0.72) !important;
+  color: transparent !important;
   outline: none;
-  box-shadow: none;
-  border: none;
+  box-shadow: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
 }
 .nav-backdrop.is-visible {
   opacity: 1;
@@ -3667,28 +3715,30 @@ button.nav-backdrop:active {
   .dash-late li > b { grid-area: amt; align-self: center; }
 }
 
-@media (max-width: 1479px) {
+/*
+  Hamburger drawer ONLY on phone / small tablet (≤1023px).
+  Manager Desktop (Tauri min ~1180) and laptop browsers keep desktop nav + gear —
+  matches web and avoids mid-width brand/nav overlap + gear-outside bugs.
+*/
+@media (max-width: 1023px) {
   .topbar {
     flex-wrap: nowrap;
     align-items: center;
     gap: 10px;
+    position: relative;
+    z-index: 6025;
   }
-  /* Payments Actions: moved to @media (max-width: 1919px) — laptops still need dropdown even when nav is full */
   .nav-toggle {
     display: flex;
     position: relative;
     z-index: 6020;
   }
-  /* Settings live inside the hamburger drawer on small screens */
+  /* Settings live inside the hamburger drawer on small screens only */
   .topbar-actions .gear-wrap {
-    display: none;
-  }
-  .topbar {
-    position: relative;
-    z-index: 6025;
+    display: none !important;
   }
   .nav-desktop {
-    display: none;
+    display: none !important;
   }
   .nav-backdrop {
     display: block;

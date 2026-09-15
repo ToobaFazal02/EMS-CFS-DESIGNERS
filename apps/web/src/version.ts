@@ -1,5 +1,5 @@
 /** Bump with every Manager Setup.exe release (keep in sync with tauri.conf.json + API). */
-export const MANAGER_APP_VERSION = "0.1.2";
+export const MANAGER_APP_VERSION = "0.1.3";
 
 export function isTauriDesktop(): boolean {
   try {

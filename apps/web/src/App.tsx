@@ -9,6 +9,7 @@ import { GuideCard } from "./components/GuideCard";
 import { RefreshButton } from "./components/RefreshButton";
 import { ManagerUpdateBanner } from "./components/ManagerUpdateBanner";
 import { ThemeSwitch } from "./components/ThemeSwitch";
+import { isTauriDesktop } from "./version";
 import { AccountPage } from "./pages/AccountPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DayPage } from "./pages/DayPage";
@@ -336,7 +337,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isTauriDesktop() ? " app-shell-desktop" : ""}`}>
       <ManagerUpdateBanner />
       <header className="topbar">
         <div className="topbar-lead">
