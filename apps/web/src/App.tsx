@@ -7,6 +7,7 @@ import { useToast } from "./components/ToastProvider";
 import { AuthedImg } from "./components/AuthedImg";
 import { GuideCard } from "./components/GuideCard";
 import { RefreshButton } from "./components/RefreshButton";
+import { ManagerUpdateBanner } from "./components/ManagerUpdateBanner";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { AccountPage } from "./pages/AccountPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -336,6 +337,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app-shell">
+      <ManagerUpdateBanner />
       <header className="topbar">
         <div className="topbar-lead">
           <div className="brand">

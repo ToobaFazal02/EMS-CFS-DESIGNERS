@@ -32,49 +32,40 @@
 
 ## TODAY pack — priority for client reinstall (~16:00)
 
-Client voice **14 Sep 11:41 PM**: software pe **“new update available”** → click → update (woh background install chahta hai).
+### Phase E FIRST (client 14 Sep — Update available)
 
-### P0 — must before / with reinstall (do these first)
-
-| Order | Item | Why |
+| App | Today ship | Click behavior |
 |---|---|---|
-| 1 | Confirm VPS Agent zip = **1.1.1** + API `LATEST_AGENT_VERSION=1.1.1` | Reinstall day; banner works next time |
-| 2 | Push + deploy **Phase A local web/API** (PDF, Payments columns, desktop URLs, Actions menu) | Managers see fixed UI today |
-| 3 | Staff reinstall **Agent** from Downloads (every PC) | Old Agents have no update checker |
-| 4 | Manager PCs: new **Manager Setup** if desktop app used | Optional if they only use browser |
-| 5 | Tell client honestly: update = **banner → Download → install**; silent background install = later phase |
+| **Agent** | Already in 1.1.1 zip | Banner → Download → install zip |
+| **Manager Desktop** | Banner in Tauri app (v0.1.1) + API `manager_version` | Banner → Download Setup.exe |
 
-### P1 — same week after reinstall stable
+Silent background install still Phase E polish later — today = **professional Update available + download** on **both**.
 
-| Item | Phase |
-|---|---|
-| Hard-block screenshots until Sign In | **B** |
-| Projects codes + multi-assignee + daily % | **C** (after attendance stable) |
+Mobile (Phase D) stays **last / least priority**.
 
-### P2 — later
+### P0 deploy steps after push
 
-| Item | Phase |
-|---|---|
-| Admin-only mobile PWA | **D** |
-| True one-click / background auto-install (Agent + Manager) | **E** (new — client 14 Sep) |
+1. VPS: fix `tsbuildinfo` → `git pull` → web build → restart API  
+2. Confirm `/api/v1/agent/version` has `agent_version` + `manager_version`  
+3. Staff reinstall Agent 1.1.1; managers reinstall Setup when new build uploaded  
+4. Honest client line: Update available dikhega; install still Download + run (safe for data)
 
 ---
 
-## Phase E — Professional auto-update (client 14 Sep 11:41 PM)
+## Phase E — Professional auto-update (client 14 Sep 11:41 PM) — BEFORE Phase D
 
 **Source:** `WhatsApp Ptt 2026-09-14 at 11.41.43 PM.ogg` → `references/client-voice-2026-09-14-1141-*.txt`
 
 **Ask:** App use karte waqt **“New update available”** dikhe; click pe update **background** mein install ho jaye.
 
-| Step | Reality today | Target Phase E |
+| App | Kal live / Agent 1.1.1 zip | Today |
 |---|---|---|
-| Detect newer version | Agent 1.1.0+ ✅ | Keep |
-| Show “Update available” | Agent banner ✅ | Same + Manager desktop |
-| Click → download | Opens Downloads page ✅ | In-app download |
-| Click → silent install in background | ❌ Not built | Agent installer + Tauri updater |
-| Very old Agent | No banner ❌ | One-time manual reinstall (today) |
+| **Employee Agent** | **Haan** — banner “Update available” + Download button → downloads page | Same (not silent install yet) |
+| **Manager Desktop (Tauri)** | **Nahi** — koi updater nahi | Phase E mein add |
 
-**Do not promise Phase E for 4pm.** Promise: reinstall 1.1.1 now + banner for **next** releases.
+**Do not promise full Phase E (silent install) for 4pm.** Promise today: reinstall Agent **1.1.1** now; uske baad **next** Agent releases pe banner dikhega. Manager desktop update banner = Phase E work.
+
+**Order locked:** … → B → C → **E (auto-update both apps)** → **D (admin mobile last)**.
 
 ---
 
@@ -197,13 +188,14 @@ Extra EMS columns kept: Project, Actions (View/PDF). **No real client rows hardc
 ## Delivery phases (approved sequence)
 
 ```
-Phase A  →  Manager Desktop + Web parity (no phone yet)
-Phase B  →  Employee Agent reliability + attendance honesty
-Phase C  →  Projects workflow (client codes + % progress) — web+desktop together
-Phase D  →  Admin-only mobile (PWA) — AFTER A–C stable in production
+Phase A  →  Manager Desktop + Web parity
+Phase B  →  Employee Agent reliability (Sign In → screenshots)
+Phase C  →  Projects workflow (codes + % progress)
+Phase E  →  Professional update (Agent + Manager) — BEFORE mobile
+Phase D  →  Admin-only mobile PWA — LAST / least priority
 ```
 
-**Hard rule:** Do not start Phase D until A–C smoke-tested on production with real staff.
+**Hard rule:** Do not start Phase D until A–C stable and Phase E at least scoped; mobile delay is OK (admin-only).
 
 ---
 

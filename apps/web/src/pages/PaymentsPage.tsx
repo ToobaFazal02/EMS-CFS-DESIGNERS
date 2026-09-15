@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 import {
   deleteInvoice,
@@ -172,7 +172,7 @@ export function PaymentsPage() {
 
   useEffect(() => {
     if (!actionsMenu) return;
-    function onDoc(e: MouseEvent) {
+    function onDoc(e: globalThis.MouseEvent) {
       const t = e.target as HTMLElement | null;
       if (t?.closest?.(".payments-actions-menu")) return;
       if (t?.closest?.(".payments-actions-dropdown-fixed")) return;
@@ -191,7 +191,7 @@ export function PaymentsPage() {
     };
   }, [actionsMenu]);
 
-  function toggleActionsMenu(e: MouseEvent<HTMLButtonElement>, id: string) {
+  function toggleActionsMenu(e: ReactMouseEvent<HTMLButtonElement>, id: string) {
     e.stopPropagation();
     if (actionsMenu?.id === id) {
       setActionsMenu(null);

@@ -18,21 +18,26 @@ from app.schemas import ActivityIn, PunchIn, PunchOut
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
 settings = get_settings()
 
-# ── Agent version endpoint (no auth — called before enroll) ───────────────
-# Bump LATEST_AGENT_VERSION whenever a new Agent build is released.
+# ── App version endpoints (no auth — Agent / Manager check on startup) ────
+# Bump these whenever you ship a new Agent zip or Manager Setup.exe.
 LATEST_AGENT_VERSION = "1.1.1"
+LATEST_MANAGER_VERSION = "0.1.1"
+DOWNLOADS_PAGE = "https://ems.cfsdesigners.com/downloads"
+MANAGER_SETUP_URL = f"{DOWNLOADS_PAGE}/CFS-Designers-Manager-Setup.exe"
 
 
 @router.get("/version", tags=["agent"])
 async def agent_version() -> dict:
     """
-    Returns the latest published agent version and download URL.
-    Agents call this on startup to detect updates.
+    Latest Agent + Manager versions and download URLs.
+    Agents and the Manager desktop app call this to show "Update available".
     No authentication required.
     """
     return {
         "agent_version": LATEST_AGENT_VERSION,
-        "download_url": "https://ems.cfsdesigners.com/downloads",
+        "download_url": DOWNLOADS_PAGE,
+        "manager_version": LATEST_MANAGER_VERSION,
+        "manager_download_url": MANAGER_SETUP_URL,
     }
 
 
