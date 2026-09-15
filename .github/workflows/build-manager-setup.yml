@@ -32,8 +32,19 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
+      - name: Build frontend (catch TS errors early)
+        run: npm run build
+
       - name: Build NSIS installer
         run: npm run tauri:build -- --bundles nsis
+
+      - name: List NSIS output
+        if: always()
+        shell: pwsh
+        run: |
+          $p = "src-tauri/target/release/bundle/nsis"
+          if (Test-Path $p) { Get-ChildItem $p -Recurse | Format-Table Name, Length }
+          else { Write-Host "No NSIS folder yet" }
 
       - name: Upload Setup.exe
         uses: actions/upload-artifact@v4

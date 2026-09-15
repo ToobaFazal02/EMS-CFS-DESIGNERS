@@ -3,14 +3,5 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": ["main"],
-  "permissions": [
-    "core:default",
-    {
-      "identifier": "allow-silent-manager-update",
-      "description": "Allow click-to-update Manager Setup download + silent install",
-      "commands": {
-        "allow": ["start_silent_manager_update"]
-      }
-    }
-  ]
+  "permissions": ["core:default"]
 }

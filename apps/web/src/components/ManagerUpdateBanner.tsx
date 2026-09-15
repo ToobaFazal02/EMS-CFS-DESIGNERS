@@ -7,16 +7,12 @@ type UpdateInfo = {
   url: string;
 };
 
-type Phase = "idle" | "updating" | "error";
-
 /**
- * Manager Desktop only: "Update available" → click installs Setup.exe silently (/S).
- * Server data untouched. Requires Tauri command `start_silent_manager_update`.
+ * Manager Desktop: "Update available" → opens Setup.exe download.
+ * (Silent Rust installer comes back after CI is stable — this build prioritizes PDF/nav/Payments.)
  */
 export function ManagerUpdateBanner() {
   const [info, setInfo] = useState<UpdateInfo | null>(null);
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [err, setErr] = useState("");
 
   useEffect(() => {
     if (!isTauriDesktop()) return;
@@ -43,53 +39,20 @@ export function ManagerUpdateBanner() {
     };
   }, []);
 
-  async function onUpdateClick() {
-    if (!info || phase === "updating") return;
-    setPhase("updating");
-    setErr("");
-    try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("start_silent_manager_update", { url: info.url });
-      // App exits on success — if we are still here, show status briefly
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e || "Update failed");
-      setErr(msg);
-      setPhase("error");
-      // Fallback: open download in browser
-      try {
-        window.open(info.url, "_blank", "noopener,noreferrer");
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-
   if (!info) return null;
 
   return (
     <div className="app-update-banner" role="status">
       <div className="app-update-banner-text">
-        <strong>
-          {phase === "updating"
-            ? "Updating Manager…"
-            : `Update available: v${info.latest}`}
-        </strong>
+        <strong>Update available: v{info.latest}</strong>
         <span>
-          {phase === "updating"
-            ? "Downloading and installing in the background. App will restart. Server data stays safe."
-            : phase === "error"
-              ? `Could not auto-install (${err}). Opening manual download…`
-              : `You have v${MANAGER_APP_VERSION}. Click Update — installs in the background.`}
+          You have v{MANAGER_APP_VERSION}. Download and run the new Manager Setup — PDF, Payments, and
+          Reports match the web app. Server data stays safe.
         </span>
       </div>
-      <button
-        type="button"
-        className="app-update-banner-btn"
-        onClick={onUpdateClick}
-        disabled={phase === "updating"}
-      >
-        {phase === "updating" ? "Updating…" : `Update to v${info.latest}`}
-      </button>
+      <a className="app-update-banner-btn" href={info.url} target="_blank" rel="noopener noreferrer">
+        Download v{info.latest}
+      </a>
     </div>
   );
 }
