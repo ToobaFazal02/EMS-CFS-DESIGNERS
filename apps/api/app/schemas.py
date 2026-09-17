@@ -135,6 +135,8 @@ class DaySessionOut(BaseModel):
 class DaySummaryOut(BaseModel):
     employee_id: str
     date: str
+    employee_code: str = ""
+    employee_full_name: str = ""
     sessions: list[DaySessionOut]
     net_hours: float
     break_hours: float
@@ -264,6 +266,8 @@ class ClientIn(BaseModel):
     location: str = ""
     phone: str = ""
     notes: str = ""
+    initial: str = ""
+    invoice_status: str = "none"
 
 
 class ClientOut(BaseModel):
@@ -272,14 +276,42 @@ class ClientOut(BaseModel):
     location: str = ""
     phone: str = ""
     notes: str = ""
+    initial: str = ""
+    invoice_status: str = "none"
     active: bool = True
+
+
+class ProjectAssigneeOut(BaseModel):
+    employee_id: str
+    full_name: str = ""
+    code: str = ""
+    is_lead: bool = False
+
+
+class ProjectProgressOut(BaseModel):
+    id: str
+    employee_id: str
+    employee_name: str = ""
+    work_date: str
+    percent: float
+    note: str = ""
+    created_at: Optional[datetime] = None
+
+
+class ProjectProgressIn(BaseModel):
+    percent: float
+    note: str = ""
+    work_date: Optional[str] = None  # default today PKT
+    employee_id: Optional[str] = None  # default self
 
 
 class ProjectIn(BaseModel):
     name: str
     client_id: Optional[str] = None
+    code: str = ""
     work_scope: str = ""
     assignee_id: Optional[str] = None
+    assignee_ids: list[str] = []
     area_sqft: Optional[float] = None
     storeys: Optional[int] = None
     phase: str = "intake"
@@ -297,12 +329,15 @@ class ProjectIn(BaseModel):
 class ProjectOut(BaseModel):
     id: str
     name: str
+    code: str = ""
     client_id: Optional[str] = None
     client_name: str = ""
     client_location: str = ""
+    client_initial: str = ""
     work_scope: str = ""
     assignee_id: Optional[str] = None
     assignee_name: str = ""
+    assignees: list[ProjectAssigneeOut] = []
     area_sqft: Optional[float] = None
     storeys: Optional[int] = None
     phase: str
@@ -316,6 +351,7 @@ class ProjectOut(BaseModel):
     currency: str = "USD"
     paid_amount: float = 0
     gate: str = "ok"
+    latest_progress_pct: Optional[float] = None
 
 
 class InvoiceLineItemIn(BaseModel):

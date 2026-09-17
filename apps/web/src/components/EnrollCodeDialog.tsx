@@ -67,6 +67,11 @@ export function EnrollCodeDialog({
           Agent on their PC. Keep this window open until they finish — the code disappears if you close it without
           copying.
         </p>
+        <p className="modal-message" style={{ marginTop: 8, fontSize: 13 }}>
+          Identity check: this PC must enroll as <strong>#{employeeCode}</strong>. That person must log in to the
+          Manager with the same staff account — otherwise Live shows shots under one name and My Day looks empty
+          under another.
+        </p>
         <div className="enroll-code-box" aria-label={`Enroll code ${enrollCode}`}>
           {enrollCode}
         </div>

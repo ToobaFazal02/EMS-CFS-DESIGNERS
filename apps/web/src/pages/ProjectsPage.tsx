@@ -5,10 +5,14 @@ import {
   deleteProject,
   fetchClients,
   fetchEmployees,
+  fetchProjectPhases,
+  fetchProjectProgress,
   fetchProjects,
+  postProjectProgress,
   saveProject,
   type ClientRow,
   type Employee,
+  type ProjectProgressRow,
   type ProjectRow,
 } from "../api";
 import { useToast } from "../components/ToastProvider";
@@ -25,6 +29,20 @@ const PHASES: { id: string; label: string; short: string }[] = [
   { id: "stamped_drawings", label: "Stamped Drawings", short: "Stamped" },
   { id: "field_files", label: "Field Files", short: "Field Files" },
   { id: "run_files", label: "Run Files", short: "Run Files" },
+];
+
+const DEFAULT_SCOPES: { id: string; label: string }[] = [
+  { id: "estimation", label: "Estimation" },
+  { id: "detailing", label: "Detailing" },
+  { id: "detailing_engineering", label: "Detailing + Engineering" },
+];
+
+const INVOICE_STATUSES: { id: string; label: string }[] = [
+  { id: "none", label: "None" },
+  { id: "preparing", label: "Preparing" },
+  { id: "prepared", label: "Prepared" },
+  { id: "sent", label: "Sent" },
+  { id: "paid", label: "Paid" },
 ];
 
 function isoDate(v: string | null | undefined): string {
@@ -49,6 +67,10 @@ function depositNeeded(p: ProjectRow): number {
   return Math.round(value * (pct / 100) * 100) / 100;
 }
 
+function scopeLabel(id: string, scopes: { id: string; label: string }[]): string {
+  return scopes.find((s) => s.id === id)?.label || id || "—";
+}
+
 /** Trello-style label colours per phase (CFS gold for Intake). */
 const PHASE_COLOR: Record<string, string> = {
   intake: "#c9a227",
@@ -62,9 +84,11 @@ const PHASE_COLOR: Record<string, string> = {
 
 const emptyForm = {
   name: "",
+  code: "",
   client_id: "",
-  work_scope: "",
+  work_scope: "estimation",
   assignee_id: "",
+  assignee_ids: [] as string[],
   area_sqft: "",
   storeys: "",
   phase: "intake",
@@ -81,32 +105,55 @@ export function ProjectsPage() {
   const toast = useToast();
   const nav = useNavigate();
   const role = localStorage.getItem("ems_role") || "";
+  const myId = localStorage.getItem("ems_employee_id") || "";
   const office = role === "admin" || role === "manager" || role === "hr" || role === "demo";
   const finance = role === "admin" || role === "manager";
   const manager = office; // board/list ops (HR included)
+  const canCreate = office || role === "employee";
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [scopes, setScopes] = useState(DEFAULT_SCOPES);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<"board" | "list">("board");
   const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [clientName, setClientName] = useState("");
   const [clientLoc, setClientLoc] = useState("");
+  const [clientInitial, setClientInitial] = useState("");
+  const [clientInvoiceStatus, setClientInvoiceStatus] = useState("none");
   const [q, setQ] = useState("");
   const [overrideReason, setOverrideReason] = useState("");
   const [pendingMove, setPendingMove] = useState<{ p: ProjectRow; phase: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ProjectRow | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [progressPct, setProgressPct] = useState("");
+  const [progressNote, setProgressNote] = useState("");
+  const [progressHistory, setProgressHistory] = useState<ProjectProgressRow[]>([]);
+  const [savingProgress, setSavingProgress] = useState(false);
 
   async function load() {
     setBusy(true);
     try {
-      if (manager) {
-        const [p, c, e] = await Promise.all([fetchProjects(), fetchClients(), fetchEmployees()]);
+      const phasesP = fetchProjectPhases().catch(() => null);
+      if (canCreate) {
+        const [p, c, e, phases] = await Promise.all([
+          fetchProjects(),
+          fetchClients(),
+          fetchEmployees(),
+          phasesP,
+        ]);
         setProjects(p);
         setClients(c);
         setEmployees(e.filter((x) => x.role === "employee"));
+        if (phases?.scopes?.length && phases.scope_labels) {
+          setScopes(
+            phases.scopes.map((id) => ({
+              id,
+              label: phases.scope_labels[id] || id,
+            }))
+          );
+        }
       } else {
         setProjects(await fetchProjects());
         setClients([]);
@@ -129,27 +176,47 @@ export function ProjectsPage() {
     return projects.filter(
       (p) =>
         p.name.toLowerCase().includes(s) ||
+        (p.code || "").toLowerCase().includes(s) ||
         p.client_name.toLowerCase().includes(s) ||
+        (p.client_initial || "").toLowerCase().includes(s) ||
         p.assignee_name.toLowerCase().includes(s) ||
         p.phase.toLowerCase().includes(s)
     );
   }, [projects, q]);
 
   function startEdit(p?: ProjectRow, phaseForNew?: string) {
-    if (!manager) return;
+    if (!canCreate) return;
     setOverrideReason("");
     setPendingMove(null);
+    setProgressPct("");
+    setProgressNote("");
+    setProgressHistory([]);
     if (!p) {
       setEditing("new");
-      setForm({ ...emptyForm, phase: phaseForNew || "intake" });
+      const selfIds = role === "employee" && myId ? [myId] : [];
+      setForm({
+        ...emptyForm,
+        phase: phaseForNew || "intake",
+        work_scope: scopes[0]?.id || "estimation",
+        assignee_ids: selfIds,
+        assignee_id: selfIds[0] || "",
+      });
       return;
     }
     setEditing(p.id);
+    const ids =
+      p.assignees && p.assignees.length
+        ? p.assignees.map((a) => a.employee_id)
+        : p.assignee_id
+          ? [p.assignee_id]
+          : [];
     setForm({
       name: p.name,
+      code: p.code || "",
       client_id: p.client_id || "",
-      work_scope: p.work_scope || "",
-      assignee_id: p.assignee_id || "",
+      work_scope: p.work_scope || scopes[0]?.id || "estimation",
+      assignee_id: ids[0] || p.assignee_id || "",
+      assignee_ids: ids,
       area_sqft: p.area_sqft != null ? String(p.area_sqft) : "",
       storeys: p.storeys != null ? String(p.storeys) : "",
       phase: p.phase,
@@ -160,6 +227,18 @@ export function ProjectsPage() {
       contract_value: p.contract_value != null ? String(p.contract_value) : "",
       currency: p.currency || "USD",
       deposit_pct: String(p.deposit_pct ?? 50),
+    });
+    if (p.latest_progress_pct != null) setProgressPct(String(p.latest_progress_pct));
+    fetchProjectProgress(p.id)
+      .then(setProgressHistory)
+      .catch(() => setProgressHistory([]));
+  }
+
+  function toggleAssignee(id: string) {
+    setForm((prev) => {
+      const has = prev.assignee_ids.includes(id);
+      const assignee_ids = has ? prev.assignee_ids.filter((x) => x !== id) : [...prev.assignee_ids, id];
+      return { ...prev, assignee_ids, assignee_id: assignee_ids[0] || "" };
     });
   }
 
@@ -183,6 +262,10 @@ export function ProjectsPage() {
       toast.error("Select a client (required). Add one above if needed.");
       return;
     }
+    if (!form.work_scope) {
+      toast.error("Select a work scope.");
+      return;
+    }
     let deposit = 50;
     let contract = 0;
     let currency = "USD";
@@ -202,9 +285,11 @@ export function ProjectsPage() {
     try {
       const body = {
         name,
+        code: form.code.trim(),
         client_id: form.client_id || null,
         work_scope: form.work_scope.trim(),
-        assignee_id: form.assignee_id || null,
+        assignee_id: form.assignee_ids[0] || form.assignee_id || null,
+        assignee_ids: form.assignee_ids,
         area_sqft: form.area_sqft ? Number(form.area_sqft) : null,
         storeys: form.storeys ? Number(form.storeys) : null,
         phase: form.phase,
@@ -226,10 +311,32 @@ export function ProjectsPage() {
     }
   }
 
+  async function onSaveProgress() {
+    if (!editing || editing === "new") return;
+    const pct = Number(progressPct);
+    if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+      toast.error("Progress % must be between 0 and 100.");
+      return;
+    }
+    setSavingProgress(true);
+    try {
+      await postProjectProgress(editing, { percent: pct, note: progressNote.trim() });
+      toast.success("Progress saved.");
+      const hist = await fetchProjectProgress(editing);
+      setProgressHistory(hist);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Progress failed");
+    } finally {
+      setSavingProgress(false);
+    }
+  }
+
   async function onAddClient(e: React.FormEvent) {
     e.preventDefault();
     const name = clientName.trim();
     const location = clientLoc.trim();
+    const initial = clientInitial.trim();
     if (name.length < 2) {
       toast.error("Client name is required.");
       return;
@@ -238,10 +345,21 @@ export function ProjectsPage() {
       toast.error("Client location is required (e.g. USA, AUS).");
       return;
     }
+    if (!initial) {
+      toast.error("Client initial is required (e.g. W for Willie).");
+      return;
+    }
     try {
-      await createClient({ name, location });
+      await createClient({
+        name,
+        location,
+        initial,
+        invoice_status: clientInvoiceStatus || "none",
+      });
       setClientName("");
       setClientLoc("");
+      setClientInitial("");
+      setClientInvoiceStatus("none");
       toast.success("Client added.");
       await load();
     } catch (err) {
@@ -252,12 +370,20 @@ export function ProjectsPage() {
   async function movePhase(p: ProjectRow, phase: string, force = false) {
     if (!manager) return;
     try {
+      const ids =
+        p.assignees && p.assignees.length
+          ? p.assignees.map((a) => a.employee_id)
+          : p.assignee_id
+            ? [p.assignee_id]
+            : [];
       await saveProject(
         {
           name: p.name,
+          code: p.code || "",
           client_id: p.client_id,
           work_scope: p.work_scope,
-          assignee_id: p.assignee_id,
+          assignee_id: ids[0] || p.assignee_id,
+          assignee_ids: ids,
           area_sqft: p.area_sqft,
           storeys: p.storeys,
           phase,
@@ -334,7 +460,7 @@ export function ProjectsPage() {
         <button type="button" className="secondary" onClick={() => setView(view === "board" ? "list" : "board")}>
           {view === "board" ? "List view" : "Board view"}
         </button>
-        {manager ? (
+        {canCreate ? (
           <button type="button" onClick={() => startEdit()}>
             New project
           </button>
@@ -390,6 +516,19 @@ export function ProjectsPage() {
         </div>
         <div className="field">
           <label>
+            Initial <span className="req">*</span>
+          </label>
+          <input
+            value={clientInitial}
+            onChange={(e) => setClientInitial(e.target.value.toUpperCase().slice(0, 4))}
+            placeholder="W"
+            required
+            maxLength={4}
+            style={{ maxWidth: 72 }}
+          />
+        </div>
+        <div className="field">
+          <label>
             Location <span className="req">*</span>
           </label>
           <input
@@ -398,6 +537,16 @@ export function ProjectsPage() {
             placeholder="USA / AUS"
             required
           />
+        </div>
+        <div className="field">
+          <label>Invoice status</label>
+          <select value={clientInvoiceStatus} onChange={(e) => setClientInvoiceStatus(e.target.value)}>
+            {INVOICE_STATUSES.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
         </div>
         <button type="submit" className="secondary">
           Add client
@@ -422,6 +571,15 @@ export function ProjectsPage() {
               />
             </div>
             <div className="field">
+              <label>Code</label>
+              <input
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+                placeholder="Auto from initial+date"
+                maxLength={32}
+              />
+            </div>
+            <div className="field">
               <label>
                 Client <span className="req">*</span>
               </label>
@@ -441,6 +599,7 @@ export function ProjectsPage() {
                 <option value="">Select client…</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>
+                    {c.initial ? `[${c.initial}] ` : ""}
                     {c.name}
                     {c.location ? ` (${c.location})` : ""}
                   </option>
@@ -448,19 +607,39 @@ export function ProjectsPage() {
               </select>
             </div>
             <div className="field">
-              <label>Assignee</label>
-              <select value={form.assignee_id} onChange={(e) => setForm({ ...form, assignee_id: e.target.value })}>
-                <option value="">—</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.full_name} #{emp.code}
+              <label>
+                Scope <span className="req">*</span>
+              </label>
+              <select
+                required
+                value={form.work_scope}
+                onChange={(e) => setForm({ ...form, work_scope: e.target.value })}
+              >
+                {scopes.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
                   </option>
                 ))}
               </select>
             </div>
             <div className="field field-span-2">
-              <label>Work scope</label>
-              <input value={form.work_scope} onChange={(e) => setForm({ ...form, work_scope: e.target.value })} />
+              <label>Assignees</label>
+              <div className="assignee-checks" style={{ display: "flex", flexWrap: "wrap", gap: "8px 14px" }}>
+                {employees.length === 0 ? (
+                  <span className="muted">No staff roster loaded</span>
+                ) : (
+                  employees.map((emp) => (
+                    <label key={emp.id} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <input
+                        type="checkbox"
+                        checked={form.assignee_ids.includes(emp.id)}
+                        onChange={() => toggleAssignee(emp.id)}
+                      />
+                      {emp.full_name} #{emp.code}
+                    </label>
+                  ))
+                )}
+              </div>
             </div>
             <div className="field">
               <label>Area (sq.ft)</label>
@@ -544,6 +723,50 @@ export function ProjectsPage() {
               Cancel
             </button>
           </div>
+          {editing && editing !== "new" ? (
+            <div className="progress-block" style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border, #333)" }}>
+              <h4 style={{ marginTop: 0, marginBottom: 10 }}>Daily progress %</h4>
+              <div className="toolbar" style={{ marginBottom: 8, flexWrap: "wrap" }}>
+                <div className="field" style={{ minWidth: 100 }}>
+                  <label>Percent</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="1"
+                    value={progressPct}
+                    onChange={(e) => setProgressPct(e.target.value)}
+                    placeholder="0–100"
+                  />
+                </div>
+                <div className="field" style={{ flex: 1, minWidth: 160 }}>
+                  <label>Note</label>
+                  <input
+                    value={progressNote}
+                    onChange={(e) => setProgressNote(e.target.value)}
+                    placeholder="Optional note"
+                  />
+                </div>
+                <button type="button" className="secondary" disabled={savingProgress} onClick={() => onSaveProgress()}>
+                  {savingProgress ? "Saving…" : "Save progress"}
+                </button>
+              </div>
+              {progressHistory.length ? (
+                <ul className="muted" style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                  {progressHistory.slice(0, 5).map((r) => (
+                    <li key={r.id}>
+                      {r.work_date}: {r.percent}% — {r.employee_name || "—"}
+                      {r.note ? ` (${r.note})` : ""}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                  No progress logged yet.
+                </p>
+              )}
+            </div>
+          ) : null}
         </form>
       ) : null}
 
@@ -588,10 +811,19 @@ export function ProjectsPage() {
                               <span className="kanban-label" style={{ background: "#4ade80" }} title="Advance OK" />
                             ) : null}
                           </div>
+                          {p.code ? (
+                            <p className="kanban-code" style={{ margin: "0 0 2px", fontSize: 12, fontWeight: 700, letterSpacing: "0.04em", color: "var(--accent, #c9a227)" }}>
+                              {p.code}
+                            </p>
+                          ) : null}
                           <button type="button" className="kanban-title" onClick={() => startEdit(p)}>
                             {p.name}
                           </button>
                           <p className="kanban-client">{p.client_name || "No client"}</p>
+                          <p className="muted" style={{ margin: "0 0 4px", fontSize: 12 }}>
+                            {scopeLabel(p.work_scope, scopes)}
+                            {p.latest_progress_pct != null ? ` · ${p.latest_progress_pct}%` : ""}
+                          </p>
                           {finance && contract > 0 ? (
                             <p className="kanban-pay">
                               {formatMoney(paid, cur)} / {formatMoney(contract, cur)}
@@ -656,7 +888,7 @@ export function ProjectsPage() {
                       );
                     })}
                   </div>
-                  {manager ? (
+                  {canCreate ? (
                     <button
                       type="button"
                       className="kanban-add"
@@ -675,10 +907,13 @@ export function ProjectsPage() {
           <table className="table-center">
             <thead>
               <tr>
+                <th>Code</th>
                 <th>Project</th>
                 <th>Client</th>
+                <th>Scope</th>
                 <th>Location</th>
                 <th>Assignee</th>
+                <th>%</th>
                 <th>Area</th>
                 <th>Storey</th>
                 <th>Phase</th>
@@ -691,13 +926,18 @@ export function ProjectsPage() {
               {filtered.map((p) => (
                 <tr key={p.id}>
                   <td>
+                    <strong style={{ color: "var(--accent, #c9a227)" }}>{p.code || "—"}</strong>
+                  </td>
+                  <td>
                     <button type="button" className="linkish" onClick={() => startEdit(p)}>
                       {p.name}
                     </button>
                   </td>
                   <td>{p.client_name || "—"}</td>
+                  <td>{scopeLabel(p.work_scope, scopes)}</td>
                   <td>{p.client_location || "—"}</td>
                   <td>{p.assignee_name || "—"}</td>
+                  <td>{p.latest_progress_pct != null ? `${p.latest_progress_pct}%` : "—"}</td>
                   <td>{p.area_sqft ?? "—"}</td>
                   <td>{p.storeys ?? "—"}</td>
                   <td>

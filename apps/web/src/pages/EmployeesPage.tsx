@@ -137,7 +137,7 @@ export function EmployeesPage() {
   }
 
   return (
-    <div>
+    <div className="employees-page">
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         title="Remove staff?"
@@ -160,8 +160,15 @@ export function EmployeesPage() {
         onClose={() => setEnrollModal(null)}
       />
 
-      <div className="toolbar">
-        <h2 style={{ margin: 0, flex: 1 }}>{readOnlyDemo ? "Sample team" : "Employees"}</h2>
+      <div className="toolbar employees-toolbar">
+        <div className="employees-heading">
+          <h2 style={{ margin: 0 }}>{readOnlyDemo ? "Sample team" : "Employees"}</h2>
+          <p className="muted employees-sub">
+            {readOnlyDemo
+              ? "Demo roster only — fictional names."
+              : "Web login + Agent enroll. Same person must enroll and log in."}
+          </p>
+        </div>
         <RefreshButton busy={busy} onClick={() => load()} />
       </div>
 
@@ -247,7 +254,15 @@ export function EmployeesPage() {
       </form>
       )}
 
-      <div className="card" style={{ overflowX: "auto" }}>
+      <div className="card staff-table-card">
+        <div className="staff-table-head">
+          <h3 style={{ margin: 0 }}>Team roster</h3>
+          <span className="muted">{rows.length} {rows.length === 1 ? "person" : "people"}</span>
+        </div>
+        {rows.length === 0 ? (
+          <p className="muted staff-empty">No staff yet. Add someone above to get an enroll code.</p>
+        ) : (
+        <div className="staff-table-wrap">
         <table className="table-center staff-table">
           <thead>
             <tr>
@@ -256,7 +271,7 @@ export function EmployeesPage() {
               <th>Email</th>
               <th>Role</th>
               <th>Device</th>
-              {!readOnlyDemo ? <th>Actions</th> : null}
+              {!readOnlyDemo ? <th className="staff-col-actions">Actions</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -264,23 +279,32 @@ export function EmployeesPage() {
               const enrolled = Boolean(r.enrolled || r.enrolled_at || r.enrolled_hostname);
               return (
                 <tr key={r.id}>
-                  <td data-label="Code">{r.code}</td>
-                  <td data-label="Name">{r.full_name}</td>
-                  <td data-label="Email">{r.email || "—"}</td>
-                  <td data-label="Role">{r.role}</td>
+                  <td data-label="Code">
+                    <span className="staff-code">#{r.code}</span>
+                  </td>
+                  <td data-label="Name">
+                    <strong className="staff-name">{r.full_name}</strong>
+                  </td>
+                  <td data-label="Email" className="staff-email">
+                    {r.email || "—"}
+                  </td>
+                  <td data-label="Role">
+                    <span className={`staff-role-tag staff-role-${r.role}`}>{r.role}</span>
+                  </td>
                   <td data-label="Device">
                     {r.role !== "employee" ? (
-                      "—"
+                      <span className="muted">—</span>
                     ) : enrolled ? (
-                      <span title={r.enrolled_hostname || ""}>
-                        Enrolled{r.enrolled_hostname ? ` · ${r.enrolled_hostname}` : ""}
+                      <span className="staff-device staff-device-ok" title={r.enrolled_hostname || ""}>
+                        Enrolled
+                        {r.enrolled_hostname ? <span className="staff-host"> · {r.enrolled_hostname}</span> : null}
                       </span>
                     ) : (
-                      "Not enrolled"
+                      <span className="staff-device staff-device-miss">Not enrolled</span>
                     )}
                   </td>
                   {!readOnlyDemo ? (
-                    <td data-label="Actions">
+                    <td data-label="Actions" className="staff-col-actions">
                       {r.role === "employee" || (r.role === "hr" && canCreateHr) ? (
                         <div className="row-actions">
                           <button type="button" className="secondary" onClick={() => startEdit(r)}>
@@ -296,7 +320,7 @@ export function EmployeesPage() {
                           </button>
                         </div>
                       ) : (
-                        "—"
+                        <span className="muted">—</span>
                       )}
                     </td>
                   ) : null}
@@ -305,6 +329,8 @@ export function EmployeesPage() {
             })}
           </tbody>
         </table>
+        </div>
+        )}
       </div>
     </div>
   );

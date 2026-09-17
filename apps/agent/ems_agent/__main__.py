@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socket
+import sys
 import threading
 import time
 from io import BytesIO
@@ -276,7 +277,7 @@ class CaptureService(QObject):
 
 APP_DISPLAY_NAME = "CFS Designers Agent"
 # Bump this on every release so the auto-update check can compare versions.
-AGENT_VERSION = "1.1.2"
+AGENT_VERSION = "1.1.4"
 DOWNLOADS_URL = "https://ems.cfsdesigners.com/downloads"
 AGENT_PACKAGE_URL = f"{DOWNLOADS_URL}/CFS-Agent-Install.zip"
 
@@ -596,7 +597,7 @@ class MainWindow(QWidget):
 
         self.shot_timer = QTimer(self)
         self.shot_timer.timeout.connect(self._tick_screenshot)
-        # First capture soon after Sign In; recurring ~3 min with jitter (see _arm_screenshot_timer)
+        # First capture soon after Sign In; recurring 90–300s random (see _arm_screenshot_timer)
         self._arm_screenshot_timer(first_delay_ms=2500)
 
         self._auto_out_busy = False
@@ -889,10 +890,10 @@ class MainWindow(QWidget):
 
     def on_status(self, state: str) -> None:
         names = {
-            "working": "LIVE — monitoring on. Work normally.",
-            "break": "On break — screenshots paused.",
-            "idle": "Idle — no mouse/keyboard recently.",
-            "offline": "Signed out — tracking stopped on this PC.",
+            "working": "Signed in — LIVE. Screenshots & activity on.",
+            "break": "On break — screenshots paused. End break to resume.",
+            "idle": "Signed in — Idle (no input). Tracking on; shots pause after 5 min idle.",
+            "offline": "Signed out — not tracking. Press Sign In to start.",
         }
         self.info.setText(names.get(state, state))
         self._update_buttons()
@@ -946,6 +947,10 @@ class MainWindow(QWidget):
             self._server_signed_in = False
         elif punch_type == "sign_in":
             self._server_signed_in = True
+            # Fresh session: ignore time spent signed-out / suspended, or first
+            # activity tick treats a multi-minute gap as "PC slept" → Session ended.
+            self._last_activity_tick = time.time()
+            self.svc.counters.mark_active()
         self._sync_server_session()
         if punch_type == "sign_in":
             QTimer.singleShot(2500, lambda: self._arm_screenshot_timer(first_delay_ms=100))
@@ -1187,18 +1192,20 @@ class MainWindow(QWidget):
             return
         if not self._server_signed_in:
             return
-        # Reliable sleep detect: Qt timers pause during suspend — big gap on wake
+        # Reliable sleep detect: Qt timers pause during suspend — big gap on wake.
+        # Only count gaps between ticks while already signed in (reset on Sign In).
         now = time.time()
         gap = now - self._last_activity_tick
         self._last_activity_tick = now
         sleep_gap = float(self.svc.cfg.get("sleep_gap_seconds", 120))
-        if gap >= sleep_gap and self.svc.state != "offline":
+        # Ignore absurd first gaps (clock skew / never ticked while signed in)
+        if gap >= sleep_gap and gap < 86400 and self.svc.state != "offline":
             self._auto_sign_out("Session ended")
             return
 
         clicks, keys, last_input = self.svc.counters.drain()
         idle_for = time.time() - last_input
-        idle_limit = float(self.svc.cfg.get("idle_seconds", 180))
+        idle_limit = float(self.svc.cfg.get("idle_seconds", 10))
         auto_out = float(self.svc.cfg.get("auto_sign_out_idle_seconds", 1800))
         status = self.svc.state
         if self.svc.state in ("working", "idle"):
@@ -1240,28 +1247,59 @@ class MainWindow(QWidget):
             self.svc.sync_changed.emit("Offline — queued")
 
     def _arm_screenshot_timer(self, first_delay_ms: int | None = None) -> None:
-        """Professional timing: base interval (~3 min) ± ~20% random jitter so captures are not predictable."""
+        """Random interval between min/max (default 90–300s). Never waits longer than 5 minutes."""
         import random
 
-        base = int(self.svc.cfg.get("screenshot_interval_seconds", 180) or 180)
-        base = max(60, min(base, 900))
-        jitter = int(base * 0.2)
-        delay_s = base + random.randint(-jitter, jitter) if jitter else base
-        delay_s = max(45, delay_s)
+        lo = int(self.svc.cfg.get("screenshot_interval_min_seconds", 90) or 90)
+        hi = int(self.svc.cfg.get("screenshot_interval_max_seconds", 300) or 300)
+        lo = max(45, min(lo, 300))
+        hi = max(lo, min(hi, 300))
+        # Prefer explicit min/max; fall back to base ±20% if mins missing from old configs
+        if hi <= lo:
+            base = int(self.svc.cfg.get("screenshot_interval_seconds", 180) or 180)
+            base = max(60, min(base, 300))
+            jitter = int(base * 0.2)
+            delay_s = base + random.randint(-jitter, jitter) if jitter else base
+            delay_s = max(45, min(delay_s, 300))
+        else:
+            delay_s = random.randint(lo, hi)
         ms = first_delay_ms if first_delay_ms is not None else delay_s * 1000
         self.shot_timer.stop()
         self.shot_timer.setSingleShot(True)
         self.shot_timer.start(int(ms))
 
+    def _play_capture_sound(self) -> None:
+        """iPhone-style shutter after successful capture (CC0 BigSoundBank #0448)."""
+        if not self.svc.cfg.get("capture_sound", True):
+            return
+        try:
+            if sys.platform != "win32":
+                return
+            import winsound
+
+            wav = _assets_dir() / "capture-click.wav"
+            if wav.is_file():
+                winsound.PlaySound(str(wav), winsound.SND_FILENAME | winsound.SND_ASYNC)
+            else:
+                winsound.Beep(1600, 30)
+                winsound.Beep(1100, 45)
+        except Exception:
+            pass
+
     def _tick_screenshot(self) -> None:
         try:
+            # Capture while signed in (working OR short idle). Break / signed-out = no shots.
             if self.svc.state not in ("working", "idle"):
-                return
-            # skip while idle (professional default)
-            if self.svc.state == "idle":
                 return
             if time.time() < self._skip_shots_until:
                 return
+            # Pro platforms: after long idle, pause screenshots (desk empty / AFK).
+            # Short idle (<5 min) still captures so random gaps don't look "broken".
+            skip_after = float(self.svc.cfg.get("screenshot_idle_skip_after_seconds", 300) or 300)
+            if self.svc.state == "idle" and skip_after > 0:
+                idle_for = time.time() - float(self.svc.counters.peek_last_input())
+                if idle_for >= skip_after:
+                    return
             data = self.svc.take_screenshot_jpeg()
             if not data:
                 return
@@ -1279,6 +1317,7 @@ class MainWindow(QWidget):
                 ok = ApiClient(self.svc.cfg["api_base"], token).screenshot(data)
                 if ok:
                     self.svc.sync_changed.emit("Online")
+                    self._play_capture_sound()
                     try:
                         f.unlink()
                     except OSError:

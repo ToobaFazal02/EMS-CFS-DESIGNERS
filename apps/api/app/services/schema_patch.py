@@ -8,11 +8,14 @@ PROJECT_COLS = {
     "deposit_pct": "FLOAT DEFAULT 50",
     "currency": "VARCHAR(8) DEFAULT 'USD'",
     "is_demo": "BOOLEAN DEFAULT 0",
+    "code": "VARCHAR(32) DEFAULT ''",
 }
 
 CLIENT_COLS = {
     "phone": "VARCHAR(40) DEFAULT ''",
     "is_demo": "BOOLEAN DEFAULT 0",
+    "initial": "VARCHAR(8) DEFAULT ''",
+    "invoice_status": "VARCHAR(24) DEFAULT 'none'",
 }
 
 INVOICE_COLS = {

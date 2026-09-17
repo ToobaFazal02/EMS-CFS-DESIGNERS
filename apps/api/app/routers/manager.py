@@ -632,6 +632,11 @@ async def employee_day(
     except ValueError as e:
         raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD") from e
     reject_future_day(day.date())
+    emp = (
+        await db.execute(select(Employee).where(Employee.id == employee_id))
+    ).scalar_one_or_none()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Employee not found")
     start, end = day_bounds_utc(day)
     punches = await _punches_spanning(db, employee_id, start, end)
     buckets = (
@@ -684,6 +689,8 @@ async def employee_day(
     return DaySummaryOut(
         employee_id=employee_id,
         date=date,
+        employee_code=emp.code or "",
+        employee_full_name=emp.full_name or "",
         sessions=[
             DaySessionOut(
                 **{

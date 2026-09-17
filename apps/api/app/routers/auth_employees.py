@@ -84,9 +84,10 @@ async def login(body: LoginIn, request: Request, db: Annotated[AsyncSession, Dep
 @router.get("/employees", response_model=list[EmployeeOut])
 async def list_employees(
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: Annotated[Employee, Depends(require_office_or_demo)],
+    user: Annotated[Employee, Depends(get_current_user)],
 ) -> list[EmployeeOut]:
-    from app.auth import is_finance
+    """Office + staff can list (staff need roster for project multi-assignee)."""
+    from app.auth import is_finance, is_office_or_demo
     from app.services.data_scope import wants_demo_rows
     from sqlalchemy import or_
 
@@ -109,6 +110,9 @@ async def list_employees(
     if not is_finance(user):
         # HR/employee: hide admin, manager, and demo rows
         emps = [e for e in emps if e.role not in (Role.admin, Role.manager, Role.demo)]
+    # Pure staff: assignee picker only (role=employee), not HR peers
+    if not is_office_or_demo(user):
+        emps = [e for e in emps if e.role == Role.employee]
     return [await employee_to_out(db, emp) for emp in emps]
 
 

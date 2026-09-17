@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useParams } from "react-router-dom";
 import { fetchAuthedBlob, fetchDay, fetchShots, triggerBlobDownload } from "../api";
 import { AuthedImg } from "../components/AuthedImg";
 import { PdfPreviewModal } from "../components/PdfPreviewModal";
+import { RefreshButton } from "../components/RefreshButton";
 import { useToast } from "../components/ToastProvider";
 import { formatHoursLabel, formatMinutesAsHours } from "../formatHours";
 
 const TZ = "Asia/Karachi";
+/** Day stats + shots while page is open (Wave 2). */
+const DAY_POLL_MS = 20_000;
 
 function todayLocalISO(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -54,6 +57,22 @@ function statusLabel(s: any): string {
   return "Incomplete";
 }
 
+function formatUpdatedLabel(loadedMs: number | null, nowMs: number): string {
+  if (loadedMs == null) return "";
+  const sec = Math.max(0, Math.floor((nowMs - loadedMs) / 1000));
+  if (sec < 8) return "Updated just now";
+  if (sec < 60) return `Updated ${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `Updated ${min}m ago`;
+  return `Updated ${new Date(loadedMs).toLocaleTimeString("en-GB", {
+    timeZone: TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  })}`;
+}
+
 export function DayPage() {
   const toast = useToast();
   const { id } = useParams();
@@ -63,28 +82,98 @@ export function DayPage() {
   const [shots, setShots] = useState<{ id: string; captured_at: string; url: string }[]>([]);
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [pdfPreview, setPdfPreview] = useState<{ url: string; title: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [loadedMs, setLoadedMs] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const lightboxRef = useRef<number | null>(null);
+  const shotsRef = useRef(shots);
+  const loadGen = useRef(0);
+
+  useEffect(() => {
+    lightboxRef.current = lightbox;
+  }, [lightbox]);
+
+  useEffect(() => {
+    shotsRef.current = shots;
+  }, [shots]);
 
   function closePdfPreview() {
     if (pdfPreview?.url) URL.revokeObjectURL(pdfPreview.url);
     setPdfPreview(null);
   }
 
-  useEffect(() => {
-    if (!id) return;
-    if (date > maxDate) {
-      toast.error(`Future dates are not allowed. Today is ${maxDate}.`);
-      setDay(null);
-      setShots([]);
-      return;
-    }
-    Promise.all([fetchDay(id, date), fetchShots(id, date)])
-      .then(([d, s]) => {
+  const loadDay = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!id) return;
+      if (date > maxDate) {
+        toast.error(`Future dates are not allowed. Today is ${maxDate}.`);
+        setDay(null);
+        setShots([]);
+        setLoadedMs(null);
+        return;
+      }
+      const gen = ++loadGen.current;
+      if (!opts?.silent) setBusy(true);
+      try {
+        const [d, s] = await Promise.all([fetchDay(id, date), fetchShots(id, date)]);
+        if (gen !== loadGen.current) return;
         setDay(d);
         setShots(s);
-        setLightbox(null);
-      })
-      .catch((e) => toast.error(String(e)));
-  }, [id, date, maxDate]);
+        // Keep lightbox open across silent polls; rematch by shot id when list changes.
+        if (!opts?.silent) {
+          setLightbox(null);
+        } else {
+          const open = lightboxRef.current;
+          if (open !== null) {
+            const prevId = shotsRef.current[open]?.id;
+            if (prevId) {
+              const nextIdx = s.findIndex((x) => x.id === prevId);
+              setLightbox(nextIdx >= 0 ? nextIdx : Math.min(open, Math.max(0, s.length - 1)));
+            } else if (open >= s.length) {
+              setLightbox(s.length ? s.length - 1 : null);
+            }
+          }
+        }
+        setLoadedMs(Date.now());
+      } catch (e) {
+        if (gen !== loadGen.current) return;
+        if (!opts?.silent) toast.error(String(e));
+      } finally {
+        if (gen === loadGen.current && !opts?.silent) setBusy(false);
+      }
+    },
+    // toast stable from provider; omit to avoid reload loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [id, date, maxDate]
+  );
+
+  useEffect(() => {
+    void loadDay();
+  }, [loadDay]);
+
+  // Auto-refresh while Day is open (always on; pause only when tab hidden).
+  useEffect(() => {
+    if (!id) return;
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      void loadDay({ silent: true });
+    };
+    const t = window.setInterval(tick, DAY_POLL_MS);
+    function onVis() {
+      if (document.visibilityState === "visible") tick();
+    }
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(t);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [id, loadDay]);
+
+  // Keep “Updated Xs ago” label fresh without refetching.
+  useEffect(() => {
+    const t = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, []);
 
   useEffect(() => {
     if (lightbox === null) return;
@@ -101,9 +190,16 @@ export function DayPage() {
     const r = localStorage.getItem("ems_role") || "";
     return r === "admin" || r === "manager";
   })();
+  const myId = localStorage.getItem("ems_employee_id") || "";
+  const viewingSelf = Boolean(id && myId && id === myId);
+  const whoLabel =
+    day?.employee_full_name || day?.employee_code
+      ? `${day.employee_full_name || "Staff"}${day.employee_code ? ` (#${day.employee_code})` : ""}`
+      : "Day detail";
+  const updatedLabel = formatUpdatedLabel(loadedMs, nowMs);
 
   return (
-    <div>
+    <div className="day-page">
       <PdfPreviewModal
         open={Boolean(pdfPreview)}
         title={pdfPreview?.title}
@@ -117,8 +213,15 @@ export function DayPage() {
           <Link to="/projects">← My Projects</Link>
         )}
       </p>
-      <div className="toolbar">
-        <h2 style={{ margin: 0, flex: 1 }}>Day detail</h2>
+      <div className="toolbar day-toolbar">
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h2 style={{ margin: 0 }}>{whoLabel}</h2>
+          <p className="muted day-meta" style={{ margin: "4px 0 0", fontSize: 13 }}>
+            {viewingSelf ? "Your day" : "Viewing this employee’s day"}
+            {updatedLabel ? ` · ${updatedLabel}` : ""}
+          </p>
+        </div>
+        <RefreshButton busy={busy} onClick={() => void loadDay()} />
         <div className="field date-field">
           <label htmlFor="day-date">Date</label>
           <div className="date-wrap">
@@ -153,7 +256,10 @@ export function DayPage() {
               return;
             }
             if (pdfPreview?.url) URL.revokeObjectURL(pdfPreview.url);
-            setPdfPreview({ url: URL.createObjectURL(res.blob), title: `Day PDF — ${date}` });
+            setPdfPreview({
+              url: URL.createObjectURL(res.blob),
+              title: `Day PDF — ${whoLabel} — ${date}`,
+            });
           }}
         >
           View PDF
@@ -173,7 +279,8 @@ export function DayPage() {
                 toast.error(res.error || `PDF failed`);
                 return;
               }
-              triggerBlobDownload(res.blob, `daily_${date}.pdf`);
+              const code = day?.employee_code || id || "staff";
+              triggerBlobDownload(res.blob, `daily_${code}_${date}.pdf`);
             }}
           >
             Download PDF

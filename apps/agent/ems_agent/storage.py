@@ -57,18 +57,31 @@ class Counters:
             self.key_presses = 0
             return c, k, self.last_input_at
 
+    def mark_active(self) -> None:
+        """Reset idle clock (e.g. right after Sign In) without counting a click/key."""
+        with self.lock:
+            self.last_input_at = time.time()
+
+    def peek_last_input(self) -> float:
+        with self.lock:
+            return self.last_input_at
+
 
 DEFAULT_CONFIG = {
     "api_base": "http://127.0.0.1:8000",
     "device_token": "",
     "screenshot_interval_seconds": 180,
+    "screenshot_interval_min_seconds": 90,
+    "screenshot_interval_max_seconds": 300,
     "screenshot_blur": False,
     "screenshot_blur_radius": 2,
     "activity_interval_seconds": 15,
-    "idle_seconds": 30,
+    "idle_seconds": 10,
+    "screenshot_idle_skip_after_seconds": 300,
     "auto_sign_out_idle_seconds": 1800,
     "auto_sign_out_on_sleep": True,
     "sleep_gap_seconds": 120,
+    "capture_sound": True,
     "employee_name": "",
     "employee_code": "",
 }
@@ -76,13 +89,17 @@ DEFAULT_CONFIG = {
 # Keys that may be upgraded on install without wiping enroll / identity.
 _POLICY_KEYS = (
     "screenshot_interval_seconds",
+    "screenshot_interval_min_seconds",
+    "screenshot_interval_max_seconds",
     "idle_seconds",
+    "screenshot_idle_skip_after_seconds",
     "auto_sign_out_idle_seconds",
     "activity_interval_seconds",
     "auto_sign_out_on_sleep",
     "sleep_gap_seconds",
     "screenshot_blur",
     "screenshot_blur_radius",
+    "capture_sound",
 )
 
 

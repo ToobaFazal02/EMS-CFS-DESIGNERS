@@ -3,37 +3,36 @@
 | Key | Value |
 |---|---|
 | EXECUTION_APPROVED | **yes** |
-| Current phase | **Phase E click→background update MVP** (doc 54) + Phase A live |
-| Code allowed | Phases 1–5 + hardening + A + E MVP; B leave alone; C not started |
-| Approved by | User 15 Sep 2026 — option 1 silent/background update today |
+| Current phase | **Wave 3 Phase C** (doc 57/60) — C1–C5 in tree |
+| Code allowed | Wave 3 C1–C5 local; test then C6 / Wave 4 |
+| Approved by | User 17 Sep — Wave 0–2 then Phase C |
 
 ## Done (production / recent)
 
-- Workforce: agent, live, day, PDF/Excel, idle 30s, multi-monitor, re-enroll
+- Workforce: agent, live, day, PDF/Excel, multi-monitor, re-enroll
 - Phase A: Payments sheet columns, Actions dropdown, Tauri URL helpers, PDF modal
-- Phase E partial: version API + banners (1.1.1 / 0.1.1 era = download page only)
-- Phase B audit 15 Sep: normal Sign In → screenshots OK — **do not change** unless bug
+- Phase E partial: version API + banners; Agent self-update click path
+- **Wave 0+1:** Day identity + Agent idle 10s / idle shots / ≤5min random
+- **Wave 2:** Day auto-refresh + Live hint (doc 59)
+- **Wave 3 C1–C5 (local tree):** client initial/invoice; project code; scope enum; staff create + multi-assignee; daily % — matrix `docs/60-wave3-phase-c-test-matrix.md`
 
-## In progress (15 Sep afternoon)
+## In progress
 
-**Click → background update** — see `docs/54-phase-e-click-background-update.md`
+**Test Wave 3 C1–C5** — matrix: `docs/60-wave3-phase-c-test-matrix.md`
 
 | Still needed (ops) | Why |
 |---|---|
-| You push code | Agent `self_update`, Manager silent command, API 1.1.2 / 0.1.2 |
-| `BUILD-EXE.bat` → upload Agent zip **1.1.2** | Employees get background update |
-| GitHub Actions Manager Setup **0.1.2** → upload | Managers get silent `/S` update |
-| VPS pull + web build + `ems-api` restart | Serves new version JSON + web banner |
-| One office install of 1.1.2 / 0.1.2 | Unlocks future click-updates |
+| Restart API + rebuild web | New projects router + Projects UI |
+| Happy + weeping C1–C5 | Before C6 / Desktop ship |
+| No DB wipe | Columns/tables auto-patch / create_all |
 
-**Data:** Never wipe `/var/lib/ems/ems.db`. Updates replace local binaries only.
+**Data:** Never wipe `/var/lib/ems/ems.db`.
 
-## Next after E MVP stable
+## Next after C1–C5 verified
 
-1. Phase C — project codes / scopes / multi-assignee / daily %  
-2. Optional: screenshot API Sign In hard-block  
-3. Signed Tauri `plugin-updater`  
-4. Phase D — admin PWA last  
+1. C6 — role-aware client display polish  
+2. Wave 4 — Manager Setup rebuild  
+3. Phase D — admin PWA last  
 
 ## Auto-update honesty (client line)
 

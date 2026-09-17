@@ -157,6 +157,21 @@ class WorkState(str, enum.Enum):
     done = "done"
 
 
+class WorkScope(str, enum.Enum):
+    """CFS Phase C scopes (locked)."""
+    estimation = "estimation"
+    detailing = "detailing"
+    detailing_engineering = "detailing_engineering"
+
+
+class ClientInvoiceStatus(str, enum.Enum):
+    none = "none"
+    preparing = "preparing"
+    prepared = "prepared"
+    sent = "sent"
+    paid = "paid"
+
+
 class Client(Base):
     __tablename__ = "clients"
 
@@ -165,6 +180,8 @@ class Client(Base):
     location: Mapped[str] = mapped_column(String(120), default="")
     phone: Mapped[str] = mapped_column(String(40), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
+    initial: Mapped[str] = mapped_column(String(8), default="")
+    invoice_status: Mapped[str] = mapped_column(String(24), default=ClientInvoiceStatus.none.value)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -178,6 +195,7 @@ class Project(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     client_id: Mapped[str | None] = mapped_column(ForeignKey("clients.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(220), index=True)
+    code: Mapped[str] = mapped_column(String(32), default="", index=True)
     work_scope: Mapped[str] = mapped_column(Text, default="")
     assignee_id: Mapped[str | None] = mapped_column(ForeignKey("employees.id"), nullable=True, index=True)
     area_sqft: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -192,11 +210,49 @@ class Project(Base):
 
     client: Mapped[Client | None] = relationship(back_populates="projects")
     assignee: Mapped[Employee | None] = relationship()
+    assignees: Mapped[list["ProjectAssignee"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+    progress_rows: Mapped[list["ProjectProgress"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
     contract_value: Mapped[float] = mapped_column(Float, default=0.0)
     deposit_pct: Mapped[float] = mapped_column(Float, default=50.0)
     currency: Mapped[str] = mapped_column(String(8), default="USD")
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     invoices: Mapped[list["Invoice"]] = relationship(back_populates="project")
+
+
+class ProjectAssignee(Base):
+    """Phase C multi-assignee (keeps projects.assignee_id as primary/lead for legacy UI)."""
+
+    __tablename__ = "project_assignees"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    employee_id: Mapped[str] = mapped_column(ForeignKey("employees.id"), index=True)
+    is_lead: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    project: Mapped[Project] = relationship(back_populates="assignees")
+    employee: Mapped[Employee] = relationship()
+
+
+class ProjectProgress(Base):
+    """Daily % progress per assignee (Phase C)."""
+
+    __tablename__ = "project_progress"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    employee_id: Mapped[str] = mapped_column(ForeignKey("employees.id"), index=True)
+    work_date: Mapped[str] = mapped_column(String(10), index=True)  # YYYY-MM-DD PKT
+    percent: Mapped[float] = mapped_column(Float, default=0.0)
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    project: Mapped[Project] = relationship(back_populates="progress_rows")
+    employee: Mapped[Employee] = relationship()
 
 
 class InvoiceStatus(str, enum.Enum):

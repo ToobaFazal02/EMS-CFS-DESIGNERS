@@ -362,6 +362,34 @@ export type ClientRow = {
   location: string;
   phone?: string;
   notes?: string;
+  initial?: string;
+  invoice_status?: string;
+  active?: boolean;
+};
+
+export type ProjectAssignee = {
+  employee_id: string;
+  full_name: string;
+  code: string;
+  is_lead: boolean;
+};
+
+export type ProjectProgressRow = {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  work_date: string;
+  percent: number;
+  note: string;
+  created_at?: string | null;
+};
+
+export type ProjectPhasesInfo = {
+  phases: string[];
+  labels: Record<string, string>;
+  states: string[];
+  scopes: string[];
+  scope_labels: Record<string, string>;
 };
 
 export type InvoiceLineItem = {
@@ -401,12 +429,15 @@ export type InvoiceSettings = {
 export type ProjectRow = {
   id: string;
   name: string;
+  code?: string;
   client_id: string | null;
   client_name: string;
   client_location: string;
+  client_initial?: string;
   work_scope: string;
   assignee_id: string | null;
   assignee_name: string;
+  assignees?: ProjectAssignee[];
   area_sqft: number | null;
   storeys: number | null;
   phase: string;
@@ -419,6 +450,7 @@ export type ProjectRow = {
   currency?: string;
   paid_amount?: number;
   gate?: string;
+  latest_progress_pct?: number | null;
 };
 
 export type InvoiceRow = {
@@ -471,7 +503,14 @@ export async function fetchClients(): Promise<ClientRow[]> {
   return r.json();
 }
 
-export async function createClient(body: { name: string; location?: string }) {
+export async function createClient(body: {
+  name: string;
+  location?: string;
+  initial?: string;
+  invoice_status?: string;
+  phone?: string;
+  notes?: string;
+}) {
   const r = await fetch(`${API}/api/v1/clients`, {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
@@ -479,6 +518,32 @@ export async function createClient(body: { name: string; location?: string }) {
   });
   if (!r.ok) throw new Error((await r.json()).detail || "Create client failed");
   return r.json() as Promise<ClientRow>;
+}
+
+export async function patchClient(
+  id: string,
+  body: {
+    name: string;
+    location?: string;
+    initial?: string;
+    invoice_status?: string;
+    phone?: string;
+    notes?: string;
+  }
+) {
+  const r = await fetch(`${API}/api/v1/clients/${id}`, {
+    method: "PATCH",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(await apiError(r, "Update client failed"));
+  return r.json() as Promise<ClientRow>;
+}
+
+export async function fetchProjectPhases(): Promise<ProjectPhasesInfo> {
+  const r = await fetch(`${API}/api/v1/project-phases`, { headers: authHeaders() });
+  if (!r.ok) throw new Error(await apiError(r, "Failed to load project phases"));
+  return r.json();
 }
 
 export async function fetchProjects(): Promise<ProjectRow[]> {
@@ -499,6 +564,25 @@ export async function saveProject(body: Record<string, unknown>, id?: string) {
   });
   if (!r.ok) throw new Error(await apiError(r, "Save project failed"));
   return r.json() as Promise<ProjectRow>;
+}
+
+export async function fetchProjectProgress(projectId: string): Promise<ProjectProgressRow[]> {
+  const r = await fetch(`${API}/api/v1/projects/${projectId}/progress`, { headers: authHeaders() });
+  if (!r.ok) throw new Error(await apiError(r, "Failed to load progress"));
+  return r.json();
+}
+
+export async function postProjectProgress(
+  projectId: string,
+  body: { percent: number; note?: string; work_date?: string; employee_id?: string }
+) {
+  const r = await fetch(`${API}/api/v1/projects/${projectId}/progress`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(await apiError(r, "Save progress failed"));
+  return r.json() as Promise<ProjectProgressRow>;
 }
 
 export async function deleteProject(id: string) {

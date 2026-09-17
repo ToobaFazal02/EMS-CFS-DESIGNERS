@@ -26,6 +26,10 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | `52-manager-build-16gb-ram.md` | **14 Sep 2026** Why local Tauri OOM on 16GB — use GitHub Actions for Setup.exe |
 | `53-finalize-desktop-web-then-mobile-plan.md` | **14–15 Sep** Desktop+Web → Agent → Projects → Admin PWA; Phase E order |
 | `54-phase-e-click-background-update.md` | **15 Sep** Click → background update MVP (Agent 1.1.2 / Manager 0.1.2) |
+| `57-client-trust-desktop-phase-c-plan.md` | **17 Sep** Trust recovery: Agent + Day + Phase C + Desktop ship order |
+| `58-wave0-1-test-matrix.md` | **17 Sep** Wave 0+1 shipped — identity + Agent idle/shots/sound + full happy/weeping tests |
+| `59-wave2-day-live-test-matrix.md` | **17 Sep** Wave 2 — Day auto-refresh + Live hint + test matrix |
+| `60-wave3-phase-c-test-matrix.md` | **17 Sep** Wave 3 Phase C (C1–C5) — codes/scopes/assignees/daily % + tests |
 | `43-lovable-dashboard-prompt.md` | Copy-paste Lovable prompt — **Dashboard tab only** |
 | `44-dashboard-predeploy.md` | **1 Sep 2026** Dashboard data + ultra-wide type + what to click before VPS |
 | `04-non-functional-requirements.md` | **All NFR** (perf, scale, security bar) |
