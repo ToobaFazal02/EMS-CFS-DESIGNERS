@@ -319,18 +319,31 @@ input[type="number"]::-webkit-inner-spin-button {
   padding-right: 52px;
   box-sizing: border-box;
 }
+/* Edge / WebView2 (Tauri Desktop) shows a native eye — hide it so only our toggle shows */
+.password-wrap input::-ms-reveal,
+.password-wrap input::-ms-clear {
+  display: none;
+  width: 0;
+  height: 0;
+}
+.password-wrap input::-webkit-credentials-auto-fill-button {
+  visibility: hidden;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+}
 .password-toggle {
   position: absolute;
   right: 8px;
-  top: 0;
-  bottom: 0;
+  top: 50%;
+  bottom: auto;
+  transform: translateY(-50%);
   width: 40px;
-  height: 100%;
-  min-height: 0;
+  height: 40px;
+  min-height: 40px;
   min-width: 40px;
   margin: 0;
   padding: 0;
-  transform: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -339,6 +352,7 @@ input[type="number"]::-webkit-inner-spin-button {
   border: 1px solid transparent;
   border-radius: 8px;
   line-height: 0;
+  z-index: 2;
 }
 .password-toggle:hover {
   background: rgba(201, 162, 39, 0.12);
@@ -347,6 +361,8 @@ input[type="number"]::-webkit-inner-spin-button {
 .password-toggle svg {
   display: block;
   flex-shrink: 0;
+  width: 20px;
+  height: 20px;
 }
 
 .money-field {
@@ -5607,3 +5623,65 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
   border: 0;
   background: #111;
 }
+
+/* Staff My dashboard */
+.staff-progress-card .staff-progress-form {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) 110px minmax(140px, 1.2fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+.staff-progress-card .staff-progress-save {
+  height: 42px;
+  white-space: nowrap;
+}
+.staff-proj-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.staff-proj-meta {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+.staff-proj-meta strong {
+  color: var(--accent);
+}
+.staff-proj-meta em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--accent);
+}
+.staff-proj-bar {
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.staff-proj-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #c9a227, #e8c547);
+  border-radius: 99px;
+}
+.staff-hours-svg {
+  width: 100%;
+  max-height: 220px;
+}
+@media (max-width: 900px) {
+  .staff-progress-card .staff-progress-form {
+    grid-template-columns: 1fr 1fr;
+  }
+  .staff-progress-card .staff-progress-note,
+  .staff-progress-card .staff-progress-save {
+    grid-column: 1 / -1;
+  }
+}
+

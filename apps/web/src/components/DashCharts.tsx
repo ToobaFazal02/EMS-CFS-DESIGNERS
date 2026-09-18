@@ -119,6 +119,87 @@ type HoursChartProps = {
   lastWeek: { label: string; hours: number }[];
 };
 
+/** Single-series month bars for staff self dashboard (hours per day). */
+export function StaffHoursBars({
+  days,
+}: {
+  days: { label: string; hours: number; present?: boolean }[];
+}) {
+  const present = days.filter((d) => (d.hours || 0) > 0.01);
+  const pts = present.length ? present : days.slice(0, 7);
+  const labels = pts.map((d) => d.label);
+  const vals = pts.map((d) => d.hours || 0);
+  const peak = Math.max(8, ...vals, 0);
+  const maxY = Math.ceil(peak / 2) * 2 || 8;
+  const W = 520;
+  const H = 200;
+  const left = 40;
+  const right = 12;
+  const top = 12;
+  const bottom = 32;
+  const innerW = W - left - right;
+  const innerH = H - top - bottom;
+  const n = Math.max(labels.length, 1);
+  const group = innerW / n;
+  const barW = Math.min(22, group * 0.55);
+
+  function y(v: number) {
+    return top + innerH - (v / maxY) * innerH;
+  }
+
+  if (!pts.length) {
+    return <p className="muted">No hours logged this month yet — Sign In on the Agent to start.</p>;
+  }
+
+  return (
+    <svg
+      className="dash-hours-svg staff-hours-svg"
+      viewBox={`0 0 ${W} ${H}`}
+      role="img"
+      aria-label="Your net work hours by day this month"
+    >
+      {[0, 0.5, 1].map((t) => {
+        const v = t * maxY;
+        return (
+          <g key={v}>
+            <line
+              x1={left}
+              x2={W - right}
+              y1={y(v)}
+              y2={y(v)}
+              stroke="var(--chart-grid)"
+              strokeWidth="1"
+              strokeDasharray="4 5"
+            />
+            <text x={left - 6} y={y(v) + 4} textAnchor="end" fill="currentColor" fontSize="12">
+              {v.toFixed(0)}h
+            </text>
+          </g>
+        );
+      })}
+      {labels.map((lab, i) => {
+        const h = vals[i] || 0;
+        const cx = left + i * group + group / 2;
+        return (
+          <g key={`${lab}-${i}`}>
+            <rect
+              x={cx - barW / 2}
+              y={y(h)}
+              width={barW}
+              height={Math.max(0, y(0) - y(h))}
+              fill="var(--gold)"
+              rx="3"
+            />
+            <text x={cx} y={H - 10} textAnchor="middle" fill="currentColor" fontSize="11">
+              {lab}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 export function HoursWeekChart({ thisWeek, lastWeek }: HoursChartProps) {
   const fallback = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const labels = thisWeek.length ? thisWeek.map((d) => d.label) : fallback;

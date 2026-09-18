@@ -32,6 +32,7 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | `60-wave3-phase-c-test-matrix.md` | **17 Sep** Wave 3 Phase C (C1–C5) — codes/scopes/assignees/daily % + tests |
 | `61-projects-payments-flow-qa.md` | **18 Sep** Projects/payments soft gate + Detailer/Engineer QA |
 | `62-remaining-work-desktop-first.md` | **18 Sep LOCKED** Desktop+Agent **100% first** on branch **`desktop+agent`** → web/mobile least priority |
+| `63-lovable-staff-dashboard-prompt.md` | **18 Sep** Lovable prompt — Staff My dashboard aesthetic |
 | `43-lovable-dashboard-prompt.md` | Copy-paste Lovable prompt — **Dashboard tab only** |
 | `44-dashboard-predeploy.md` | **1 Sep 2026** Dashboard data + ultra-wide type + what to click before VPS |
 | `04-non-functional-requirements.md` | **All NFR** (perf, scale, security bar) |

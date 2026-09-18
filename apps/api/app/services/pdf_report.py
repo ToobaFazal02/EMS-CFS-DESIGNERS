@@ -669,3 +669,164 @@ def build_monthly_pdf(
     story.append(Paragraph(f"Generated {format_generated()} · CFS Designers · Confidential", foot))
     doc.build(story)
     return path
+
+
+def build_personal_monthly_pdf(
+    path: Path,
+    *,
+    year: int,
+    month: int,
+    employee_code: str,
+    employee_name: str,
+    day_rows: list[dict],
+    overtime_hours_per_day: float = 8.0,
+) -> Path:
+    """
+    Employee self-service monthly report: summary + every calendar day.
+    day_rows: {date, net_hours, present} (PKT).
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+    month_label = datetime(year, month, 1).strftime("%B %Y")
+    present_days = [r for r in day_rows if float(r.get("net_hours") or 0) > 0.01]
+    days_n = len(present_days)
+    net = sum(float(r.get("net_hours") or 0) for r in present_days)
+    avg = (net / days_n) if days_n else 0.0
+    ot = max(0.0, net - (days_n * float(overtime_hours_per_day)))
+
+    doc = SimpleDocTemplate(
+        str(path),
+        pagesize=A4,
+        leftMargin=14 * mm,
+        rightMargin=14 * mm,
+        topMargin=12 * mm,
+        bottomMargin=12 * mm,
+        title=f"My Monthly Report — {month_label}",
+        author="CFS Designers",
+    )
+    styles = getSampleStyleSheet()
+    title = ParagraphStyle(
+        "PMT",
+        parent=styles["Heading1"],
+        textColor=BLACK,
+        alignment=TA_CENTER,
+        fontSize=16,
+        spaceAfter=2,
+        fontName="Helvetica-Bold",
+    )
+    sub = ParagraphStyle(
+        "PMS",
+        parent=styles["Normal"],
+        alignment=TA_CENTER,
+        textColor=DARK,
+        fontSize=10,
+        spaceAfter=6,
+    )
+    foot = ParagraphStyle(
+        "PMF",
+        parent=styles["Normal"],
+        alignment=TA_CENTER,
+        textColor=GRAY,
+        fontSize=7,
+        spaceBefore=8,
+    )
+    body = ParagraphStyle(
+        "PMB",
+        parent=styles["Normal"],
+        textColor=DARK,
+        fontSize=9,
+        spaceAfter=8,
+    )
+
+    who = f"{employee_name} (#{employee_code})" if employee_code else employee_name
+    story = [
+        Paragraph("CFS Designers", title),
+        Paragraph(f"My Monthly Attendance & Performance — {month_label}", sub),
+        Paragraph(who, ParagraphStyle("Who", parent=sub, fontName="Helvetica-Bold", spaceAfter=4)),
+        Paragraph(
+            "This report is yours only. Daily PDF (My Day) has screenshots & session detail. "
+            "Team-wide Reports stay with Admin/Managers.",
+            body,
+        ),
+        HRFlowable(width="100%", thickness=1.5, color=BLACK, spaceAfter=10),
+    ]
+
+    summary = [
+        ["Days present", "Net work", "Avg / day", "Overtime"],
+        [
+            str(days_n),
+            hours_to_hm(net),
+            hours_to_hm(avg),
+            hours_to_hm(ot) if ot > 0 else "—",
+        ],
+    ]
+    st = Table(summary, colWidths=[40 * mm, 40 * mm, 40 * mm, 40 * mm])
+    st.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), BLACK),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("GRID", (0, 0), (-1, -1), 0.4, LINE),
+                ("BOX", (0, 0), (-1, -1), 1, BLACK),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("BACKGROUND", (0, 1), (-1, 1), LIGHT),
+            ]
+        )
+    )
+    story.append(st)
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Day-by-day (Asia/Karachi)", ParagraphStyle("DH", parent=body, fontName="Helvetica-Bold")))
+
+    daily = [["Date", "Weekday", "Net work", "Status"]]
+    for r in day_rows:
+        d_s = str(r.get("date") or "")
+        try:
+            d_obj = datetime.strptime(d_s, "%Y-%m-%d")
+            wd = d_obj.strftime("%a")
+            nice = d_obj.strftime("%d %b %Y")
+        except ValueError:
+            wd, nice = "—", d_s
+        h = float(r.get("net_hours") or 0)
+        present = h > 0.01
+        daily.append(
+            [
+                nice,
+                wd,
+                hours_to_hm(h) if present else "—",
+                "Present" if present else "Off / no hours",
+            ]
+        )
+
+    dt = Table(daily, colWidths=[42 * mm, 28 * mm, 36 * mm, 48 * mm])
+    dt.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), BLACK),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("ALIGN", (0, 1), (0, -1), "LEFT"),
+                ("GRID", (0, 0), (-1, -1), 0.35, LINE),
+                ("BOX", (0, 0), (-1, -1), 1, BLACK),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+            ]
+        )
+    )
+    story.append(dt)
+    story.append(Spacer(1, 12))
+    story.append(HRFlowable(width="100%", thickness=0.6, color=BLACK, spaceAfter=4))
+    story.append(Paragraph(f"Generated {format_generated()} · CFS Designers · Confidential — employee copy", foot))
+    doc.build(story)
+    return path

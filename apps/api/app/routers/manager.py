@@ -62,7 +62,7 @@ from app.services.hours import (
 )
 from app.services.partner_shares import compute_partner_shares
 from app.services.payments import delayed_days
-from app.services.pdf_report import build_daily_pdf, build_monthly_pdf
+from app.services.pdf_report import build_daily_pdf, build_monthly_pdf, build_personal_monthly_pdf
 from app.services.timeutil import format_pk_time, monday_of, now_pk, to_pk, today_pk
 from app.services.validation import parse_day_or_400, reject_future_day, reject_future_month
 
@@ -1051,35 +1051,35 @@ async def my_monthly_pdf(
     user: Annotated[Employee, Depends(get_current_user)],
     inline: bool = False,
 ) -> FileResponse:
-    """Personal monthly attendance PDF — employee may view/download own only."""
+    """Personal monthly report — summary + every day (employee self-service)."""
     reject_future_month(year, month)
     if user.role not in (Role.employee, Role.admin, Role.manager, Role.hr):
         raise HTTPException(status_code=403, detail="Monthly PDF not available for this role")
-    start, _ = day_bounds_utc(datetime(year, month, 1))
+    first = date(year, month, 1)
     if month == 12:
-        end, _ = day_bounds_utc(datetime(year + 1, 1, 1))
+        next_first = date(year + 1, 1, 1)
     else:
-        end, _ = day_bounds_utc(datetime(year, month + 1, 1))
-    sessions = await _sessions_capped(db, user.id, start, end)
-    days = _present_days(sessions)
-    net = sum(s["net_hours"] for s in sessions)
-    brk = sum(s["break_minutes"] for s in sessions) / 60.0
-    rows = [
-        {
-            "code": user.code or "",
-            "name": user.full_name or "",
-            "days": days,
-            "net_hours": net,
-            "break_hours": brk,
-        }
+        next_first = date(year, month + 1, 1)
+    days_list: list[date] = []
+    d = first
+    while d < next_first:
+        days_list.append(d)
+        d += timedelta(days=1)
+    hours_map = await _hours_by_day(db, [user.id], days_list)
+    by_day = hours_map.get(user.id) or {}
+    day_rows = [
+        {"date": day.isoformat(), "net_hours": float(by_day.get(day) or 0), "present": float(by_day.get(day) or 0) > 0.01}
+        for day in days_list
     ]
     code_safe = (user.code or "me").replace("/", "-")
     out_path = settings.data_path / "reports" / f"monthly_{code_safe}_{year}_{month:02d}.pdf"
-    build_monthly_pdf(
+    build_personal_monthly_pdf(
         out_path,
-        year,
-        month,
-        rows,
+        year=year,
+        month=month,
+        employee_code=user.code or "",
+        employee_name=user.full_name or "",
+        day_rows=day_rows,
         overtime_hours_per_day=float(settings.overtime_hours_per_day),
     )
     disposition = "inline" if inline else "attachment"
