@@ -4,18 +4,22 @@ import {
   fetchAuthedBlob,
   fetchDay,
   fetchMyAttendance,
+  fetchProjectProgress,
   fetchProjects,
   postProjectProgress,
   triggerBlobDownload,
   type DaySummary,
   type MeAttendance,
+  type MeAttendanceDay,
+  type ProjectProgressRow,
   type ProjectRow,
 } from "../api";
 import { Sparkline, StaffHoursBars } from "../components/DashCharts";
 import { PdfPreviewModal } from "../components/PdfPreviewModal";
 import { RefreshButton } from "../components/RefreshButton";
 import { useToast } from "../components/ToastProvider";
-import { formatHours } from "../formatHours";
+
+const DAY_TARGET_H = 8;
 
 function todayPktISO(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -43,9 +47,58 @@ function isFutureMonth(year: number, month: number): boolean {
   return year > now.year || (year === now.year && month > now.month);
 }
 
+function formatHm(hours: number): string {
+  const n = Math.max(0, Number(hours) || 0);
+  const h = Math.floor(n);
+  const m = Math.round((n - h) * 60);
+  if (h === 0 && m === 0) return "0h";
+  if (m === 0) return `${h}h`;
+  if (h === 0) return `${m}m`;
+  return `${h}h ${String(m).padStart(2, "0")}m`;
+}
+
+function weekdayCount(year: number, month: number): number {
+  const last = new Date(year, month, 0).getDate();
+  let n = 0;
+  for (let d = 1; d <= last; d++) {
+    const wd = new Date(year, month - 1, d).getDay();
+    if (wd !== 0 && wd !== 6) n += 1;
+  }
+  return n;
+}
+
+function dayStatus(row: MeAttendanceDay): { key: string; label: string } {
+  try {
+    const d = new Date(`${row.date}T12:00:00`);
+    const wd = d.getDay();
+    if (wd === 0 || wd === 6) {
+      if (row.present && row.net_hours > 0.01) return { key: "present", label: "Present" };
+      return { key: "weekend", label: "Weekend" };
+    }
+  } catch {
+    /* ignore */
+  }
+  if (!row.present || row.net_hours < 0.01) return { key: "off", label: "Off" };
+  if (row.net_hours < 4) return { key: "half", label: "Half day" };
+  return { key: "present", label: "Present" };
+}
+
+function niceDate(iso: string): string {
+  try {
+    return new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+type ProjDelta = { prev: number | null; latest: number; delta: number | null; when: string };
+
 /**
- * Employee home — attendance graph, project % log, monthly PDF (day-by-day).
- * Same React = browser + Manager Desktop.
+ * Staff home — Lovable-inspired CFS dark/gold UX (web + Desktop same React).
  */
 export function StaffHomePage() {
   const toast = useToast();
@@ -57,11 +110,12 @@ export function StaffHomePage() {
   const [day, setDay] = useState<DaySummary | null>(null);
   const [att, setAtt] = useState<MeAttendance | null>(null);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [deltas, setDeltas] = useState<Record<string, ProjDelta>>({});
   const [busy, setBusy] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<{ url: string; title: string } | null>(null);
 
   const [progProject, setProgProject] = useState("");
-  const [progPct, setProgPct] = useState("50");
+  const [progPct, setProgPct] = useState(50);
   const [progNote, setProgNote] = useState("");
   const [savingProg, setSavingProg] = useState(false);
 
@@ -81,17 +135,43 @@ export function StaffHomePage() {
       setProjects(mine);
       setProgProject((cur) => {
         if (cur && mine.some((p) => p.id === cur)) return cur;
-        return mine[0]?.id || "";
+        const id0 = mine[0]?.id || "";
+        if (mine[0]?.latest_progress_pct != null) {
+          setProgPct(Number(mine[0].latest_progress_pct));
+        }
+        return id0;
       });
-      if (mine[0]?.latest_progress_pct != null && !progPct) {
-        setProgPct(String(mine[0].latest_progress_pct));
-      }
+
+      const nextDeltas: Record<string, ProjDelta> = {};
+      await Promise.all(
+        mine.slice(0, 8).map(async (p) => {
+          try {
+            const hist: ProjectProgressRow[] = await fetchProjectProgress(p.id);
+            const mineRows = hist.filter((r) => r.employee_id === myId);
+            const latest = mineRows[0];
+            const prev = mineRows[1];
+            const latestPct = latest ? Number(latest.percent) : p.latest_progress_pct ?? 0;
+            const prevPct = prev ? Number(prev.percent) : null;
+            nextDeltas[p.id] = {
+              prev: prevPct,
+              latest: latestPct,
+              delta: prevPct != null ? latestPct - prevPct : null,
+              when: latest?.work_date || "",
+            };
+          } catch {
+            nextDeltas[p.id] = {
+              prev: null,
+              latest: p.latest_progress_pct ?? 0,
+              delta: null,
+              when: "",
+            };
+          }
+        })
+      );
+      setDeltas(nextDeltas);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not load your dashboard.";
-      toast.error(msg);
-      if (!notify) {
-        /* still toast once on poll errors */
-      }
+      if (notify || !att) toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -145,14 +225,13 @@ export function StaffHomePage() {
       toast.error("Pick a project first.");
       return;
     }
-    const pct = Number(progPct);
-    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+    if (!Number.isFinite(progPct) || progPct < 0 || progPct > 100) {
       toast.error("Percent must be 0–100.");
       return;
     }
     setSavingProg(true);
     try {
-      await postProjectProgress(progProject, { percent: pct, note: progNote.trim() });
+      await postProjectProgress(progProject, { percent: progPct, note: progNote.trim() });
       toast.success("Progress saved — Admin can see it.");
       setProgNote("");
       await load(false);
@@ -164,248 +243,296 @@ export function StaffHomePage() {
   }
 
   const monthLabel = new Date(year, month - 1, 1).toLocaleString("en", { month: "long", year: "numeric" });
-  const chartDays = (att?.days || [])
-    .filter((d) => d.present)
-    .map((d) => ({ label: d.label.replace(/^\w+\s/, ""), hours: d.net_hours, present: d.present }));
-  const sparkVals = (att?.days || []).map((d) => d.net_hours);
-  const trendUp =
-    sparkVals.length >= 2
-      ? sparkVals[sparkVals.length - 1] >= sparkVals[Math.max(0, sparkVals.length - 8)]
-      : true;
+  const scheduled = weekdayCount(year, month);
+  const present = att?.days_present ?? 0;
+  const remaining = Math.max(0, scheduled - present);
+  const todayH = day?.net_hours ?? 0;
+  const todayPct = Math.min(100, Math.round((todayH / DAY_TARGET_H) * 100));
+  const clicks = day?.total_clicks ?? 0;
+  const keys = day?.total_keys ?? 0;
+  const activityDenom = clicks + keys + Math.max(1, Math.round((day?.idle_minutes || 0) * 10));
+  const activeRate = Math.min(100, Math.round(((clicks + keys) / activityDenom) * 100));
 
-  const selectedProj = projects.find((p) => p.id === progProject);
+  const sparkVals = (att?.days || []).map((d) => d.net_hours);
+  const half = Math.floor(sparkVals.length / 2) || 1;
+  const firstHalf = sparkVals.slice(0, half).reduce((s, v) => s + v, 0);
+  const secondHalf = sparkVals.slice(half).reduce((s, v) => s + v, 0);
+  const trendPct =
+    firstHalf > 0.05 ? Math.round(((secondHalf - firstHalf) / firstHalf) * 1000) / 10 : secondHalf > 0 ? 100 : 0;
+  const trendUp = trendPct >= 0;
+
+  const chartDays = (att?.days || []).map((d) => ({
+    label: String(Number(d.date.slice(-2))),
+    hours: d.net_hours,
+    present: d.present,
+  }));
+
+  const recentRows = [...(att?.days || [])].reverse().filter((d) => d.present).slice(0, 12);
+  const calendarRows = recentRows.length ? recentRows : [...(att?.days || [])].reverse().slice(0, 10);
+
+  const code = att?.employee_code || "";
 
   return (
     <div className="staff-home">
-      <div className="toolbar">
-        <div style={{ flex: 1 }}>
-          <h2 style={{ margin: 0 }}>My dashboard</h2>
-          <p className="muted page-sub" style={{ margin: "4px 0 0" }}>
+      <header className="staff-hero">
+        <div>
+          <p className="staff-eyebrow">Staff workspace</p>
+          <h1 className="staff-title">My dashboard</h1>
+          <p className="staff-sub">
             {myName}
-            {att?.employee_code ? ` · #${att.employee_code}` : ""} — attendance, performance & project %
+            {code ? ` #${code}` : ""} — attendance, performance &amp; project %
           </p>
         </div>
         <RefreshButton busy={busy} onClick={() => load(true)} />
-      </div>
+      </header>
 
-      <div className="dash-stats" style={{ marginBottom: 16 }}>
-        <article className="dash-stat dash-stat-gold">
-          <p className="dash-stat-kicker">Today · net work</p>
-          <p className="dash-stat-num">{formatHours(day?.net_hours ?? 0)} h</p>
-          <p className="dash-stat-cap">
-            <Link className="dash-stat-link" to={`/day/${myId}`}>
-              Open My Day (daily report) →
-            </Link>
-          </p>
+      <div className="staff-kpi-row">
+        <article className="staff-kpi">
+          <p className="staff-kpi-label">Today net hours</p>
+          <p className="staff-kpi-value">{formatHm(todayH)}</p>
+          <p className="staff-kpi-meta">{DAY_TARGET_H}h target</p>
+          <div className="staff-meter" aria-hidden>
+            <i style={{ width: `${todayPct}%` }} />
+          </div>
         </article>
-        <article className="dash-stat dash-stat-ok">
-          <p className="dash-stat-kicker">Today · clicks / keys</p>
-          <p className="dash-stat-num">
-            {day?.total_clicks ?? 0} / {day?.total_keys ?? 0}
+        <article className="staff-kpi">
+          <p className="staff-kpi-label">Today clicks / keys</p>
+          <p className="staff-kpi-value staff-kpi-value-sm">
+            {clicks.toLocaleString()} <span className="muted">/</span> {keys.toLocaleString()}
           </p>
-          <p className="dash-stat-cap">Activity while signed in</p>
+          <p className="staff-kpi-meta">{activeRate}% activity mix</p>
+          <div className="staff-meter" aria-hidden>
+            <i style={{ width: `${activeRate}%` }} />
+          </div>
         </article>
-        <article className="dash-stat dash-stat-mute">
-          <p className="dash-stat-kicker">This month · days</p>
-          <p className="dash-stat-num">{att?.days_present ?? 0}</p>
-          <p className="dash-stat-cap">{monthLabel}</p>
-        </article>
-        <article className={`dash-stat ${trendUp ? "dash-stat-ok" : "dash-stat-warn"}`}>
-          <p className="dash-stat-kicker">Month trend</p>
-          <p className="dash-stat-num" style={{ fontSize: 18 }}>
-            {trendUp ? "Up / steady" : "Softer lately"}
+        <article className="staff-kpi">
+          <p className="staff-kpi-label">Month days present</p>
+          <p className="staff-kpi-value">
+            {present} <span className="staff-kpi-slash">/ {scheduled}</span>
           </p>
-          <div style={{ marginTop: 6 }}>
+          <p className="staff-kpi-meta">
+            {remaining} working day{remaining === 1 ? "" : "s"} remaining (weekdays)
+          </p>
+          <div className="staff-meter" aria-hidden>
+            <i style={{ width: `${scheduled ? Math.min(100, Math.round((present / scheduled) * 100)) : 0}%` }} />
+          </div>
+        </article>
+        <article className="staff-kpi">
+          <p className="staff-kpi-label">Month trend</p>
+          <p className={`staff-kpi-value ${trendUp ? "is-up" : "is-down"}`}>
+            {trendPct > 0 ? "+" : ""}
+            {trendPct}%
+          </p>
+          <p className="staff-kpi-meta">{trendUp ? "Later half trending up" : "Later half softer"} vs earlier</p>
+          <div className="staff-kpi-spark">
             <Sparkline values={sparkVals.length ? sparkVals : [0]} color={trendUp ? "#4ade80" : "#fb923c"} />
           </div>
         </article>
       </div>
+      <p className="staff-day-link">
+        <Link to={`/day/${myId}`}>Open My Day (daily report) →</Link>
+      </p>
 
-      <article className="card dash-panel staff-progress-card" style={{ marginBottom: 16 }}>
-        <div className="dash-panel-head">
-          <div>
-            <h3>Log today’s project progress</h3>
-            <p className="muted page-sub">
-              End of day: set how complete the job is (e.g. 50% → 60%). Admin sees the same history.
-            </p>
-          </div>
-          <Link to="/projects">All my projects →</Link>
+      <section className="staff-split card">
+        <div className="staff-split-left">
+          <p className="staff-eyebrow">Daily update</p>
+          <h2 className="staff-section-title">Log today’s project progress</h2>
+          {projects.length ? (
+            <>
+              <div className="field">
+                <label htmlFor="staff-prog-project">Project</label>
+                <select
+                  id="staff-prog-project"
+                  value={progProject}
+                  onChange={(e) => {
+                    setProgProject(e.target.value);
+                    const p = projects.find((x) => x.id === e.target.value);
+                    if (p?.latest_progress_pct != null) setProgPct(Number(p.latest_progress_pct));
+                  }}
+                >
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {(p.code || "").trim() ? `${p.code} · ` : ""}
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <div className="staff-slider-head">
+                  <label htmlFor="staff-prog-pct">My % today</label>
+                  <span className="staff-pct-pill">{progPct} %</span>
+                </div>
+                <input
+                  id="staff-prog-pct"
+                  className="staff-range"
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={progPct}
+                  onChange={(e) => setProgPct(Number(e.target.value))}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="staff-prog-note">Optional note</label>
+                <textarea
+                  id="staff-prog-note"
+                  className="staff-note"
+                  rows={3}
+                  value={progNote}
+                  onChange={(e) => setProgNote(e.target.value)}
+                  placeholder="What you finished today…"
+                />
+              </div>
+              <button type="button" className="staff-save-btn" disabled={savingProg} onClick={saveProgress}>
+                {savingProg ? "Saving…" : "Save my progress"}
+              </button>
+            </>
+          ) : (
+            <p className="muted">No open projects assigned yet. When you are Detailer or Engineer on a job, it appears here.</p>
+          )}
         </div>
-        {projects.length ? (
-          <div className="staff-progress-form">
-            <div className="field">
-              <label htmlFor="staff-prog-project">Project</label>
-              <select
-                id="staff-prog-project"
-                value={progProject}
-                onChange={(e) => {
-                  setProgProject(e.target.value);
-                  const p = projects.find((x) => x.id === e.target.value);
-                  if (p?.latest_progress_pct != null) setProgPct(String(p.latest_progress_pct));
-                }}
-              >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {(p.code || "").trim() ? `${p.code} · ` : ""}
-                    {p.name}
-                    {p.latest_progress_pct != null ? ` (${p.latest_progress_pct}%)` : ""}
-                  </option>
-                ))}
-              </select>
+        <div className="staff-split-right">
+          <div className="staff-split-right-head">
+            <div>
+              <p className="staff-eyebrow">Assigned work</p>
+              <h2 className="staff-section-title">Open jobs</h2>
             </div>
-            <div className="field">
-              <label htmlFor="staff-prog-pct">My % today</label>
-              <input
-                id="staff-prog-pct"
-                type="number"
-                min={0}
-                max={100}
-                step={1}
-                value={progPct}
-                onChange={(e) => setProgPct(e.target.value)}
-              />
-            </div>
-            <div className="field staff-progress-note">
-              <label htmlFor="staff-prog-note">Note</label>
-              <input
-                id="staff-prog-note"
-                value={progNote}
-                onChange={(e) => setProgNote(e.target.value)}
-                placeholder="Optional — what you finished today"
-              />
-            </div>
-            <button type="button" className="staff-progress-save" disabled={savingProg} onClick={saveProgress}>
-              {savingProg ? "Saving…" : "Save my progress"}
-            </button>
+            <span className="staff-active-pill">{projects.length} active</span>
           </div>
-        ) : (
-          <p className="muted" style={{ margin: 0 }}>
-            No open projects assigned yet. When you are Detailer/Engineer on a job, it appears here.
-          </p>
-        )}
-        {projects.length ? (
-          <ul className="staff-proj-list">
+          <ul className="staff-job-list">
             {projects.slice(0, 6).map((p) => {
-              const pct = p.latest_progress_pct ?? 0;
+              const dlt = deltas[p.id];
+              const pct = dlt?.latest ?? p.latest_progress_pct ?? 0;
+              const delta = dlt?.delta;
               return (
                 <li key={p.id}>
-                  <div className="staff-proj-meta">
-                    <strong>{p.code || "—"}</strong>
-                    <span>{p.name}</span>
+                  <div className="staff-job-top">
+                    <div>
+                      <strong>{p.name}</strong>
+                      <p className="muted">
+                        {p.code ? `${p.code} · ` : ""}
+                        {dlt?.when ? `Updated ${dlt.when}` : "No % logged yet"}
+                      </p>
+                    </div>
                     <em>{pct}%</em>
                   </div>
                   <div className="staff-proj-bar" aria-hidden>
                     <i style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
                   </div>
+                  <p className={`staff-delta${delta != null && delta > 0 ? " is-up" : ""}`}>
+                    {delta != null && dlt?.prev != null
+                      ? `${dlt.prev}% → ${pct}% = ${delta >= 0 ? "+" : ""}${delta}% last change`
+                      : "No change in latest update"}
+                  </p>
                 </li>
               );
             })}
+            {!projects.length ? <li className="muted">No active jobs.</li> : null}
           </ul>
-        ) : null}
-        {selectedProj?.latest_progress_pct != null ? (
-          <p className="muted" style={{ marginBottom: 0, fontSize: 13 }}>
-            Selected job last logged: <strong>{selectedProj.latest_progress_pct}%</strong>
-          </p>
-        ) : null}
-      </article>
+          <p className="staff-admin-note">Admin sees the same history (40% → 50% = +10% today).</p>
+          <Link className="staff-inline-link" to="/projects">
+            All my projects →
+          </Link>
+        </div>
+      </section>
 
-      <div className="dash-panels" style={{ marginBottom: 16 }}>
-        <article className="card dash-panel">
-          <div className="dash-panel-head">
-            <div>
-              <h3>Hours this month</h3>
-              <p className="muted page-sub">Graph of days you worked · {monthLabel}</p>
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <select aria-label="Year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
-                {[nowYm.year, nowYm.year - 1].map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-              <select aria-label="Month" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={m}>
-                    {new Date(2000, m - 1, 1).toLocaleString("en", { month: "short" })}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <StaffHoursBars days={chartDays.length ? chartDays : (att?.days || []).map((d) => ({ label: d.label, hours: d.net_hours }))} />
-          <p className="muted" style={{ marginTop: 10, marginBottom: 0, fontSize: 13 }}>
-            Month total: <strong>{formatHours(att?.net_hours ?? 0)} h</strong> · Break{" "}
-            {formatHours(att?.break_hours ?? 0)} h · {att?.days_present ?? 0} days present
-          </p>
-        </article>
-
-        <article className="card dash-panel">
-          <div className="dash-panel-head">
-            <div>
-              <h3>My monthly report (PDF)</h3>
-              <p className="muted page-sub">Full month: summary + every day — yours to view & download</p>
-            </div>
-          </div>
-          <p className="muted" style={{ marginTop: 0 }}>
-            <strong>You get a full monthly report:</strong> document control, your identity, period
-            summary, status legend, every day’s hours, monthly totals, project % logs, and how to read
-            it. <strong>Daily detail</strong> (sessions / screenshots) stays on{" "}
-            <Link to={`/day/${myId}`}>My Day</Link>. Team-wide Reports remain Admin/Manager only.
-          </p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button type="button" className="secondary" onClick={viewMonthlyPdf}>
-              View monthly report
-            </button>
-            <button type="button" onClick={downloadMonthlyPdf}>
-              Download monthly report
-            </button>
-          </div>
-        </article>
-      </div>
-
-      <article className="card dash-panel">
-        <div className="dash-panel-head">
+      <section className="card staff-panel">
+        <div className="staff-panel-head">
           <div>
-            <h3>Attendance calendar</h3>
-            <p className="muted page-sub">Click a day to open that day’s report</p>
+            <p className="staff-eyebrow">Attendance analysis</p>
+            <h2 className="staff-section-title">Hours this month</h2>
+          </div>
+          <div className="staff-month-pick">
+            <select aria-label="Month" value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>
+                  {new Date(2000, m - 1, 1).toLocaleString("en", { month: "long" })}
+                </option>
+              ))}
+            </select>
+            <select aria-label="Year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
+              {[nowYm.year, nowYm.year - 1].map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <table className="table-center" style={{ width: "100%", fontSize: 14 }}>
+        <StaffHoursBars days={chartDays} />
+        <p className="muted staff-chart-cap">
+          {monthLabel}: <strong>{formatHm(att?.net_hours ?? 0)}</strong> net · Break {formatHm(att?.break_hours ?? 0)} ·{" "}
+          {present} days present
+        </p>
+      </section>
+
+      <section className="card staff-panel staff-report-panel">
+        <div className="staff-report-head">
+          <div>
+            <p className="staff-eyebrow">{monthLabel}</p>
+            <h2 className="staff-section-title">My monthly report</h2>
+            <p className="muted">
+              Personal day-by-day attendance and activity PDF. Daily sessions and screenshots live on My Day; team
+              reports are admin-only.
+            </p>
+          </div>
+          <div className="staff-report-actions">
+            <button type="button" className="staff-btn-ghost" onClick={viewMonthlyPdf}>
+              View PDF
+            </button>
+            <button type="button" className="staff-btn-gold" onClick={downloadMonthlyPdf}>
+              Download PDF
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="card staff-panel">
+        <p className="staff-eyebrow">Recent records</p>
+        <h2 className="staff-section-title">Attendance calendar</h2>
+        <div className="staff-table-wrap">
+          <table className="staff-att-table">
             <thead>
               <tr>
-                <th style={{ textAlign: "left" }}>Date</th>
-                <th style={{ textAlign: "right" }}>Net hours</th>
-                <th style={{ textAlign: "left" }}>Status</th>
+                <th>Date</th>
+                <th>Net hours</th>
+                <th>Status</th>
+                <th aria-label="Open" />
               </tr>
             </thead>
             <tbody>
-              {(att?.days || []).map((row) => (
-                <tr key={row.date}>
-                  <td>
-                    <Link to={`/day/${myId}?date=${row.date}`}>{row.label}</Link>
-                    <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>
-                      {row.date}
-                    </span>
-                  </td>
-                  <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                    {formatHours(row.net_hours)}
-                  </td>
-                  <td>{row.present ? "Present" : "—"}</td>
-                </tr>
-              ))}
-              {!att?.days?.length ? (
+              {calendarRows.map((row) => {
+                const st = dayStatus(row);
+                return (
+                  <tr key={row.date}>
+                    <td>
+                      <Link to={`/day/${myId}?date=${row.date}`}>{niceDate(row.date)}</Link>
+                    </td>
+                    <td className="num">{formatHm(row.net_hours)}</td>
+                    <td>
+                      <span className={`staff-badge staff-badge-${st.key}`}>{st.label}</span>
+                    </td>
+                    <td className="chev">
+                      <Link to={`/day/${myId}?date=${row.date}`} aria-label={`Open ${row.date}`}>
+                        →
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!calendarRows.length ? (
                 <tr>
-                  <td colSpan={3} className="muted">
-                    No days in this month yet.
+                  <td colSpan={4} className="muted">
+                    No attendance rows this month yet.
                   </td>
                 </tr>
               ) : null}
             </tbody>
           </table>
         </div>
-      </article>
+      </section>
 
       <PdfPreviewModal
         open={Boolean(pdfPreview)}

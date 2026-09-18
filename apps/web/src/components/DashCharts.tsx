@@ -125,23 +125,22 @@ export function StaffHoursBars({
 }: {
   days: { label: string; hours: number; present?: boolean }[];
 }) {
-  const present = days.filter((d) => (d.hours || 0) > 0.01);
-  const pts = present.length ? present : days.slice(0, 7);
+  const pts = days.length ? days : [];
   const labels = pts.map((d) => d.label);
   const vals = pts.map((d) => d.hours || 0);
   const peak = Math.max(8, ...vals, 0);
   const maxY = Math.ceil(peak / 2) * 2 || 8;
-  const W = 520;
-  const H = 200;
-  const left = 40;
-  const right = 12;
+  const W = 640;
+  const H = 220;
+  const left = 36;
+  const right = 10;
   const top = 12;
-  const bottom = 32;
+  const bottom = 28;
   const innerW = W - left - right;
   const innerH = H - top - bottom;
   const n = Math.max(labels.length, 1);
   const group = innerW / n;
-  const barW = Math.min(22, group * 0.55);
+  const barW = Math.max(3, Math.min(14, group * 0.62));
 
   function y(v: number) {
     return top + innerH - (v / maxY) * innerH;
@@ -150,6 +149,8 @@ export function StaffHoursBars({
   if (!pts.length) {
     return <p className="muted">No hours logged this month yet — Sign In on the Agent to start.</p>;
   }
+
+  const labelEvery = n > 20 ? 3 : n > 12 ? 2 : 1;
 
   return (
     <svg
@@ -171,7 +172,7 @@ export function StaffHoursBars({
               strokeWidth="1"
               strokeDasharray="4 5"
             />
-            <text x={left - 6} y={y(v) + 4} textAnchor="end" fill="currentColor" fontSize="12">
+            <text x={left - 6} y={y(v) + 4} textAnchor="end" fill="currentColor" fontSize="11">
               {v.toFixed(0)}h
             </text>
           </g>
@@ -180,6 +181,7 @@ export function StaffHoursBars({
       {labels.map((lab, i) => {
         const h = vals[i] || 0;
         const cx = left + i * group + group / 2;
+        const showLab = i % labelEvery === 0 || i === n - 1;
         return (
           <g key={`${lab}-${i}`}>
             <rect
@@ -188,11 +190,14 @@ export function StaffHoursBars({
               width={barW}
               height={Math.max(0, y(0) - y(h))}
               fill="var(--gold)"
-              rx="3"
+              opacity={h > 0.01 ? 1 : 0.22}
+              rx="2"
             />
-            <text x={cx} y={H - 10} textAnchor="middle" fill="currentColor" fontSize="11">
-              {lab}
-            </text>
+            {showLab ? (
+              <text x={cx} y={H - 8} textAnchor="middle" fill="currentColor" fontSize="10">
+                {lab}
+              </text>
+            ) : null}
           </g>
         );
       })}
