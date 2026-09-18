@@ -46,6 +46,8 @@
 | Restore click→silent Manager update | Rust command + ACL permission + banner button |
 | Lazy `apiBase()` / Downloads absolute URLs | Tauri `tauri://` 404 fix hardening |
 | Agent idle copy clarity | Same 10s idle / 5‑min shot policy |
+| Removed “Design phases free…” hint | Projects form (web=desktop) |
+| **Staff My dashboard** | Attendance month table + own monthly PDF view/download |
 
 **Data:** Never wipe `/var/lib/ems/ems.db`.  
 **Git:** Branch **`desktop+agent`**. Push when ready.

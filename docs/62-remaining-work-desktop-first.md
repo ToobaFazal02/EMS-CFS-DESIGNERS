@@ -176,7 +176,20 @@ Not the Manager UI — separate PySide app. Client trust depends on this.
 
 ---
 
-## STEP 4 — Remaining work AFTER Desktop + Agent 100% (LEAST priority)
+## Client lock — employee attendance + monthly PDF (18 Sep evening)
+
+WhatsApp confirm: employee **can** view/download **own monthly performance PDF**; employee **can track own attendance**.
+
+| Surface | What we ship (same React → web + Desktop) |
+|---|---|
+| Staff **Dashboard** (`/`) | Today hours/clicks/keys · month days/net · attendance table by month · View/Download **own** monthly PDF |
+| **My Day** | Unchanged — day detail + daily PDF |
+| Team **Reports** | Still **office-only** (all staff) — employees do not see team reports |
+
+API: `GET /api/v1/me/attendance` · `GET /api/v1/me/monthly.pdf` (self only).
+
+---
+
 
 **Do not start** until Steps 1–3 are green (or you explicitly override in chat).
 

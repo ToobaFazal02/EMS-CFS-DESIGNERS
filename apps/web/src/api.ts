@@ -377,6 +377,45 @@ export async function fetchDay(employeeId: string, date: string) {
     headers: authHeaders(),
   });
   if (!r.ok) throw new Error("Day load failed");
+  return r.json() as Promise<DaySummary>;
+}
+
+export type DaySummary = {
+  employee_id: string;
+  date: string;
+  employee_code?: string;
+  employee_full_name?: string;
+  net_hours: number;
+  break_hours: number;
+  total_clicks: number;
+  total_keys: number;
+  idle_minutes: number;
+};
+
+export type MeAttendanceDay = {
+  date: string;
+  label: string;
+  net_hours: number;
+  present: boolean;
+};
+
+export type MeAttendance = {
+  employee_id: string;
+  employee_code: string;
+  employee_full_name: string;
+  year: number;
+  month: number;
+  days_present: number;
+  net_hours: number;
+  break_hours: number;
+  days: MeAttendanceDay[];
+};
+
+export async function fetchMyAttendance(year: number, month: number): Promise<MeAttendance> {
+  const r = await fetch(`${apiBase()}/api/v1/me/attendance?year=${year}&month=${month}`, {
+    headers: authHeaders(),
+  });
+  if (!r.ok) throw new Error(await apiError(r, "Could not load your attendance"));
   return r.json();
 }
 

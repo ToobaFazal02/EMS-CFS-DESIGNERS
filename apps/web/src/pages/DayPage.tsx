@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { fetchAuthedBlob, fetchDay, fetchShots, triggerBlobDownload } from "../api";
 import { AuthedImg } from "../components/AuthedImg";
 import { PdfPreviewModal } from "../components/PdfPreviewModal";
@@ -76,8 +76,18 @@ function formatUpdatedLabel(loadedMs: number | null, nowMs: number): string {
 export function DayPage() {
   const toast = useToast();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const maxDate = useMemo(() => todayLocalISO(), []);
-  const [date, setDate] = useState(maxDate);
+  const dateFromUrl = searchParams.get("date") || "";
+  const initialDate =
+    /^\d{4}-\d{2}-\d{2}$/.test(dateFromUrl) && dateFromUrl <= maxDate ? dateFromUrl : maxDate;
+  const [date, setDate] = useState(initialDate);
+
+  useEffect(() => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateFromUrl) && dateFromUrl <= maxDate) {
+      setDate(dateFromUrl);
+    }
+  }, [dateFromUrl, maxDate]);
   const [day, setDay] = useState<any>(null);
   const [shots, setShots] = useState<{ id: string; captured_at: string; url: string }[]>([]);
   const [lightbox, setLightbox] = useState<number | null>(null);

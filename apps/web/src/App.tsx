@@ -13,6 +13,7 @@ import { isTauriDesktop, MANAGER_APP_VERSION } from "./version";
 import { AccountPage } from "./pages/AccountPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DayPage } from "./pages/DayPage";
+import { StaffHomePage } from "./pages/StaffHomePage";
 import { EmployeesPage } from "./pages/EmployeesPage";
 import { ExpensesPage } from "./pages/ExpensesPage";
 import { PartnerSharesPage } from "./pages/PartnerSharesPage";
@@ -64,9 +65,7 @@ function LoginPage() {
       localStorage.setItem("ems_login_hint", email.trim().toLowerCase());
       // Old layout-preview leftover — caused fake KPI boxes to flash after login
       localStorage.removeItem("ems_dash_preview");
-      const role = String(data.role || "");
-      if (role === "employee") nav(`/day/${data.employee_id}`);
-      else nav("/");
+      nav("/");
     } catch (err) {
       const status = err instanceof LoginError ? err.status : -1;
       const message = err instanceof Error ? err.message : "Could not sign in. Try again.";
@@ -268,6 +267,9 @@ function MainNavLinks({
   }
   return (
     <>
+      <NavLink to="/" end>
+        Dashboard
+      </NavLink>
       {myId ? <NavLink to={`/day/${myId}`}>My Day</NavLink> : null}
       <NavLink to="/projects">My Projects</NavLink>
       <NavLink to="/downloads">Downloads</NavLink>
@@ -546,11 +548,20 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <Shell>{children}</Shell>;
 }
 
+/** Office/demo → team dashboard; staff → personal attendance dashboard. */
+function HomeRouter() {
+  const role = localStorage.getItem("ems_role") || "";
+  if (role === "employee") return <StaffHomePage />;
+  if (!isOfficeOrDemoRole()) {
+    return <StaffHomePage />;
+  }
+  return <DashboardPage />;
+}
+
 function RequireOffice({ children }: { children: React.ReactNode }) {
   if (!localStorage.getItem("ems_token")) return <Navigate to="/login" replace />;
   if (!isOfficeRole()) {
-    const id = localStorage.getItem("ems_employee_id");
-    return <Navigate to={id ? `/day/${id}` : "/projects"} replace />;
+    return <Navigate to="/" replace />;
   }
   return <Shell>{children}</Shell>;
 }
@@ -558,8 +569,7 @@ function RequireOffice({ children }: { children: React.ReactNode }) {
 function RequireOfficeOrDemo({ children }: { children: React.ReactNode }) {
   if (!localStorage.getItem("ems_token")) return <Navigate to="/login" replace />;
   if (!isOfficeOrDemoRole()) {
-    const id = localStorage.getItem("ems_employee_id");
-    return <Navigate to={id ? `/day/${id}` : "/projects"} replace />;
+    return <Navigate to="/" replace />;
   }
   return <Shell>{children}</Shell>;
 }
@@ -700,9 +710,9 @@ export default function App() {
       <Route
         path="/"
         element={
-          <RequireOfficeOrDemo>
-            <DashboardPage />
-          </RequireOfficeOrDemo>
+          <RequireAuth>
+            <HomeRouter />
+          </RequireAuth>
         }
       />
       <Route

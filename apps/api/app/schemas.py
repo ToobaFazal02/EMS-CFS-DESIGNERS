@@ -194,6 +194,27 @@ class DashProgressRow(BaseModel):
     work_date: str
 
 
+class MeAttendanceDay(BaseModel):
+    date: str
+    label: str
+    net_hours: float
+    present: bool
+
+
+class MeAttendanceOut(BaseModel):
+    """Staff self-service: own attendance for a month (PKT)."""
+
+    employee_id: str
+    employee_code: str = ""
+    employee_full_name: str = ""
+    year: int
+    month: int
+    days_present: int = 0
+    net_hours: float = 0.0
+    break_hours: float = 0.0
+    days: list[MeAttendanceDay] = Field(default_factory=list)
+
+
 class DashFinance(BaseModel):
     unpaid_count: int = 0
     unpaid_amount: float = 0

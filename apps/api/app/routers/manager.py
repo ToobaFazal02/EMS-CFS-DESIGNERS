@@ -44,6 +44,8 @@ from app.schemas import (
     DaySessionOut,
     DaySummaryOut,
     LiveEmployeeOut,
+    MeAttendanceDay,
+    MeAttendanceOut,
     PunchOut,
 )
 from app.services.duration import hours_to_hm
@@ -974,6 +976,121 @@ async def daily_pdf(
             "Cache-Control": "no-store, no-cache, must-revalidate",
             "Pragma": "no-cache",
             "Content-Disposition": f'{disposition}; filename="daily_{date}.pdf"',
+        },
+    )
+
+
+@router.get("/me/attendance", response_model=MeAttendanceOut)
+async def my_attendance(
+    year: int,
+    month: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[Employee, Depends(get_current_user)],
+) -> MeAttendanceOut:
+    """Employee (or manager viewing self): month attendance for the signed-in user only."""
+    reject_future_month(year, month)
+    if user.role not in (Role.employee, Role.admin, Role.manager, Role.hr):
+        raise HTTPException(status_code=403, detail="Attendance view not available for this role")
+    emp_id = user.id
+    # Build PKT calendar days in month
+    first = date(year, month, 1)
+    if month == 12:
+        next_first = date(year + 1, 1, 1)
+    else:
+        next_first = date(year, month + 1, 1)
+    days_list: list[date] = []
+    d = first
+    while d < next_first:
+        days_list.append(d)
+        d += timedelta(days=1)
+
+    hours_map = await _hours_by_day(db, [emp_id], days_list)
+    by_day = hours_map.get(emp_id) or {}
+    start, _ = day_bounds_utc(datetime(year, month, 1))
+    if month == 12:
+        end, _ = day_bounds_utc(datetime(year + 1, 1, 1))
+    else:
+        end, _ = day_bounds_utc(datetime(year, month + 1, 1))
+    sessions = await _sessions_capped(db, emp_id, start, end)
+    brk = sum(s["break_minutes"] for s in sessions) / 60.0
+    day_rows: list[MeAttendanceDay] = []
+    net_total = 0.0
+    present_n = 0
+    for day in days_list:
+        h = float(by_day.get(day) or 0)
+        present = h > 0.01
+        if present:
+            present_n += 1
+            net_total += h
+        day_rows.append(
+            MeAttendanceDay(
+                date=day.isoformat(),
+                label=day.strftime("%a %d"),
+                net_hours=round(h, 2),
+                present=present,
+            )
+        )
+    return MeAttendanceOut(
+        employee_id=emp_id,
+        employee_code=user.code or "",
+        employee_full_name=user.full_name or "",
+        year=year,
+        month=month,
+        days_present=present_n,
+        net_hours=round(net_total, 2),
+        break_hours=round(brk, 2),
+        days=day_rows,
+    )
+
+
+@router.get("/me/monthly.pdf")
+async def my_monthly_pdf(
+    year: int,
+    month: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[Employee, Depends(get_current_user)],
+    inline: bool = False,
+) -> FileResponse:
+    """Personal monthly attendance PDF — employee may view/download own only."""
+    reject_future_month(year, month)
+    if user.role not in (Role.employee, Role.admin, Role.manager, Role.hr):
+        raise HTTPException(status_code=403, detail="Monthly PDF not available for this role")
+    start, _ = day_bounds_utc(datetime(year, month, 1))
+    if month == 12:
+        end, _ = day_bounds_utc(datetime(year + 1, 1, 1))
+    else:
+        end, _ = day_bounds_utc(datetime(year, month + 1, 1))
+    sessions = await _sessions_capped(db, user.id, start, end)
+    days = _present_days(sessions)
+    net = sum(s["net_hours"] for s in sessions)
+    brk = sum(s["break_minutes"] for s in sessions) / 60.0
+    rows = [
+        {
+            "code": user.code or "",
+            "name": user.full_name or "",
+            "days": days,
+            "net_hours": net,
+            "break_hours": brk,
+        }
+    ]
+    code_safe = (user.code or "me").replace("/", "-")
+    out_path = settings.data_path / "reports" / f"monthly_{code_safe}_{year}_{month:02d}.pdf"
+    build_monthly_pdf(
+        out_path,
+        year,
+        month,
+        rows,
+        overtime_hours_per_day=float(settings.overtime_hours_per_day),
+    )
+    disposition = "inline" if inline else "attachment"
+    fname = f"monthly_{code_safe}_{year}_{month:02d}.pdf"
+    return FileResponse(
+        out_path,
+        media_type="application/pdf",
+        filename=fname,
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Content-Disposition": f'{disposition}; filename="{fname}"',
         },
     )
 

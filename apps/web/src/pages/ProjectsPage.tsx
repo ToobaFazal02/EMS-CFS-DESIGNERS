@@ -908,9 +908,7 @@ export function ProjectsPage() {
                 <p className="field-error" role="alert">
                   {fieldErrors.phase}
                 </p>
-              ) : (
-                <span className="field-hint">Design phases free — release files need Paid advance</span>
-              )}
+              ) : null}
             </div>
             <div className="field">
               <label>Status</label>
@@ -1009,7 +1007,7 @@ export function ProjectsPage() {
                 <>
                   <h4 style={{ marginTop: 0, marginBottom: 6 }}>End-of-day progress (you)</h4>
                   <p className="muted" style={{ margin: "0 0 12px", fontSize: 13, lineHeight: 1.4 }}>
-                    Client rule: at end of day set how complete this job is (e.g. 60%). Saved to the project — Admin sees the same history and can ask about jumps (40% → 50% = 10% today).
+                     At end of day set how complete this job is (e.g. 60%). Saved to the project — Admin sees the same history and can ask about jumps (40% → 50% = 10% today).
                   </p>
                   <div className="toolbar" style={{ marginBottom: 8, flexWrap: "wrap" }}>
                     <div className="field" style={{ minWidth: 100 }}>
