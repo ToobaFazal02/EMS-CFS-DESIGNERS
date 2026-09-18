@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-start-silent-manager-update"
+description = "Allow click-to-update Manager Setup download + silent NSIS install"
+commands.allow = ["start_silent_manager_update"]

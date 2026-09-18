@@ -1,8 +1,31 @@
 # Remaining work — Desktop-first (LOCKED 18 Sep 2026)
 
-**Status:** Plan + execution order updated. **Next coding = Desktop Manager + Agent ship / parity**, not more Chrome-only feature work.  
+**Status:** Plan + execution order updated.  
+**Client lock (18 Sep evening):** Finish **Desktop Manager + Employee Agent to 100%** (client requirements) **before** any further web polish or mobile. Remaining web / mobile = **least priority**.  
+**Git lock:** Work on new branch **`desktop+agent`** — Desktop Manager + Agent completion ships on this branch (not mixed into ad-hoc main-only habit without review).  
+**Next coding:** Desktop Manager + Agent parity / ship only.  
 **Supersedes for “what next”:** older “next = more web Phase C polish” notes in `STATUS.md` (pre-18 Sep).  
 **Does not delete:** docs 53 / 57 / 58–61 — those stay historical + test matrices.
+
+---
+
+## Non-negotiable product order (LOCKED)
+
+```
+1) Desktop Manager (Setup.exe)  ──┐
+                                  ├── 100% client reqs COMPLETE
+2) Employee Agent (zip)         ──┘
+         ↓ only after both green
+3) Remaining web polish         ← least priority
+4) Mobile (Phase D admin PWA)   ← least priority / LAST
+```
+
+| Rule | Meaning |
+|---|---|
+| Desktop + Agent first | No new web-only features, no mobile, until Manager Desktop **and** Agent pass client reqs end-to-end |
+| 100% complete | Client can run office day from Desktop + Agent alone (login, live, day, shots, PDF, projects, payments/reports as role allows, updates) |
+| Web / mobile later | Browser deploy and phone = after Desktop+Agent ship; treat as **least priority** |
+| Same branch | Use branch **`desktop+agent`** for this track; push that branch when you ask |
 
 ---
 
@@ -17,11 +40,12 @@
 | Gap | **Wave 4 never shipped** — office Desktop Setup still may be an **older** build, so client does not *see* the new features in Desktop |
 | Architecture | Desktop Manager = **same React inside Tauri**. Features are not “web-only” — they land on Desktop **only after Setup rebuild + install** |
 
-So: coding in React was correct (one UI). **Shipping / QA priority drifted to browser.** From now: **Desktop-first** = fix Tauri gaps → smoke every feature in Manager Setup → rebuild/upload → then remaining web polish.
+So: coding in React was correct (one UI). **Shipping / QA priority drifted to browser.** From now: **Desktop + Agent 100% first** → then least-priority web → mobile last.
 
 ```
-WRONG (feel):  endless Chrome features → Desktop “later”
-RIGHT (now):   Desktop parity QA + Setup ship → then remaining web/ops
+WRONG:  Chrome features forever → Desktop “later” → Agent “later”
+RIGHT:  Desktop Manager 100% + Agent 100% → then remaining web → mobile last
+GIT:    Branch `desktop+agent` for this work; push when you ask
 ```
 
 ---
@@ -56,21 +80,24 @@ RIGHT (now):   Desktop parity QA + Setup ship → then remaining web/ops
 ## Locked order from today
 
 ```
-STEP 1  Desktop Manager parity checklist (Tauri)     ← NOW
-STEP 2  Employee Agent zip rebuild + 1-PC test
-STEP 3  Wave 4 ship (Setup.exe + Agent zip + VPS)
-STEP 4  Remaining web / product polish
-STEP 5  Phase E signed updater polish (optional)
-STEP 6  Phase D admin PWA — LAST
+STEP 1  Desktop Manager parity checklist (Tauri)     ← NOW (part of 100%)
+STEP 2  Employee Agent zip rebuild + 1-PC test       ← NOW (part of 100%)
+STEP 3  Wave 4 ship (Setup.exe + Agent zip + VPS)  ← 100% handoff to client
+         ── GATE: Desktop + Agent both green ──
+STEP 4  Remaining web / product polish             ← LEAST priority
+STEP 5  Phase E signed updater polish (optional)   ← LEAST priority
+STEP 6  Phase D admin PWA                          ← LAST / least priority
 ```
 
 **Hard rules**
 
 1. No DB wipe (`/var/lib/ems/ems.db`).  
-2. Same React for web + Desktop — fix once.  
+2. Same React for web + Desktop — fix once; **QA proof must be on Desktop + Agent**.  
 3. No push / force-push unless you ask.  
-4. Do **not** start Phase D or sales-demo ads until Steps 1–4 are green.  
-5. Prefer testing in **Manager Desktop** (`tauri:dev` or installed Setup) over Chrome-only.
+4. **Git:** branch **`desktop+agent`** for Desktop/Agent completion; push only when you ask.  
+5. Do **not** start remaining web polish, Phase D, or sales-demo until Steps 1–3 are green (Desktop + Agent **100%**).  
+6. Prefer testing in **Manager Desktop** (`tauri:dev` or installed Setup) and **Agent exe** over Chrome-only.  
+7. Web browser deploy may still get the same React build when we ship, but **priority and “done” means Desktop + Agent**, not Chrome.
 
 ---
 
@@ -149,15 +176,15 @@ Not the Manager UI — separate PySide app. Client trust depends on this.
 
 ---
 
-## STEP 4 — Remaining work AFTER Desktop (web + product)
+## STEP 4 — Remaining work AFTER Desktop + Agent 100% (LEAST priority)
 
-Only start when Steps 1–3 are green (or you explicitly override).
+**Do not start** until Steps 1–3 are green (or you explicitly override in chat).
 
 | Pri | Item | Notes |
 |---|---|---|
-| R1 | Doc **61** full happy/edge walk | Soft gate + D/E roles + initials privacy |
+| R1 | Doc **61** full happy/edge walk (browser) | Soft gate + D/E roles + initials privacy |
 | R2 | Notify / audit bell (admin) | Deposit unpaid phase advance + useful office alerts — **not started** |
-| R3 | Any leftover Projects UX from client voice | Only if Desktop smoke finds gaps vs 6:59 / 7:26 |
+| R3 | Any leftover Projects UX from client voice | Only if still needed after Desktop smoke |
 | R4 | Ops: enroll video / one-pager | Not code |
 | R5 | Sales white-label demo | Backlog — after CFS ops stable (`docs/41`) |
 
@@ -165,23 +192,34 @@ Only start when Steps 1–3 are green (or you explicitly override).
 
 ---
 
-## STEP 5–6 — Later
+## STEP 5–6 — Later (LEAST priority / LAST)
 
 | Item | When |
 |---|---|
-| Signed `@tauri-apps/plugin-updater` | After click→background MVP proven in office |
-| Phase D admin PWA | **Last** — admin glance only; never employee Sign In on phone |
+| Signed `@tauri-apps/plugin-updater` | After click→background MVP proven on Desktop in office |
+| Phase D admin PWA / mobile | **Last** — only after Desktop + Agent 100%; admin glance only; never employee Sign In on phone |
 | Wave 5 pixel polish | Only if Setup still feels “not like web” after Wave 4 |
 
 ---
 
-## What we will NOT do in the Desktop-first block
+## What we will NOT do in the Desktop+Agent 100% block
 
 - Rewrite Desktop as a second UI framework  
-- Chrome-only feature sprints while Setup is stale  
-- Phase D mobile  
+- Chrome-only / web-only feature sprints while Setup or Agent is incomplete  
+- Mobile / Phase D  
+- Mixing this track into unrelated branches without review  
 - DB wipe / reseed production  
 - Hardcoding real client names  
+
+---
+
+## Git workflow (LOCKED)
+
+| Do | Don’t |
+|---|---|
+| Create / use branch **`desktop+agent`** for Desktop + Agent 100% work | Scatter Desktop fixes only on `main` without this branch |
+| Push **`desktop+agent`** when you explicitly ask | Force-push / rewrite history |
+| Keep Desktop + Agent + shared React fixes on this branch | Split “web branch” vs “desktop branch” as two UIs |
 
 ---
 
@@ -201,9 +239,10 @@ Only start when Steps 1–3 are green (or you explicitly override).
 
 ```
 Read STATUS.md and docs/62-remaining-work-desktop-first.md.
+Desktop Manager + Agent must reach 100% client reqs before any web polish or mobile.
+Use branch desktop+agent — push only when asked.
 Start STEP 1 only: Desktop Manager parity (Tauri smoke + fix gaps).
-Do not start Phase D or extra web features.
-No push / no DB wipe.
+No DB wipe.
 ```
 
 ---

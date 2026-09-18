@@ -898,7 +898,7 @@ class MainWindow(QWidget):
         names = {
             "working": "Signed in — LIVE. Screenshots & activity on.",
             "break": "On break — screenshots paused. End break to resume.",
-            "idle": "Signed in — Idle (no input). Tracking on; shots pause after 5 min idle.",
+            "idle": "Signed in — Idle (no mouse/keys). Tracking on; screenshots keep going for ~5 min, then pause.",
             "offline": "Signed out — not tracking. Press Sign In to start.",
         }
         self.info.setText(names.get(state, state))

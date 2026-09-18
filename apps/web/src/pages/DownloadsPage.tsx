@@ -3,8 +3,16 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useToast } from "../components/ToastProvider";
 import { resolveUrl } from "../api";
 
-const MANAGER_SETUP = resolveUrl("/downloads/CFS-Designers-Manager-Setup.exe");
-const AGENT_ZIP = resolveUrl("/downloads/CFS-Agent-Install.zip");
+/** Resolve at use-time so Tauri production gets absolute https://ems… URLs. */
+function managerSetupUrl(): string {
+  const u = resolveUrl("/downloads/CFS-Designers-Manager-Setup.exe");
+  return u.startsWith("http") ? u : "https://ems.cfsdesigners.com/downloads/CFS-Designers-Manager-Setup.exe";
+}
+
+function agentZipUrl(): string {
+  const u = resolveUrl("/downloads/CFS-Agent-Install.zip");
+  return u.startsWith("http") ? u : "https://ems.cfsdesigners.com/downloads/CFS-Agent-Install.zip";
+}
 
 type ProgressState = {
   label: string;
@@ -325,7 +333,7 @@ export function DownloadsPage() {
               type="button"
               className="downloads-btn"
               disabled={downloading}
-              onClick={() => startDownload(MANAGER_SETUP, "Manager Setup (.exe)")}
+              onClick={() => startDownload(managerSetupUrl(), "Manager Setup (.exe)")}
             >
               <DownloadIcon /> Download Setup (.exe)
             </button>
@@ -374,7 +382,7 @@ export function DownloadsPage() {
               type="button"
               className="downloads-btn downloads-btn-secondary"
               disabled={downloading}
-              onClick={() => startDownload(AGENT_ZIP, "Employee Agent (.zip)")}
+              onClick={() => startDownload(agentZipUrl(), "Employee Agent (.zip)")}
             >
               <DownloadIcon /> Download Agent (.zip)
             </button>

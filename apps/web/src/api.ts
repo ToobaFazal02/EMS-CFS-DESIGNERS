@@ -5,7 +5,7 @@ function resolveApiBase(): string {
     .replace(/\/$/, "");
   if (fromEnv) return fromEnv;
   try {
-    // Tauri 2 injects this in the desktop webview
+    // Tauri 2 injects this in the desktop webview — resolve at call time (not module load).
     if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
       if (import.meta.env.DEV) return ""; // tauri:dev uses Vite proxy → local API
       return "https://ems.cfsdesigners.com";
@@ -16,7 +16,10 @@ function resolveApiBase(): string {
   return "";
 }
 
-const API = resolveApiBase();
+/** Lazy API base — safe in Tauri where internals may not exist at import time. */
+export function apiBase(): string {
+  return resolveApiBase();
+}
 
 /**
  * Convert a server-relative path like "/api/v1/screenshots/x/file" to an
@@ -28,15 +31,17 @@ const API = resolveApiBase();
 export function resolveUrl(path: string): string {
   if (!path) return "";
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  return `${API}${path.startsWith("/") ? "" : "/"}${path}`;
+  const base = apiBase();
+  return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
 /** Live WebSocket URL — browser uses page host; Tauri desktop uses production API host. */
 export function resolveWsUrl(path: string): string {
   const p = path.startsWith("/") ? path : `/${path}`;
-  if (API) {
+  const base = apiBase();
+  if (base) {
     try {
-      const u = new URL(API);
+      const u = new URL(base);
       const proto = u.protocol === "https:" ? "wss" : "ws";
       return `${proto}://${u.host}${p}`;
     } catch {
@@ -159,7 +164,7 @@ export async function login(email: string, password: string) {
   const payload = { email: email.trim().toLowerCase(), password };
   let r: Response;
   try {
-    r = await fetch(`${API}/api/v1/auth/login`, {
+    r = await fetch(`${apiBase()}/api/v1/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -178,7 +183,7 @@ export async function login(email: string, password: string) {
 }
 
 export async function fetchLive(): Promise<LiveEmployee[]> {
-  const r = await fetch(`${API}/api/v1/live`, { headers: authHeaders() });
+  const r = await fetch(`${apiBase()}/api/v1/live`, { headers: authHeaders() });
   if (!r.ok) throw new Error("Failed to load live board");
   return r.json();
 }
@@ -269,7 +274,7 @@ export type DashboardSummary = {
 };
 
 export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardSummary> {
-  const r = await fetch(`${API}/api/v1/dashboard`, { headers: authHeaders(), signal });
+  const r = await fetch(`${apiBase()}/api/v1/dashboard`, { headers: authHeaders(), signal });
   if (r.status === 401) {
     localStorage.removeItem("ems_token");
     throw new Error("Session expired — sign in again");
@@ -279,7 +284,7 @@ export async function fetchDashboard(signal?: AbortSignal): Promise<DashboardSum
 }
 
 export async function fetchEmployees(): Promise<Employee[]> {
-  const r = await fetch(`${API}/api/v1/employees`, { headers: authHeaders() });
+  const r = await fetch(`${apiBase()}/api/v1/employees`, { headers: authHeaders() });
   if (!r.ok) throw new Error("Failed to load employees");
   return r.json();
 }
@@ -291,7 +296,7 @@ export async function createEmployee(body: {
   password?: string;
   role?: string;
 }) {
-  const r = await fetch(`${API}/api/v1/employees`, {
+  const r = await fetch(`${apiBase()}/api/v1/employees`, {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -309,7 +314,7 @@ export async function updateEmployee(
     password?: string;
   }
 ) {
-  const r = await fetch(`${API}/api/v1/employees/${employeeId}`, {
+  const r = await fetch(`${apiBase()}/api/v1/employees/${employeeId}`, {
     method: "PATCH",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -319,7 +324,7 @@ export async function updateEmployee(
 }
 
 export async function setEmployeeCredentials(employeeId: string, email: string, password: string) {
-  const r = await fetch(`${API}/api/v1/employees/${employeeId}/credentials`, {
+  const r = await fetch(`${apiBase()}/api/v1/employees/${employeeId}/credentials`, {
     method: "PATCH",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -329,7 +334,7 @@ export async function setEmployeeCredentials(employeeId: string, email: string, 
 }
 
 export async function changeMyPassword(current_password: string, new_password: string) {
-  const r = await fetch(`${API}/api/v1/me/change-password`, {
+  const r = await fetch(`${apiBase()}/api/v1/me/change-password`, {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({ current_password, new_password }),
@@ -339,7 +344,7 @@ export async function changeMyPassword(current_password: string, new_password: s
 }
 
 export async function changeMyEmail(email: string, current_password: string) {
-  const r = await fetch(`${API}/api/v1/me/change-email`, {
+  const r = await fetch(`${apiBase()}/api/v1/me/change-email`, {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({ email, current_password }),
@@ -349,7 +354,7 @@ export async function changeMyEmail(email: string, current_password: string) {
 }
 
 export async function changeMyDisplayName(full_name: string) {
-  const r = await fetch(`${API}/api/v1/me/change-display-name`, {
+  const r = await fetch(`${apiBase()}/api/v1/me/change-display-name`, {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify({ full_name }),
@@ -359,7 +364,7 @@ export async function changeMyDisplayName(full_name: string) {
 }
 
 export async function startEnroll(employeeId: string) {
-  const r = await fetch(`${API}/api/v1/employees/${employeeId}/enroll`, {
+  const r = await fetch(`${apiBase()}/api/v1/employees/${employeeId}/enroll`, {
     method: "POST",
     headers: authHeaders(),
   });
@@ -368,7 +373,7 @@ export async function startEnroll(employeeId: string) {
 }
 
 export async function fetchDay(employeeId: string, date: string) {
-  const r = await fetch(`${API}/api/v1/employees/${employeeId}/day?date=${date}`, {
+  const r = await fetch(`${apiBase()}/api/v1/employees/${employeeId}/day?date=${date}`, {
     headers: authHeaders(),
   });
   if (!r.ok) throw new Error("Day load failed");
@@ -377,7 +382,7 @@ export async function fetchDay(employeeId: string, date: string) {
 
 export async function fetchShots(employeeId: string, date: string) {
   const r = await fetch(
-    `${API}/api/v1/employees/${employeeId}/screenshots?date=${date}`,
+    `${apiBase()}/api/v1/employees/${employeeId}/screenshots?date=${date}`,
     { headers: authHeaders() }
   );
   if (!r.ok) throw new Error("Screenshots failed");
@@ -516,7 +521,7 @@ export type InvoiceRow = {
 };
 
 export async function fetchInvoices(): Promise<InvoiceRow[]> {
-  const r = await fetch(`${API}/api/v1/invoices`, { headers: authHeaders() });
+  const r = await fetch(`${apiBase()}/api/v1/invoices`, { headers: authHeaders() });
   if (r.status === 401) {
     localStorage.removeItem("ems_token");
     throw new Error("Session expired — sign in again");
@@ -526,7 +531,7 @@ export async function fetchInvoices(): Promise<InvoiceRow[]> {
 }
 
 export async function saveInvoice(body: Record<string, unknown>, id?: string) {
-  const r = await fetch(id ? `${API}/api/v1/invoices/${id}` : `${API}/api/v1/invoices`, {
+  const r = await fetch(id ? `${apiBase()}/api/v1/invoices/${id}` : `${apiBase()}/api/v1/invoices`, {
     method: id ? "PATCH" : "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -536,7 +541,7 @@ export async function saveInvoice(body: Record<string, unknown>, id?: string) {
 }
 
 export async function fetchClients(): Promise<ClientRow[]> {
-  const r = await fetch(`${API}/api/v1/clients`, { headers: authHeaders() });
+  const r = await fetch(`${apiBase()}/api/v1/clients`, { headers: authHeaders() });
   if (!r.ok) throw new Error("Failed to load clients");
   return r.json();
 }
@@ -549,7 +554,7 @@ export async function createClient(body: {
   phone?: string;
   notes?: string;
 }) {
-  const r = await fetch(`${API}/api/v1/clients`, {
+  const r = await fetch(`${apiBase()}/api/v1/clients`, {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -569,7 +574,7 @@ export async function patchClient(
     notes?: string;
   }
 ) {
-  const r = await fetch(`${API}/api/v1/clients/${id}`, {
+  const r = await fetch(`${apiBase()}/api/v1/clients/${id}`, {
     method: "PATCH",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -579,13 +584,13 @@ export async function patchClient(
 }
 
 export async function fetchProjectPhases(): Promise<ProjectPhasesInfo> {
-  const r = await fetch(`${API}/api/v1/project-phases`, { headers: authHeaders() });
+  const r = await fetch(`${apiBase()}/api/v1/project-phases`, { headers: authHeaders() });
   if (!r.ok) throw new Error(await apiError(r, "Failed to load project phases"));
   return r.json();
 }
 
 export async function fetchProjects(): Promise<ProjectRow[]> {
-  const r = await fetch(`${API}/api/v1/projects`, { headers: authHeaders() });
+  const r = await fetch(`${apiBase()}/api/v1/projects`, { headers: authHeaders() });
   if (r.status === 401) {
     localStorage.removeItem("ems_token");
     throw new Error("Session expired — sign in again");
@@ -595,7 +600,7 @@ export async function fetchProjects(): Promise<ProjectRow[]> {
 }
 
 export async function saveProject(body: Record<string, unknown>, id?: string) {
-  const r = await fetch(id ? `${API}/api/v1/projects/${id}` : `${API}/api/v1/projects`, {
+  const r = await fetch(id ? `${apiBase()}/api/v1/projects/${id}` : `${apiBase()}/api/v1/projects`, {
     method: id ? "PATCH" : "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -605,7 +610,7 @@ export async function saveProject(body: Record<string, unknown>, id?: string) {
 }
 
 export async function fetchProjectProgress(projectId: string): Promise<ProjectProgressRow[]> {
-  const r = await fetch(`${API}/api/v1/projects/${projectId}/progress`, { headers: authHeaders() });
+  const r = await fetch(`${apiBase()}/api/v1/projects/${projectId}/progress`, { headers: authHeaders() });
   if (!r.ok) throw new Error(await apiError(r, "Failed to load progress"));
   return r.json();
 }
@@ -614,7 +619,7 @@ export async function postProjectProgress(
   projectId: string,
   body: { percent: number; note?: string; work_date?: string; employee_id?: string }
 ) {
-  const r = await fetch(`${API}/api/v1/projects/${projectId}/progress`, {
+  const r = await fetch(`${apiBase()}/api/v1/projects/${projectId}/progress`, {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -624,7 +629,7 @@ export async function postProjectProgress(
 }
 
 export async function deleteProject(id: string) {
-  const r = await fetch(`${API}/api/v1/projects/${id}`, {
+  const r = await fetch(`${apiBase()}/api/v1/projects/${id}`, {
     method: "DELETE",
     headers: authHeaders(),
   });
@@ -637,7 +642,7 @@ export async function deleteProject(id: string) {
 }
 
 export async function deleteInvoice(id: string) {
-  const r = await fetch(`${API}/api/v1/invoices/${id}`, {
+  const r = await fetch(`${apiBase()}/api/v1/invoices/${id}`, {
     method: "DELETE",
     headers: authHeaders(),
   });
@@ -650,7 +655,7 @@ export async function deleteInvoice(id: string) {
 }
 
 export async function fetchInvoiceSettings(): Promise<InvoiceSettings> {
-  const r = await fetch(`${API}/api/v1/invoice-settings`, { headers: authHeaders() });
+  const r = await fetch(`${apiBase()}/api/v1/invoice-settings`, { headers: authHeaders() });
   if (r.status === 401) {
     localStorage.removeItem("ems_token");
     throw new Error("Session expired — sign in again");
@@ -660,7 +665,7 @@ export async function fetchInvoiceSettings(): Promise<InvoiceSettings> {
 }
 
 export async function saveInvoiceSettings(body: InvoiceSettings): Promise<InvoiceSettings> {
-  const r = await fetch(`${API}/api/v1/invoice-settings`, {
+  const r = await fetch(`${apiBase()}/api/v1/invoice-settings`, {
     method: "PATCH",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -670,7 +675,7 @@ export async function saveInvoiceSettings(body: InvoiceSettings): Promise<Invoic
 }
 
 export async function deleteEmployee(id: string) {
-  const r = await fetch(`${API}/api/v1/employees/${id}`, {
+  const r = await fetch(`${apiBase()}/api/v1/employees/${id}`, {
     method: "DELETE",
     headers: authHeaders(),
   });
@@ -725,7 +730,7 @@ export type ExpenseMonth = {
 export async function fetchExpenses(year: number, month: number, category?: string): Promise<ExpenseMonth> {
   const q = new URLSearchParams({ year: String(year), month: String(month) });
   if (category) q.set("category", category);
-  const r = await fetch(`${API}/api/v1/expenses?${q}`, { headers: authHeaders() });
+  const r = await fetch(`${apiBase()}/api/v1/expenses?${q}`, { headers: authHeaders() });
   if (r.status === 401) {
     localStorage.removeItem("ems_token");
     throw new Error("Session expired — sign in again");
@@ -748,7 +753,7 @@ export async function createExpense(body: {
   fd.append("amount_pkr", String(body.amount_pkr));
   fd.append("vendor_note", body.vendor_note || "");
   if (body.receipt) fd.append("receipt", body.receipt);
-  const r = await fetch(`${API}/api/v1/expenses`, {
+  const r = await fetch(`${apiBase()}/api/v1/expenses`, {
     method: "POST",
     headers: authHeaders(),
     body: fd,
@@ -758,7 +763,7 @@ export async function createExpense(body: {
 }
 
 export async function deleteExpense(id: string): Promise<void> {
-  const r = await fetch(`${API}/api/v1/expenses/${id}`, {
+  const r = await fetch(`${apiBase()}/api/v1/expenses/${id}`, {
     method: "DELETE",
     headers: authHeaders(),
   });
@@ -766,7 +771,7 @@ export async function deleteExpense(id: string): Promise<void> {
 }
 
 export async function fetchExpenseReceipt(url: string): Promise<Blob> {
-  const r = await fetch(`${API}${url}`, { headers: authHeaders() });
+  const r = await fetch(resolveUrl(url), { headers: authHeaders() });
   if (!r.ok) throw new Error(await apiError(r, "Could not open receipt"));
   return r.blob();
 }
@@ -810,7 +815,7 @@ export async function fetchPartnerShares(opts?: {
   if (opts?.year != null) q.set("year", String(opts.year));
   if (opts?.month != null) q.set("month", String(opts.month));
   const qs = q.toString();
-  const r = await fetch(`${API}/api/v1/partner-shares${qs ? `?${qs}` : ""}`, {
+  const r = await fetch(`${apiBase()}/api/v1/partner-shares${qs ? `?${qs}` : ""}`, {
     headers: authHeaders(),
     signal: opts?.signal,
   });
@@ -823,4 +828,4 @@ export async function fetchPartnerShares(opts?: {
   return r.json();
 }
 
-export { authHeaders, API };
+export { authHeaders };
