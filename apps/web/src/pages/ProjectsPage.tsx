@@ -71,6 +71,45 @@ function scopeLabel(id: string, scopes: { id: string; label: string }[]): string
   return scopes.find((s) => s.id === id)?.label || id || "—";
 }
 
+function clientOptionLabel(c: ClientRow, showFullName: boolean): string {
+  const ini = (c.initial || "").trim();
+  const loc = (c.location || "").trim();
+  // Staff / HR: initials (+ location) only — never real firm names (client privacy)
+  if (!showFullName) {
+    if (ini && loc) return `[${ini}] · ${loc}`;
+    if (ini) return `[${ini}]`;
+    return loc || "Client";
+  }
+  return `${ini ? `[${ini}] ` : ""}${c.name}${loc ? ` (${loc})` : ""}`;
+}
+
+/** Map API / client validation messages → field keys for red highlights. */
+function mapProjectFieldErrors(msg: string): Record<string, string> {
+  const m = msg.toLowerCase();
+  const out: Record<string, string> = {};
+  if (/project name|job title|include letters|at least 4/.test(m)) out.name = msg;
+  if (/client/.test(m)) out.client_id = msg;
+  if (/work scope|scope must/.test(m)) out.work_scope = msg;
+  if (/deposit %/.test(m)) out.deposit_pct = msg;
+  if (/contract value/.test(m)) out.contract_value = msg;
+  if (/currency/.test(m)) out.currency = msg;
+  if (/area/.test(m)) out.area_sqft = msg;
+  if (/storey/.test(m)) out.storeys = msg;
+  if (/assignee|detailer/.test(m)) out.detailer_id = msg;
+  if (/engineer/.test(m)) out.engineer_id = msg;
+  if (/advance|deposit|intake|final payment|payment gate|stamped|field files|run files/.test(m)) {
+    out.phase = msg;
+  }
+  if (/code/.test(m) && !out.phase) out.code = msg;
+  return out;
+}
+
+function isPaymentGateMessage(msg: string): boolean {
+  return /Advance not recorded|Final payment not recorded|cannot leave Intake|Ask Admin or Manager to clear the advance|Payment gate/i.test(
+    msg
+  );
+}
+
 /** Trello-style label colours per phase (CFS gold for Intake). */
 const PHASE_COLOR: Record<string, string> = {
   intake: "#c9a227",
@@ -88,7 +127,8 @@ const emptyForm = {
   client_id: "",
   work_scope: "estimation",
   assignee_id: "",
-  assignee_ids: [] as string[],
+  detailer_id: "",
+  engineer_id: "",
   area_sqft: "",
   storeys: "",
   phase: "intake",
@@ -131,6 +171,28 @@ export function ProjectsPage() {
   const [progressNote, setProgressNote] = useState("");
   const [progressHistory, setProgressHistory] = useState<ProjectProgressRow[]>([]);
   const [savingProgress, setSavingProgress] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [payGateHint, setPayGateHint] = useState<{ message: string; projectId: string | null } | null>(null);
+  const isStaff = role === "employee";
+
+  function progressDelta(rows: ProjectProgressRow[], index: number): string | null {
+    const cur = rows[index];
+    if (!cur) return null;
+    const prev = rows.slice(index + 1).find((r) => r.employee_id === cur.employee_id);
+    if (!prev) return null;
+    const d = Number(cur.percent) - Number(prev.percent);
+    if (!Number.isFinite(d) || d === 0) return null;
+    return d > 0 ? `+${d}% vs prior` : `${d}% vs prior`;
+  }
+
+  function clearFieldError(key: string) {
+    setFieldErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
 
   async function load() {
     setBusy(true);
@@ -180,6 +242,8 @@ export function ProjectsPage() {
         p.client_name.toLowerCase().includes(s) ||
         (p.client_initial || "").toLowerCase().includes(s) ||
         p.assignee_name.toLowerCase().includes(s) ||
+        (p.detailer_name || "").toLowerCase().includes(s) ||
+        (p.engineer_name || "").toLowerCase().includes(s) ||
         p.phase.toLowerCase().includes(s)
     );
   }, [projects, q]);
@@ -188,35 +252,43 @@ export function ProjectsPage() {
     if (!canCreate) return;
     setOverrideReason("");
     setPendingMove(null);
+    setFieldErrors({});
+    setPayGateHint(null);
     setProgressPct("");
     setProgressNote("");
     setProgressHistory([]);
     if (!p) {
       setEditing("new");
-      const selfIds = role === "employee" && myId ? [myId] : [];
+      const selfId = role === "employee" && myId ? myId : "";
       setForm({
         ...emptyForm,
         phase: phaseForNew || "intake",
         work_scope: scopes[0]?.id || "estimation",
-        assignee_ids: selfIds,
-        assignee_id: selfIds[0] || "",
+        detailer_id: selfId,
+        engineer_id: "",
+        assignee_id: selfId,
       });
       return;
     }
     setEditing(p.id);
-    const ids =
-      p.assignees && p.assignees.length
-        ? p.assignees.map((a) => a.employee_id)
-        : p.assignee_id
-          ? [p.assignee_id]
-          : [];
+    const detailerId =
+      p.detailer_id ||
+      p.assignees?.find((a) => a.role === "detailer")?.employee_id ||
+      p.assignee_id ||
+      "";
+    const engineerId =
+      p.engineer_id ||
+      p.assignees?.find((a) => a.role === "engineer")?.employee_id ||
+      (p.assignees && p.assignees.length > 1 ? p.assignees[1].employee_id : "") ||
+      "";
     setForm({
       name: p.name,
       code: p.code || "",
       client_id: p.client_id || "",
       work_scope: p.work_scope || scopes[0]?.id || "estimation",
-      assignee_id: ids[0] || p.assignee_id || "",
-      assignee_ids: ids,
+      assignee_id: detailerId || p.assignee_id || "",
+      detailer_id: detailerId,
+      engineer_id: engineerId,
       area_sqft: p.area_sqft != null ? String(p.area_sqft) : "",
       storeys: p.storeys != null ? String(p.storeys) : "",
       phase: p.phase,
@@ -234,64 +306,66 @@ export function ProjectsPage() {
       .catch(() => setProgressHistory([]));
   }
 
-  function toggleAssignee(id: string) {
-    setForm((prev) => {
-      const has = prev.assignee_ids.includes(id);
-      const assignee_ids = has ? prev.assignee_ids.filter((x) => x !== id) : [...prev.assignee_ids, id];
-      return { ...prev, assignee_ids, assignee_id: assignee_ids[0] || "" };
-    });
-  }
-
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
+    setFieldErrors({});
+    setPayGateHint(null);
     const name = form.name.trim().replace(/\s+/g, " ");
+    const localErrors: Record<string, string> = {};
     if (name.length < 4) {
-      toast.error("Project name must be at least 4 characters.");
-      return;
+      localErrors.name = "Project name must be at least 4 characters.";
+    } else {
+      const letters = (name.match(/[A-Za-z]/g) || []).length;
+      if (letters < 2) localErrors.name = "Project name must include letters.";
+      else if (!/[ \-\d]/.test(name) && name.length < 10) {
+        localErrors.name = "Use a clear job title (e.g. LOT 12 Main St or Warehouse Shed).";
+      }
     }
-    const letters = (name.match(/[A-Za-z]/g) || []).length;
-    if (letters < 2) {
-      toast.error("Project name must include letters.");
-      return;
-    }
-    if (!/[ \-\d]/.test(name) && name.length < 10) {
-      toast.error("Use a clear job title (e.g. LOT 12 Main St or Warehouse Shed).");
-      return;
-    }
-    if (!form.client_id) {
-      toast.error("Select a client (required). Add one above if needed.");
-      return;
-    }
-    if (!form.work_scope) {
-      toast.error("Select a work scope.");
-      return;
-    }
+    if (!form.client_id) localErrors.client_id = "Select a client (required). Add one above if needed.";
+    if (!form.work_scope) localErrors.work_scope = "Select a work scope.";
+    if (!form.detailer_id) localErrors.detailer_id = "Select a Detailer.";
+    if (!form.engineer_id) localErrors.engineer_id = "Select an Engineer.";
     let deposit = 50;
     let contract = 0;
     let currency = "USD";
     if (finance) {
       deposit = Number(form.deposit_pct);
       if (Number.isNaN(deposit) || deposit < 0 || deposit > 100) {
-        toast.error("Deposit % must be between 0 and 100.");
-        return;
+        localErrors.deposit_pct = "Deposit % must be between 0 and 100.";
       }
       contract = form.contract_value === "" ? 0 : Number(form.contract_value);
       if (Number.isNaN(contract) || contract <= 0) {
-        toast.error("Contract value must be greater than 0.");
-        return;
+        localErrors.contract_value = "Contract value must be greater than 0.";
       }
       currency = normalizeCurrencyCode(form.currency);
+    }
+    if (form.area_sqft !== "") {
+      const area = Number(form.area_sqft);
+      if (Number.isNaN(area) || area < 0) localErrors.area_sqft = "Area (sq.ft) cannot be negative.";
+      else if (area > 5_000_000) localErrors.area_sqft = "Area (sq.ft) looks too large — check the number.";
+    }
+    if (form.storeys !== "") {
+      const storeys = Number(form.storeys);
+      if (Number.isNaN(storeys) || storeys < 0) localErrors.storeys = "Storeys cannot be negative.";
+      else if (storeys > 200) localErrors.storeys = "Storeys must be 200 or fewer.";
+    }
+    if (Object.keys(localErrors).length) {
+      setFieldErrors(localErrors);
+      toast.error(Object.values(localErrors)[0] || "Fix the highlighted fields.");
+      return;
     }
     try {
       const body = {
         name,
-        code: form.code.trim(),
+        code: finance || office ? form.code.trim() : "",
         client_id: form.client_id || null,
         work_scope: form.work_scope.trim(),
-        assignee_id: form.assignee_ids[0] || form.assignee_id || null,
-        assignee_ids: form.assignee_ids,
-        area_sqft: form.area_sqft ? Number(form.area_sqft) : null,
-        storeys: form.storeys ? Number(form.storeys) : null,
+        detailer_id: form.detailer_id || null,
+        engineer_id: form.engineer_id || null,
+        assignee_id: form.detailer_id || null,
+        assignee_ids: [form.detailer_id, form.engineer_id].filter(Boolean),
+        area_sqft: form.area_sqft !== "" ? Number(form.area_sqft) : null,
+        storeys: form.storeys !== "" ? Number(form.storeys) : null,
         phase: form.phase,
         work_state: form.work_state,
         comments: form.comments.trim(),
@@ -304,10 +378,21 @@ export function ProjectsPage() {
       await saveProject(body, editing && editing !== "new" ? editing : undefined);
       setEditing(null);
       setOverrideReason("");
+      setFieldErrors({});
+      setPayGateHint(null);
       toast.success(editing === "new" ? "Project saved." : "Project updated.");
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
+      const msg = err instanceof Error ? err.message : "Save failed";
+      const mapped = mapProjectFieldErrors(msg);
+      setFieldErrors(mapped);
+      toast.error(msg);
+      if (finance && isPaymentGateMessage(msg)) {
+        setPayGateHint({
+          message: msg,
+          projectId: editing && editing !== "new" ? editing : null,
+        });
+      }
     }
   }
 
@@ -321,7 +406,7 @@ export function ProjectsPage() {
     setSavingProgress(true);
     try {
       await postProjectProgress(editing, { percent: pct, note: progressNote.trim() });
-      toast.success("Progress saved.");
+      toast.success(isStaff ? "Your progress saved — Admin can see it on this project." : "Progress logged.");
       const hist = await fetchProjectProgress(editing);
       setProgressHistory(hist);
       await load();
@@ -368,22 +453,27 @@ export function ProjectsPage() {
   }
 
   async function movePhase(p: ProjectRow, phase: string, force = false) {
-    if (!manager) return;
+    if (!canCreate) return;
     try {
-      const ids =
-        p.assignees && p.assignees.length
-          ? p.assignees.map((a) => a.employee_id)
-          : p.assignee_id
-            ? [p.assignee_id]
-            : [];
+      const detailerId =
+        p.detailer_id ||
+        p.assignees?.find((a) => a.role === "detailer")?.employee_id ||
+        p.assignee_id ||
+        "";
+      const engineerId =
+        p.engineer_id ||
+        p.assignees?.find((a) => a.role === "engineer")?.employee_id ||
+        detailerId;
       await saveProject(
         {
           name: p.name,
           code: p.code || "",
           client_id: p.client_id,
           work_scope: p.work_scope,
-          assignee_id: ids[0] || p.assignee_id,
-          assignee_ids: ids,
+          detailer_id: detailerId || null,
+          engineer_id: engineerId || null,
+          assignee_id: detailerId || null,
+          assignee_ids: [detailerId, engineerId].filter(Boolean),
           area_sqft: p.area_sqft,
           storeys: p.storeys,
           phase,
@@ -407,7 +497,7 @@ export function ProjectsPage() {
       const msg = err instanceof Error ? err.message : "Move failed";
       toast.error(msg);
       // Override UI is finance-only — never nudge HR toward Payments
-      if (!force && finance && /Advance|Final payment|Payment gate|need_deposit|need_final|cannot leave Intake|cannot move to/i.test(msg)) {
+      if (!force && finance && /Stamped|Field Files|Run Files|Final payment|need_final|Advance not recorded/i.test(msg)) {
         setPendingMove({ p, phase });
       }
     }
@@ -474,8 +564,13 @@ export function ProjectsPage() {
             {formatMoney(depositNeeded(pendingMove.p), pendingMove.p.currency || "USD")} needed).
           </p>
           <div className="toolbar" style={{ marginBottom: 0 }}>
-            <button type="button" onClick={() => nav("/payments")}>
-              Open Payments
+            <button
+              type="button"
+              onClick={() =>
+                nav(`/payments?project=${encodeURIComponent(pendingMove.p.id)}&kind=deposit`)
+              }
+            >
+              Open Payments → record deposit
             </button>
             <div className="field" style={{ flex: 1 }}>
               <label>Override reason</label>
@@ -495,6 +590,28 @@ export function ProjectsPage() {
             </button>
             <button type="button" className="secondary" onClick={() => setPendingMove(null)}>
               Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {payGateHint && finance ? (
+        <div className="card pay-gate-card">
+          <p style={{ marginTop: 0, marginBottom: 12 }}>{payGateHint.message}</p>
+          <div className="toolbar" style={{ marginBottom: 0 }}>
+            <button
+              type="button"
+              onClick={() =>
+                nav(
+                  payGateHint.projectId
+                    ? `/payments?project=${encodeURIComponent(payGateHint.projectId)}&kind=deposit`
+                    : "/payments?kind=deposit"
+                )
+              }
+            >
+              Go to Payments
+            </button>
+            <button type="button" className="secondary" onClick={() => setPayGateHint(null)}>
+              Dismiss
             </button>
           </div>
         </div>
@@ -553,33 +670,76 @@ export function ProjectsPage() {
         </button>
       </form>
       ) : null}
+      {manager ? (
+        <p className="muted" style={{ marginTop: -8, marginBottom: 12, fontSize: 13 }}>
+          Staff only see <strong>[Initial] · location</strong> — use a unique Initial (e.g. DE / DM) when two firms share a letter.
+        </p>
+      ) : null}
 
       {editing ? (
         <form className="card project-form" style={{ marginBottom: 16 }} onSubmit={onSave} noValidate>
           <h3 style={{ marginTop: 0 }}>{editing === "new" ? "New project" : "Edit project"}</h3>
           <div className="form-grid">
-            <div className="field field-span-2">
+            <div className={`field field-span-2${fieldErrors.name ? " is-invalid" : ""}`}>
               <label>
                 Project name <span className="req">*</span>
               </label>
               <input
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e) => {
+                  clearFieldError("name");
+                  setForm({ ...form, name: e.target.value });
+                }}
                 required
                 minLength={4}
                 placeholder="e.g. LOT 12 Horning Street"
+                aria-invalid={Boolean(fieldErrors.name)}
               />
+              {fieldErrors.name ? (
+                <p className="field-error" role="alert">
+                  {fieldErrors.name}
+                </p>
+              ) : null}
             </div>
-            <div className="field">
-              <label>Code</label>
-              <input
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                placeholder="Auto from initial+date"
-                maxLength={32}
-              />
-            </div>
-            <div className="field">
+            {role === "employee" ? (
+              editing && editing !== "new" && form.code ? (
+                <div className="field">
+                  <label>Code</label>
+                  <p className="code-readonly" title="Assigned automatically">
+                    {form.code}
+                  </p>
+                </div>
+              ) : (
+                <div className="field">
+                  <label>Code</label>
+                  <p className="muted" style={{ margin: "10px 0 0", fontSize: 13 }}>
+                    Assigned automatically after save
+                  </p>
+                </div>
+              )
+            ) : (
+              <div className={`field${fieldErrors.code ? " is-invalid" : ""}`}>
+                <label>Code</label>
+                <input
+                  value={form.code}
+                  onChange={(e) => {
+                    clearFieldError("code");
+                    setForm({ ...form, code: e.target.value.toUpperCase() });
+                  }}
+                  placeholder="Leave blank to auto-fill"
+                  maxLength={32}
+                  aria-invalid={Boolean(fieldErrors.code)}
+                />
+                {fieldErrors.code ? (
+                  <p className="field-error" role="alert">
+                    {fieldErrors.code}
+                  </p>
+                ) : (
+                  <span className="field-hint">Optional override</span>
+                )}
+              </div>
+            )}
+            <div className={`field${fieldErrors.client_id ? " is-invalid" : ""}`}>
               <label>
                 Client <span className="req">*</span>
               </label>
@@ -587,6 +747,7 @@ export function ProjectsPage() {
                 required
                 value={form.client_id}
                 onChange={(e) => {
+                  clearFieldError("client_id");
                   const clientId = e.target.value;
                   const client = clients.find((c) => c.id === clientId);
                   const next = { ...form, client_id: clientId };
@@ -595,25 +756,33 @@ export function ProjectsPage() {
                   }
                   setForm(next);
                 }}
+                aria-invalid={Boolean(fieldErrors.client_id)}
               >
                 <option value="">Select client…</option>
                 {clients.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.initial ? `[${c.initial}] ` : ""}
-                    {c.name}
-                    {c.location ? ` (${c.location})` : ""}
+                    {clientOptionLabel(c, finance || role === "hr")}
                   </option>
                 ))}
               </select>
+              {fieldErrors.client_id ? (
+                <p className="field-error" role="alert">
+                  {fieldErrors.client_id}
+                </p>
+              ) : null}
             </div>
-            <div className="field">
+            <div className={`field${fieldErrors.work_scope ? " is-invalid" : ""}`}>
               <label>
                 Scope <span className="req">*</span>
               </label>
               <select
                 required
                 value={form.work_scope}
-                onChange={(e) => setForm({ ...form, work_scope: e.target.value })}
+                onChange={(e) => {
+                  clearFieldError("work_scope");
+                  setForm({ ...form, work_scope: e.target.value });
+                }}
+                aria-invalid={Boolean(fieldErrors.work_scope)}
               >
                 {scopes.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -621,43 +790,127 @@ export function ProjectsPage() {
                   </option>
                 ))}
               </select>
+              {fieldErrors.work_scope ? (
+                <p className="field-error" role="alert">
+                  {fieldErrors.work_scope}
+                </p>
+              ) : null}
             </div>
-            <div className="field field-span-2">
-              <label>Assignees</label>
-              <div className="assignee-checks" style={{ display: "flex", flexWrap: "wrap", gap: "8px 14px" }}>
-                {employees.length === 0 ? (
-                  <span className="muted">No staff roster loaded</span>
-                ) : (
-                  employees.map((emp) => (
-                    <label key={emp.id} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      <input
-                        type="checkbox"
-                        checked={form.assignee_ids.includes(emp.id)}
-                        onChange={() => toggleAssignee(emp.id)}
-                      />
-                      {emp.full_name} #{emp.code}
-                    </label>
-                  ))
-                )}
-              </div>
+            <div className={`field${fieldErrors.detailer_id ? " is-invalid" : ""}`}>
+              <label>
+                Detailer <span className="req">*</span>
+              </label>
+              <select
+                required
+                value={form.detailer_id}
+                onChange={(e) => {
+                  clearFieldError("detailer_id");
+                  const detailer_id = e.target.value;
+                  setForm({ ...form, detailer_id, assignee_id: detailer_id });
+                }}
+                aria-invalid={Boolean(fieldErrors.detailer_id)}
+              >
+                <option value="">Select detailer…</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.full_name} #{emp.code}
+                  </option>
+                ))}
+              </select>
+              {fieldErrors.detailer_id ? (
+                <p className="field-error" role="alert">
+                  {fieldErrors.detailer_id}
+                </p>
+              ) : null}
             </div>
-            <div className="field">
+            <div className={`field${fieldErrors.engineer_id ? " is-invalid" : ""}`}>
+              <label>
+                Engineer <span className="req">*</span>
+              </label>
+              <select
+                required
+                value={form.engineer_id}
+                onChange={(e) => {
+                  clearFieldError("engineer_id");
+                  setForm({ ...form, engineer_id: e.target.value });
+                }}
+                aria-invalid={Boolean(fieldErrors.engineer_id)}
+              >
+                <option value="">Select engineer…</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.full_name} #{emp.code}
+                  </option>
+                ))}
+              </select>
+              {fieldErrors.engineer_id ? (
+                <p className="field-error" role="alert">
+                  {fieldErrors.engineer_id}
+                </p>
+              ) : (
+                <span className="field-hint">Same person may be both</span>
+              )}
+            </div>
+            <div className={`field${fieldErrors.area_sqft ? " is-invalid" : ""}`}>
               <label>Area (sq.ft)</label>
-              <input type="number" min={0} value={form.area_sqft} onChange={(e) => setForm({ ...form, area_sqft: e.target.value })} />
+              <input
+                type="number"
+                min={0}
+                value={form.area_sqft}
+                onChange={(e) => {
+                  clearFieldError("area_sqft");
+                  setForm({ ...form, area_sqft: e.target.value });
+                }}
+                aria-invalid={Boolean(fieldErrors.area_sqft)}
+              />
+              {fieldErrors.area_sqft ? (
+                <p className="field-error" role="alert">
+                  {fieldErrors.area_sqft}
+                </p>
+              ) : null}
             </div>
-            <div className="field">
+            <div className={`field${fieldErrors.storeys ? " is-invalid" : ""}`}>
               <label>Storey</label>
-              <input type="number" min={0} value={form.storeys} onChange={(e) => setForm({ ...form, storeys: e.target.value })} />
+              <input
+                type="number"
+                min={0}
+                max={200}
+                value={form.storeys}
+                onChange={(e) => {
+                  clearFieldError("storeys");
+                  setForm({ ...form, storeys: e.target.value });
+                }}
+                aria-invalid={Boolean(fieldErrors.storeys)}
+              />
+              {fieldErrors.storeys ? (
+                <p className="field-error" role="alert">
+                  {fieldErrors.storeys}
+                </p>
+              ) : null}
             </div>
-            <div className="field">
+            <div className={`field${fieldErrors.phase ? " is-invalid" : ""}`}>
               <label>Phase</label>
-              <select value={form.phase} onChange={(e) => setForm({ ...form, phase: e.target.value })}>
+              <select
+                value={form.phase}
+                onChange={(e) => {
+                  clearFieldError("phase");
+                  setForm({ ...form, phase: e.target.value });
+                }}
+                aria-invalid={Boolean(fieldErrors.phase)}
+              >
                 {PHASES.map((ph) => (
                   <option key={ph.id} value={ph.id}>
                     {ph.label}
                   </option>
                 ))}
               </select>
+              {fieldErrors.phase ? (
+                <p className="field-error" role="alert">
+                  {fieldErrors.phase}
+                </p>
+              ) : (
+                <span className="field-hint">Design phases free — release files need Paid advance</span>
+              )}
             </div>
             <div className="field">
               <label>Status</label>
@@ -678,7 +931,7 @@ export function ProjectsPage() {
             </div>
             {finance ? (
               <>
-                <div className="field field-span-2">
+                <div className={`field field-span-2${fieldErrors.contract_value || fieldErrors.currency ? " is-invalid" : ""}`}>
                   <label>
                     Contract value <span className="req">*</span>
                   </label>
@@ -690,14 +943,30 @@ export function ProjectsPage() {
                       step="0.01"
                       required
                       value={form.contract_value}
-                      onChange={(e) => setForm({ ...form, contract_value: e.target.value })}
+                      onChange={(e) => {
+                        clearFieldError("contract_value");
+                        setForm({ ...form, contract_value: e.target.value });
+                      }}
+                      aria-invalid={Boolean(fieldErrors.contract_value)}
                     />
                     <div className="money-currency">
-                      <CurrencySelect value={form.currency} onChange={(currency) => setForm({ ...form, currency })} required />
+                      <CurrencySelect
+                        value={form.currency}
+                        onChange={(currency) => {
+                          clearFieldError("currency");
+                          setForm({ ...form, currency });
+                        }}
+                        required
+                      />
                     </div>
                   </div>
+                  {fieldErrors.contract_value || fieldErrors.currency ? (
+                    <p className="field-error" role="alert">
+                      {fieldErrors.contract_value || fieldErrors.currency}
+                    </p>
+                  ) : null}
                 </div>
-                <div className="field">
+                <div className={`field${fieldErrors.deposit_pct ? " is-invalid" : ""}`}>
                   <label>
                     Deposit % <span className="req">*</span>
                   </label>
@@ -707,8 +976,19 @@ export function ProjectsPage() {
                     max={100}
                     required
                     value={form.deposit_pct}
-                    onChange={(e) => setForm({ ...form, deposit_pct: e.target.value })}
+                    onChange={(e) => {
+                      clearFieldError("deposit_pct");
+                      setForm({ ...form, deposit_pct: e.target.value });
+                    }}
+                    aria-invalid={Boolean(fieldErrors.deposit_pct)}
                   />
+                  {fieldErrors.deposit_pct ? (
+                    <p className="field-error" role="alert">
+                      {fieldErrors.deposit_pct}
+                    </p>
+                  ) : (
+                    <span className="field-hint">Soft warn on board — hard lock only Stamped / Field / Run</span>
+                  )}
                 </div>
               </>
             ) : null}
@@ -725,45 +1005,115 @@ export function ProjectsPage() {
           </div>
           {editing && editing !== "new" ? (
             <div className="progress-block" style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border, #333)" }}>
-              <h4 style={{ marginTop: 0, marginBottom: 10 }}>Daily progress %</h4>
-              <div className="toolbar" style={{ marginBottom: 8, flexWrap: "wrap" }}>
-                <div className="field" style={{ minWidth: 100 }}>
-                  <label>Percent</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step="1"
-                    value={progressPct}
-                    onChange={(e) => setProgressPct(e.target.value)}
-                    placeholder="0–100"
-                  />
-                </div>
-                <div className="field" style={{ flex: 1, minWidth: 160 }}>
-                  <label>Note</label>
-                  <input
-                    value={progressNote}
-                    onChange={(e) => setProgressNote(e.target.value)}
-                    placeholder="Optional note"
-                  />
-                </div>
-                <button type="button" className="secondary" disabled={savingProgress} onClick={() => onSaveProgress()}>
-                  {savingProgress ? "Saving…" : "Save progress"}
-                </button>
-              </div>
-              {progressHistory.length ? (
-                <ul className="muted" style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
-                  {progressHistory.slice(0, 5).map((r) => (
-                    <li key={r.id}>
-                      {r.work_date}: {r.percent}% — {r.employee_name || "—"}
-                      {r.note ? ` (${r.note})` : ""}
-                    </li>
-                  ))}
-                </ul>
+              {isStaff ? (
+                <>
+                  <h4 style={{ marginTop: 0, marginBottom: 6 }}>End-of-day progress (you)</h4>
+                  <p className="muted" style={{ margin: "0 0 12px", fontSize: 13, lineHeight: 1.4 }}>
+                    Client rule: at end of day set how complete this job is (e.g. 60%). Saved to the project — Admin sees the same history and can ask about jumps (40% → 50% = 10% today).
+                  </p>
+                  <div className="toolbar" style={{ marginBottom: 8, flexWrap: "wrap" }}>
+                    <div className="field" style={{ minWidth: 100 }}>
+                      <label>My % today</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="1"
+                        value={progressPct}
+                        onChange={(e) => setProgressPct(e.target.value)}
+                        placeholder="0–100"
+                      />
+                    </div>
+                    <div className="field" style={{ flex: 1, minWidth: 160 }}>
+                      <label>Note</label>
+                      <input
+                        value={progressNote}
+                        onChange={(e) => setProgressNote(e.target.value)}
+                        placeholder="Optional note"
+                      />
+                    </div>
+                    <button type="button" className="secondary" disabled={savingProgress} onClick={() => onSaveProgress()}>
+                      {savingProgress ? "Saving…" : "Save my progress"}
+                    </button>
+                  </div>
+                  <h5 style={{ margin: "12px 0 6px", fontSize: 13, color: "var(--gold, #c9a227)" }}>What you logged</h5>
+                  {progressHistory.filter((r) => r.employee_id === myId).length ? (
+                    <ul className="muted" style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                      {progressHistory
+                        .filter((r) => r.employee_id === myId)
+                        .slice(0, 8)
+                        .map((r, i, arr) => {
+                          const delta = progressDelta(arr, i);
+                          return (
+                            <li key={r.id}>
+                              {r.work_date}: <strong>{r.percent}%</strong>
+                              {delta ? ` (${delta})` : ""}
+                              {r.note ? ` — ${r.note}` : ""}
+                            </li>
+                          );
+                        })}
+                    </ul>
+                  ) : (
+                    <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                      You have not logged progress on this job yet.
+                    </p>
+                  )}
+                </>
               ) : (
-                <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-                  No progress logged yet.
-                </p>
+                <>
+                  <h4 style={{ marginTop: 0, marginBottom: 6 }}>Team progress audit</h4>
+                  <p className="muted" style={{ margin: "0 0 12px", fontSize: 13, lineHeight: 1.4 }}>
+                    Staff enter end-of-day % on their login. You review history here (question 40% → 50%). Optional: log a % yourself only if correcting or covering.
+                  </p>
+                  {progressHistory.length ? (
+                    <ul className="muted" style={{ margin: "0 0 14px", paddingLeft: 18, fontSize: 13 }}>
+                      {progressHistory.slice(0, 12).map((r, i) => {
+                        const delta = progressDelta(progressHistory, i);
+                        return (
+                          <li key={r.id}>
+                            {r.work_date}: <strong>{r.percent}%</strong> — {r.employee_name || "—"}
+                            {delta ? ` · ${delta}` : ""}
+                            {r.note ? ` (${r.note})` : ""}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="muted" style={{ margin: "0 0 14px", fontSize: 13 }}>
+                      No staff progress logged yet.
+                    </p>
+                  )}
+                  <details className="progress-admin-log">
+                    <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--text-muted, #aaa)" }}>
+                      Optional: log / correct a % (office)
+                    </summary>
+                    <div className="toolbar" style={{ marginTop: 10, marginBottom: 0, flexWrap: "wrap" }}>
+                      <div className="field" style={{ minWidth: 100 }}>
+                        <label>Percent</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step="1"
+                          value={progressPct}
+                          onChange={(e) => setProgressPct(e.target.value)}
+                          placeholder="0–100"
+                        />
+                      </div>
+                      <div className="field" style={{ flex: 1, minWidth: 160 }}>
+                        <label>Note</label>
+                        <input
+                          value={progressNote}
+                          onChange={(e) => setProgressNote(e.target.value)}
+                          placeholder="Optional note"
+                        />
+                      </div>
+                      <button type="button" className="secondary" disabled={savingProgress} onClick={() => onSaveProgress()}>
+                        {savingProgress ? "Saving…" : "Save as me"}
+                      </button>
+                    </div>
+                  </details>
+                </>
               )}
             </div>
           ) : null}
@@ -822,8 +1172,34 @@ export function ProjectsPage() {
                           <p className="kanban-client">{p.client_name || "No client"}</p>
                           <p className="muted" style={{ margin: "0 0 4px", fontSize: 12 }}>
                             {scopeLabel(p.work_scope, scopes)}
-                            {p.latest_progress_pct != null ? ` · ${p.latest_progress_pct}%` : ""}
                           </p>
+                          {p.latest_progress_pct != null ? (
+                            <p
+                              className="kanban-progress"
+                              style={{
+                                margin: "0 0 6px",
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: "var(--accent, #c9a227)",
+                              }}
+                              title="Latest end-of-day progress logged by staff"
+                            >
+                              Progress {p.latest_progress_pct}%
+                            </p>
+                          ) : (
+                            <p className="muted" style={{ margin: "0 0 6px", fontSize: 12 }}>
+                              No progress logged
+                            </p>
+                          )}
+                          {(p.detailer_name || p.engineer_name || p.assignee_name) ? (
+                            <p className="kanban-roles" style={{ margin: "0 0 6px", fontSize: 12, color: "var(--text-muted, #aaa)" }}>
+                              {p.detailer_name || p.assignee_name ? (
+                                <span title="Detailer">D: {p.detailer_name || p.assignee_name}</span>
+                              ) : null}
+                              {(p.detailer_name || p.assignee_name) && p.engineer_name ? " · " : null}
+                              {p.engineer_name ? <span title="Engineer">E: {p.engineer_name}</span> : null}
+                            </p>
+                          ) : null}
                           {finance && contract > 0 ? (
                             <p className="kanban-pay">
                               {formatMoney(paid, cur)} / {formatMoney(contract, cur)}
@@ -837,6 +1213,11 @@ export function ProjectsPage() {
                             {finance && contract > 0 && blocked ? (
                               <span className="pill pill-blocked">
                                 {p.gate === "need_deposit" ? "Deposit due" : "Final pay"}
+                              </span>
+                            ) : null}
+                            {!finance && (p.gate === "need_deposit" || p.gate === "need_final") ? (
+                              <span className="pill pill-blocked" title="Office has not cleared payment yet — you can still work design phases">
+                                {p.gate === "need_final" ? "Balance pending" : "Advance pending"}
                               </span>
                             ) : null}
                             {finance && contract > 0 && !blocked && fullyPaid ? (
@@ -854,11 +1235,17 @@ export function ProjectsPage() {
                             ) : null}
                           </div>
                           {finance && blocked ? (
-                            <button type="button" className="kanban-pay-link" onClick={() => nav("/payments")}>
+                            <button
+                              type="button"
+                              className="kanban-pay-link"
+                              onClick={() =>
+                                nav(`/payments?project=${encodeURIComponent(p.id)}&kind=deposit`)
+                              }
+                            >
                               Payments →
                             </button>
                           ) : null}
-                          {manager ? (
+                          {canCreate ? (
                             <div className="kanban-card-actions">
                               <select
                                 aria-label={`Move ${p.name}`}
@@ -912,7 +1299,8 @@ export function ProjectsPage() {
                 <th>Client</th>
                 <th>Scope</th>
                 <th>Location</th>
-                <th>Assignee</th>
+                <th>Detailer</th>
+                <th>Engineer</th>
                 <th>%</th>
                 <th>Area</th>
                 <th>Storey</th>
@@ -936,7 +1324,8 @@ export function ProjectsPage() {
                   <td>{p.client_name || "—"}</td>
                   <td>{scopeLabel(p.work_scope, scopes)}</td>
                   <td>{p.client_location || "—"}</td>
-                  <td>{p.assignee_name || "—"}</td>
+                  <td>{p.detailer_name || p.assignee_name || "—"}</td>
+                  <td>{p.engineer_name || "—"}</td>
                   <td>{p.latest_progress_pct != null ? `${p.latest_progress_pct}%` : "—"}</td>
                   <td>{p.area_sqft ?? "—"}</td>
                   <td>{p.storeys ?? "—"}</td>

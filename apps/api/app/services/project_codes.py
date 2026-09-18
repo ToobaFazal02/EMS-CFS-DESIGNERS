@@ -67,3 +67,34 @@ def resolve_assignee_ids(assignee_id: str | None, assignee_ids: list[str] | None
     elif lead and lead in ids:
         ids = [lead] + [i for i in ids if i != lead]
     return ids
+
+
+def resolve_role_ids(
+    *,
+    detailer_id: str | None = None,
+    engineer_id: str | None = None,
+    assignee_id: str | None = None,
+    assignee_ids: list[str] | None = None,
+) -> tuple[str, str]:
+    """Return (detailer_id, engineer_id). Prefers explicit role fields; falls back to legacy list."""
+    d = (detailer_id or "").strip()
+    e = (engineer_id or "").strip()
+    if d and e:
+        return d, e
+    legacy = resolve_assignee_ids(assignee_id, assignee_ids)
+    if d and not e and legacy:
+        # detailer set, engineer from next legacy or same
+        for x in legacy:
+            if x != d:
+                return d, x
+        return d, d
+    if e and not d and legacy:
+        for x in legacy:
+            if x != e:
+                return x, e
+        return e, e
+    if len(legacy) >= 2:
+        return legacy[0], legacy[1]
+    if len(legacy) == 1:
+        return legacy[0], legacy[0]
+    return d, e

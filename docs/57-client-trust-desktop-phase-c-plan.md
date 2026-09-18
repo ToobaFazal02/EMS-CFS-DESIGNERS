@@ -1,7 +1,7 @@
 # PLAN — Client trust recovery + Desktop priority + Phase C (17 Sep 2026)
 
-**Status:** Wave 0+1 done; **Wave 2 Day auto-refresh implemented** (17 Sep).  
-**Test matrix:** `docs/58-wave0-1-test-matrix.md` · `docs/59-wave2-day-live-test-matrix.md`  
+**Status:** Waves 0–3 code largely done (17–18 Sep). **Next execution order:** `docs/62-remaining-work-desktop-first.md` (Wave 4 Desktop ship first).  
+**Test matrix:** `docs/58-wave0-1-test-matrix.md` · `docs/59-wave2-day-live-test-matrix.md` · `docs/60` · `docs/61`  
 **Sources:** 15 Sep evening voices (esp. **6:59** projects, **7:13** desktop/PDF) + photos + prior Phase B/C locks.  
 **Goal:** Client uses software again with confidence; Desktop Manager feels like the real product.
 

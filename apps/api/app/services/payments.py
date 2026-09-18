@@ -44,8 +44,8 @@ def paid_amount(project: Project) -> float:
 def gate_status(project: Project, new_phase: str | None = None) -> str:
     """ok | need_deposit | need_final.
 
-    When new_phase is None (board display), unpaid jobs still in Intake show
-    need_deposit so staff see the block before they try to move the card.
+    Soft signal: unpaid deposit shows need_deposit on any phase (badge / notify).
+    Hard block is applied separately — only release phases (see gate_blocks_hard).
     """
     phase = new_phase or project.phase
     value = float(project.contract_value or 0)
@@ -53,22 +53,31 @@ def gate_status(project: Project, new_phase: str | None = None) -> str:
         return "ok"
     paid = paid_amount(project)
     deposit = value * (float(project.deposit_pct or 50) / 100.0)
-    viewing = new_phase is None
-    if phase == ProjectPhase.intake.value and viewing and paid + 0.009 < deposit:
-        return "need_deposit"
-    if phase != ProjectPhase.intake.value and paid + 0.009 < deposit:
-        return "need_deposit"
     if phase in RELEASE_PHASES and paid + 0.009 < value:
+        # Prefer final when past deposit but not full; else deposit if advance missing
+        if paid + 0.009 < deposit:
+            return "need_deposit"
         return "need_final"
+    if paid + 0.009 < deposit:
+        return "need_deposit"
     return "ok"
 
 
-def gate_error(code: str, *, audience: str = "finance") -> str:
+def gate_blocks_hard(code: str, phase: str) -> bool:
+    """Hard-stop only when releasing stamped / field / run files without payment."""
+    if code == "need_final":
+        return True
+    if code == "need_deposit" and phase in RELEASE_PHASES:
+        return True
+    return False
+
+
+def gate_error(code: str, *, audience: str = "finance", hard: bool = True) -> str:
     """Finance gets Payments instructions; HR/demo get ops-only wording (no invoice $)."""
     if audience != "finance":
-        if code == "need_deposit":
+        if code == "need_deposit" and hard:
             return (
-                "This job cannot leave Intake yet. Ask Admin or Manager to clear the advance first."
+                "Cannot release Stamped / Field / Run Files until Admin clears the advance."
             )
         if code == "need_final":
             return (
@@ -76,14 +85,18 @@ def gate_error(code: str, *, audience: str = "finance") -> str:
             )
         return "Phase change blocked. Ask Admin or Manager for help."
     if code == "need_deposit":
+        if hard:
+            return (
+                "Advance not recorded. Open Payments -> Deposit invoice for this project -> "
+                "Status: Paid before Stamped Drawings / Field Files / Run Files."
+            )
         return (
-            "Advance not recorded. Go to Payments → add a Deposit invoice for this "
-            "project → set status to Paid (default: 50% of contract before leaving Intake)."
+            "Advance not recorded yet. Design work can continue — record the deposit in Payments when ready."
         )
     if code == "need_final":
         return (
-            "Final payment not recorded. In Payments, mark the balance Paid before "
-            "Stamped Drawings / Field Files / Run Files."
+            "Final payment not recorded. Open Payments -> mark the balance Paid "
+            "before Stamped Drawings / Field Files / Run Files."
         )
     return "Payment gate blocked this move."
 

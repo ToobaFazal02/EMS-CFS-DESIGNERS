@@ -2,7 +2,7 @@
 
 **Date:** 17 Sep 2026  
 **Slice:** Client initial/invoice · project code · scope enum · staff create + multi-assignee · daily %  
-**Not in this slice:** C6 full client-name hiding for employees (code shown; full name still visible for now)
+**Not in this slice originally:** C6 full client-name hiding — **done in follow-up** (employees see `[Initial] · Location`; see doc 61).
 
 ---
 

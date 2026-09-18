@@ -1,5 +1,9 @@
 """SQLite-safe extra columns (create_all does not ALTER existing tables)."""
 
+from __future__ import annotations
+
+import uuid
+
 from sqlalchemy import text
 
 
@@ -42,6 +46,10 @@ INVOICE_SETTINGS_COLS = {
     "highlight_color": "VARCHAR(20) DEFAULT '#c9a227'",
 }
 
+PROJECT_ASSIGNEE_COLS = {
+    "role": "VARCHAR(20) DEFAULT ''",
+}
+
 
 def _patch_table(sync_conn, table: str, cols: dict[str, str]) -> None:
     rows = sync_conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
@@ -51,6 +59,46 @@ def _patch_table(sync_conn, table: str, cols: dict[str, str]) -> None:
     for name, ddl in cols.items():
         if name not in existing:
             sync_conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+
+
+def _migrate_assignee_roles(sync_conn) -> None:
+    """Legacy rows → one detailer + one engineer per project (runs only while roles blank)."""
+    rows = sync_conn.execute(text("PRAGMA table_info(project_assignees)")).fetchall()
+    if not rows or "role" not in {r[1] for r in rows}:
+        return
+    blank = sync_conn.execute(
+        text("SELECT COUNT(*) FROM project_assignees WHERE role IS NULL OR TRIM(role) = ''")
+    ).scalar()
+    if not blank:
+        return
+    projects = sync_conn.execute(text("SELECT DISTINCT project_id FROM project_assignees")).fetchall()
+    for (pid,) in projects:
+        members = sync_conn.execute(
+            text(
+                "SELECT id, employee_id, is_lead, created_at FROM project_assignees "
+                "WHERE project_id = :pid ORDER BY is_lead DESC, created_at ASC"
+            ),
+            {"pid": pid},
+        ).fetchall()
+        if not members:
+            continue
+        detailer_emp = members[0][1]
+        engineer_emp = members[1][1] if len(members) > 1 else detailer_emp
+        sync_conn.execute(text("DELETE FROM project_assignees WHERE project_id = :pid"), {"pid": pid})
+        sync_conn.execute(
+            text(
+                "INSERT INTO project_assignees (id, project_id, employee_id, role, is_lead, created_at) "
+                "VALUES (:id, :pid, :eid, 'detailer', 1, CURRENT_TIMESTAMP)"
+            ),
+            {"id": str(uuid.uuid4()), "pid": pid, "eid": detailer_emp},
+        )
+        sync_conn.execute(
+            text(
+                "INSERT INTO project_assignees (id, project_id, employee_id, role, is_lead, created_at) "
+                "VALUES (:id, :pid, :eid, 'engineer', 0, CURRENT_TIMESTAMP)"
+            ),
+            {"id": str(uuid.uuid4()), "pid": pid, "eid": engineer_emp},
+        )
 
 
 def ensure_sqlite_columns(sync_conn) -> None:
@@ -63,3 +111,5 @@ def ensure_sqlite_columns(sync_conn) -> None:
     _patch_table(sync_conn, "invoice_settings", INVOICE_SETTINGS_COLS)
     _patch_table(sync_conn, "employees", EMPLOYEE_COLS)
     _patch_table(sync_conn, "office_expenses", EXPENSE_COLS)
+    _patch_table(sync_conn, "project_assignees", PROJECT_ASSIGNEE_COLS)
+    _migrate_assignee_roles(sync_conn)

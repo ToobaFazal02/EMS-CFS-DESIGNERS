@@ -277,7 +277,7 @@ class CaptureService(QObject):
 
 APP_DISPLAY_NAME = "CFS Designers Agent"
 # Bump this on every release so the auto-update check can compare versions.
-AGENT_VERSION = "1.1.4"
+AGENT_VERSION = "1.1.5"
 DOWNLOADS_URL = "https://ems.cfsdesigners.com/downloads"
 AGENT_PACKAGE_URL = f"{DOWNLOADS_URL}/CFS-Agent-Install.zip"
 
@@ -580,6 +580,11 @@ class MainWindow(QWidget):
         layout.addLayout(row)
         layout.addWidget(self.btn_out)
 
+        self.version_label = QLabel(f"Agent v{AGENT_VERSION}")
+        self.version_label.setObjectName("versionFooter")
+        self.version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.version_label)
+
         self.svc.status_changed.connect(self.on_status)
         self.svc.sync_changed.connect(self._on_sync_text)
         self.svc.start_hooks()
@@ -767,6 +772,7 @@ class MainWindow(QWidget):
             QWidget { background: #0A0A0A; color: #F5F5F5; font-size: 14px; }
             QLabel#brand { color: #C9A227; font-size: 18px; font-weight: 700; }
             QLabel#subtitle { color: #8A8A8A; font-size: 12px; }
+            QLabel#versionFooter { color: #6B6B6B; font-size: 11px; padding-top: 8px; }
             QWidget#goldRule { background: #C9A227; }
             QWidget#statusCard {
                 background: #141414;

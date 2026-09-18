@@ -23,12 +23,12 @@ export const MANAGER_GUIDE: GuideStep[] = [
   {
     path: "/projects",
     title: "Projects",
-    body: "CFS / LGS jobs move through the Design Queue. Update status as work progresses. Payment gates follow the deposit rules already set on the job.",
+    body: "Create jobs with client (staff see [Initial] · location only), scope, Detailer + Engineer. Staff move design phases freely; Advance pending badge if deposit unpaid. Hard lock only Stamped / Field / Run. Staff log end-of-day %; Admin audits history (40%→50%).",
   },
   {
     path: "/payments",
     title: "Payments",
-    body: "Admin only. Create invoices, mark paid, and export. Amounts keep their own currency. Late invoices also appear on the Dashboard.",
+    body: "Admin/Manager only. From a payment-gate message, use Go to Payments — the deposit invoice form opens for that project. Set status to Paid, then move the job on the Design Queue.",
   },
   {
     path: "/reports",
@@ -57,7 +57,7 @@ export const STAFF_GUIDE: GuideStep[] = [
   {
     path: "/projects",
     title: "My Projects",
-    body: "Jobs assigned to you. Update progress when your manager asks. You will not see invoices or payroll.",
+    body: "Jobs assigned to you as Detailer or Engineer. End of day: open the job → set My % today (saved for Admin audit). You see only [Initial] · location for clients — not full firm names.",
   },
   {
     path: "/account",

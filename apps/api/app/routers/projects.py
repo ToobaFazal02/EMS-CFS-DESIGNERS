@@ -4,7 +4,7 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import exists, or_, select
+from sqlalchemy import delete, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -18,6 +18,7 @@ from app.auth import (
 )
 from app.db import get_db
 from app.models import (
+    AssigneeRole,
     AuditLog,
     Client,
     ClientInvoiceStatus,
@@ -39,14 +40,22 @@ from app.schemas import (
     ProjectProgressOut,
 )
 from app.services.data_scope import wants_demo_rows
-from app.services.payments import gate_audience, gate_error, gate_status, normalize_currency, paid_amount
+from app.services.payments import (
+    RELEASE_PHASES,
+    gate_audience,
+    gate_blocks_hard,
+    gate_error,
+    gate_status,
+    normalize_currency,
+    paid_amount,
+)
 from app.services.project_codes import (
     SCOPE_LABELS,
     SCOPE_VALUES,
     build_project_code,
     normalize_initial,
     normalize_scope,
-    resolve_assignee_ids,
+    resolve_role_ids,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["projects"])
@@ -93,8 +102,12 @@ def _validate_project_fields(body: ProjectIn, *, require_contract: bool) -> str:
         )
     if body.area_sqft is not None and body.area_sqft < 0:
         raise HTTPException(status_code=400, detail="Area (sq.ft) cannot be negative.")
+    if body.area_sqft is not None and body.area_sqft > 5_000_000:
+        raise HTTPException(status_code=400, detail="Area (sq.ft) looks too large — check the number.")
     if body.storeys is not None and body.storeys < 0:
         raise HTTPException(status_code=400, detail="Storeys cannot be negative.")
+    if body.storeys is not None and body.storeys > 200:
+        raise HTTPException(status_code=400, detail="Storeys must be 200 or fewer.")
     return name
 
 
@@ -105,11 +118,24 @@ def _normalize_invoice_status(raw: str | None) -> str:
     return s
 
 
-def _client_out(c: Client, *, hide_private: bool) -> ClientOut:
-    """HR/demo/staff: name + location + initial — no phone/notes (may hold commercial secrets)."""
+def _client_display_name(c: Client, *, mask_name: bool) -> str:
+    """Employees see initial + location only; office/finance see the real firm name."""
+    if not mask_name:
+        return c.name or ""
+    ini = (c.initial or "").strip().upper()
+    loc = (c.location or "").strip()
+    if ini and loc:
+        return f"[{ini}] · {loc}"
+    if ini:
+        return f"[{ini}]"
+    return loc or "Client"
+
+
+def _client_out(c: Client, *, hide_private: bool, mask_name: bool = False) -> ClientOut:
+    """Non-finance: no phone/notes. Employees: masked display name (initial + location)."""
     return ClientOut(
         id=c.id,
-        name=c.name,
+        name=_client_display_name(c, mask_name=mask_name),
         location=c.location or "",
         phone="" if hide_private else (c.phone or ""),
         notes="" if hide_private else (c.notes or ""),
@@ -117,6 +143,10 @@ def _client_out(c: Client, *, hide_private: bool) -> ClientOut:
         invoice_status=c.invoice_status or ClientInvoiceStatus.none.value,
         active=c.active,
     )
+
+
+def _mask_client_for(user: Employee) -> bool:
+    return user.role == Role.employee
 
 
 def _assert_row_scope(user: Employee, *, is_demo_row: bool) -> None:
@@ -134,6 +164,7 @@ def _assignee_outs(p: Project) -> list[ProjectAssigneeOut]:
                 full_name=emp.full_name if emp else "",
                 code=emp.code if emp else "",
                 is_lead=bool(a.is_lead),
+                role=(a.role or "") if hasattr(a, "role") else "",
             )
         )
     if rows:
@@ -146,9 +177,32 @@ def _assignee_outs(p: Project) -> list[ProjectAssigneeOut]:
                 full_name=p.assignee.full_name or "",
                 code=p.assignee.code or "",
                 is_lead=True,
+                role=AssigneeRole.detailer.value,
             )
         ]
     return []
+
+
+def _roles_from_project(p: Project) -> tuple[str | None, str, str | None, str]:
+    """Return detailer_id, detailer_name, engineer_id, engineer_name."""
+    detailer_id: str | None = None
+    detailer_name = ""
+    engineer_id: str | None = None
+    engineer_name = ""
+    for a in p.assignees or []:
+        emp = a.employee
+        name = emp.full_name if emp else ""
+        role = (getattr(a, "role", None) or "").strip().lower()
+        if role == AssigneeRole.detailer.value or (not role and a.is_lead):
+            detailer_id = a.employee_id
+            detailer_name = name
+        elif role == AssigneeRole.engineer.value:
+            engineer_id = a.employee_id
+            engineer_name = name
+    if not detailer_id and p.assignee_id:
+        detailer_id = p.assignee_id
+        detailer_name = p.assignee.full_name if p.assignee else ""
+    return detailer_id, detailer_name, engineer_id, engineer_name
 
 
 def _latest_progress_pct(p: Project) -> float | None:
@@ -163,26 +217,32 @@ def _latest_progress_pct(p: Project) -> float | None:
     return float(best.percent or 0)
 
 
-def _project_out(p: Project, *, hide_money: bool = False) -> ProjectOut:
+def _project_out(p: Project, *, hide_money: bool = False, mask_client: bool = False) -> ProjectOut:
     client = p.client
     assignee = p.assignee
     paid = paid_amount(p)
     assignees = _assignee_outs(p)
+    detailer_id, detailer_name, engineer_id, engineer_name = _roles_from_project(p)
     client_initial = (client.initial if client else "") or ""
     code = p.code or ""
     progress = _latest_progress_pct(p)
+    client_name = _client_display_name(client, mask_name=mask_client) if client else ""
     base_kwargs = dict(
         id=p.id,
         name=p.name,
         code=code,
         client_id=p.client_id,
-        client_name=client.name if client else "",
+        client_name=client_name,
         client_location=client.location if client else "",
         client_initial=client_initial,
         work_scope=p.work_scope or "",
-        assignee_id=p.assignee_id,
-        assignee_name=assignee.full_name if assignee else "",
+        assignee_id=p.assignee_id or detailer_id,
+        assignee_name=assignee.full_name if assignee else detailer_name,
         assignees=assignees,
+        detailer_id=detailer_id,
+        detailer_name=detailer_name,
+        engineer_id=engineer_id,
+        engineer_name=engineer_name,
         area_sqft=p.area_sqft,
         storeys=p.storeys,
         phase=p.phase,
@@ -193,7 +253,7 @@ def _project_out(p: Project, *, hide_money: bool = False) -> ProjectOut:
         latest_progress_pct=progress,
     )
     if hide_money:
-        # Staff see ops fields only — never payment wording in comments
+        # Staff see ops fields only — never payment wording in comments; keep soft gate badge
         safe_comments = p.comments or ""
         low = safe_comments.lower()
         if any(w in low for w in ("paid", "deposit", "invoice", "$", "payment", "advance", "balance")):
@@ -205,7 +265,7 @@ def _project_out(p: Project, *, hide_money: bool = False) -> ProjectOut:
             deposit_pct=0,
             currency="",
             paid_amount=0,
-            gate="ok",
+            gate=gate_status(p),
         )
     return ProjectOut(
         **base_kwargs,
@@ -260,24 +320,56 @@ async def _validate_assignee_employees(
             raise HTTPException(status_code=400, detail="Assignee not found")
 
 
-async def _sync_assignees(
-    db: AsyncSession, project: Project, assignee_ids: list[str], *, demo: bool
+async def _sync_role_assignees(
+    db: AsyncSession,
+    project: Project,
+    *,
+    detailer_id: str,
+    engineer_id: str,
+    demo: bool,
 ) -> None:
-    await _validate_assignee_employees(db, assignee_ids, demo=demo)
-    # Replace junction rows
-    for old in list(project.assignees or []):
-        await db.delete(old)
+    """Replace Detailer + Engineer without touching unloaded relationship (avoids MissingGreenlet)."""
+    await _validate_assignee_employees(db, [detailer_id, engineer_id], demo=demo)
+    await db.execute(delete(ProjectAssignee).where(ProjectAssignee.project_id == project.id))
     await db.flush()
-    lead = assignee_ids[0] if assignee_ids else None
-    project.assignee_id = lead
-    for i, eid in enumerate(assignee_ids):
-        db.add(
-            ProjectAssignee(
-                project_id=project.id,
-                employee_id=eid,
-                is_lead=(i == 0),
-            )
+    project.assignee_id = detailer_id
+    db.add(
+        ProjectAssignee(
+            project_id=project.id,
+            employee_id=detailer_id,
+            role=AssigneeRole.detailer.value,
+            is_lead=True,
         )
+    )
+    db.add(
+        ProjectAssignee(
+            project_id=project.id,
+            employee_id=engineer_id,
+            role=AssigneeRole.engineer.value,
+            is_lead=False,
+        )
+    )
+
+
+def _require_roles(body: ProjectIn) -> tuple[str, str]:
+    detailer_id, engineer_id = resolve_role_ids(
+        detailer_id=body.detailer_id,
+        engineer_id=body.engineer_id,
+        assignee_id=body.assignee_id,
+        assignee_ids=body.assignee_ids,
+    )
+    if not detailer_id:
+        raise HTTPException(status_code=400, detail="Detailer is required")
+    if not engineer_id:
+        raise HTTPException(status_code=400, detail="Engineer is required")
+    return detailer_id, engineer_id
+
+
+def _friendly_save_error() -> HTTPException:
+    return HTTPException(
+        status_code=500,
+        detail="Could not save project. Please try again. If this keeps happening, restart the API and refresh.",
+    )
 
 
 def _require_valid_scope(raw: str | None, *, existing: str = "") -> str:
@@ -346,7 +438,8 @@ async def list_clients(
     if user.role == Role.hr:
         rows = [c for c in rows if "SAMPLE" not in (c.name or "").upper() and "(DEMO)" not in (c.name or "").upper()]
     hide = not is_finance(user)
-    return [_client_out(c, hide_private=hide) for c in rows]
+    mask = _mask_client_for(user)
+    return [_client_out(c, hide_private=hide, mask_name=mask) for c in rows]
 
 
 @router.post("/clients", response_model=ClientOut)
@@ -383,7 +476,11 @@ async def create_client(
     db.add(c)
     await db.commit()
     await db.refresh(c)
-    return _client_out(c, hide_private=not is_finance(user))
+    return _client_out(
+        c,
+        hide_private=not is_finance(user),
+        mask_name=_mask_client_for(user),
+    )
 
 
 @router.patch("/clients/{client_id}", response_model=ClientOut)
@@ -418,7 +515,11 @@ async def patch_client(
         c.notes = body.notes or ""
     await db.commit()
     await db.refresh(c)
-    return _client_out(c, hide_private=not is_finance(user))
+    return _client_out(
+        c,
+        hide_private=not is_finance(user),
+        mask_name=_mask_client_for(user),
+    )
 
 
 @router.get("/projects", response_model=list[ProjectOut])
@@ -443,7 +544,8 @@ async def list_projects(
     if user.role == Role.hr:
         rows = [p for p in rows if "SAMPLE" not in (p.name or "").upper() and "DEMO —" not in (p.name or "").upper()]
     hide = not is_finance(user)
-    return [_project_out(p, hide_money=hide) for p in rows]
+    mask = _mask_client_for(user)
+    return [_project_out(p, hide_money=hide, mask_client=mask) for p in rows]
 
 
 @router.post("/projects", response_model=ProjectOut)
@@ -461,10 +563,11 @@ async def create_project(
     client = await db.get(Client, body.client_id)
     if not client or bool(client.is_demo) != demo or not client.active:
         raise HTTPException(status_code=400, detail="Client not found")
-    assignee_ids = resolve_assignee_ids(body.assignee_id, body.assignee_ids)
-    if assignee_ids:
-        await _validate_assignee_employees(db, assignee_ids, demo=demo)
+    detailer_id, engineer_id = _require_roles(body)
     code = build_project_code(client.initial or "", override=body.code or "")
+    # Employees never override auto codes — ignore client-facing code internals
+    if user.role == Role.employee:
+        code = build_project_code(client.initial or "", override="")
     if is_finance(user):
         value = float(body.contract_value or 0)
         deposit_pct = float(body.deposit_pct or 50)
@@ -478,25 +581,26 @@ async def create_project(
         deposit_pct = 50.0
         currency = "USD"
         body.override_gate = False
-    # New jobs have $0 paid — refuse non-intake / release start unless override
+    # Soft gate on create: only hard-block release phases without payment
     if value > 0 and not body.override_gate:
         aud = gate_audience(is_finance(user))
         deposit = value * (deposit_pct / 100.0)
-        if phase != ProjectPhase.intake.value and deposit > 0:
-            raise HTTPException(status_code=409, detail=gate_error("need_deposit", audience=aud))
-        if phase in (
-            ProjectPhase.stamped_drawings.value,
-            ProjectPhase.field_files.value,
-            ProjectPhase.run_files.value,
-        ):
-            raise HTTPException(status_code=409, detail=gate_error("need_final", audience=aud))
-    lead = assignee_ids[0] if assignee_ids else None
+        if phase in RELEASE_PHASES and deposit > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=gate_error("need_deposit", audience=aud, hard=True),
+            )
+        if phase in RELEASE_PHASES:
+            raise HTTPException(
+                status_code=409,
+                detail=gate_error("need_final", audience=aud, hard=True),
+            )
     p = Project(
         name=name,
         code=code,
         client_id=body.client_id,
         work_scope=scope,
-        assignee_id=lead,
+        assignee_id=detailer_id,
         area_sqft=body.area_sqft,
         storeys=body.storeys,
         phase=phase,
@@ -518,14 +622,25 @@ async def create_project(
                 payload_json=json.dumps({"phase": phase, "reason": (body.override_reason or "create")[:200]}),
             )
         )
-    db.add(p)
-    await db.flush()
-    if assignee_ids:
-        await _sync_assignees(db, p, assignee_ids, demo=demo)
-    await db.commit()
+    try:
+        db.add(p)
+        await db.flush()
+        await _sync_role_assignees(
+            db, p, detailer_id=detailer_id, engineer_id=engineer_id, demo=demo
+        )
+        await db.commit()
+    except HTTPException:
+        raise
+    except Exception:
+        await db.rollback()
+        raise _friendly_save_error()
     loaded = await _load_project(db, p.id)
     assert loaded
-    return _project_out(loaded, hide_money=not is_finance(user))
+    return _project_out(
+        loaded,
+        hide_money=not is_finance(user),
+        mask_client=_mask_client_for(user),
+    )
 
 
 @router.patch("/projects/{project_id}", response_model=ProjectOut)
@@ -550,9 +665,7 @@ async def update_project(
     client = await db.get(Client, body.client_id)
     if not client or bool(client.is_demo) != demo or not client.active:
         raise HTTPException(status_code=400, detail="Client not found")
-    assignee_ids = resolve_assignee_ids(body.assignee_id, body.assignee_ids)
-    if assignee_ids:
-        await _validate_assignee_employees(db, assignee_ids, demo=demo)
+    detailer_id, engineer_id = _require_roles(body)
 
     if is_finance(user):
         p.contract_value = float(body.contract_value or 0)
@@ -567,23 +680,50 @@ async def update_project(
 
     gate_code = gate_status(p, new_phase=body.phase)
     allow = body.override_gate and is_finance(user)
-    if gate_code != "ok" and not allow:
+    hard = gate_blocks_hard(gate_code, body.phase)
+    aud = gate_audience(is_finance(user))
+    if hard and not allow:
         raise HTTPException(
             status_code=409,
-            detail=gate_error(gate_code, audience=gate_audience(is_finance(user))),
+            detail=gate_error(gate_code, audience=aud, hard=True),
         )
-    if allow and gate_code != "ok":
+    left_intake = (
+        (p.phase or "") == ProjectPhase.intake.value
+        and body.phase != ProjectPhase.intake.value
+    )
+    if gate_code == "need_deposit" and left_intake and not hard:
+        db.add(
+            AuditLog(
+                actor_id=user.id,
+                action="deposit_unpaid_phase_advance",
+                entity="project",
+                payload_json=json.dumps(
+                    {
+                        "project_id": p.id,
+                        "from_phase": p.phase,
+                        "to_phase": body.phase,
+                        "note": "Soft gate: design work continued without Paid deposit",
+                    }
+                ),
+            )
+        )
+    if allow and hard:
         db.add(
             AuditLog(
                 actor_id=user.id,
                 action="payment_gate_override",
                 entity="project",
-                payload_json=json.dumps({"project_id": p.id, "phase": body.phase, "reason": (body.override_reason or "")[:200]}),
+                payload_json=json.dumps(
+                    {"project_id": p.id, "phase": body.phase, "reason": (body.override_reason or "")[:200]}
+                ),
             )
         )
 
     p.name = name
-    if (body.code or "").strip():
+    if user.role == Role.employee:
+        if not (p.code or "").strip():
+            p.code = build_project_code(client.initial or "")
+    elif (body.code or "").strip():
         p.code = build_project_code(client.initial or "", override=body.code)
     elif not (p.code or "").strip():
         p.code = build_project_code(client.initial or "")
@@ -597,11 +737,23 @@ async def update_project(
     p.due_at = body.due_at
     p.target_at = body.target_at
     p.updated_at = datetime.utcnow()
-    await _sync_assignees(db, p, assignee_ids, demo=demo)
-    await db.commit()
+    try:
+        await _sync_role_assignees(
+            db, p, detailer_id=detailer_id, engineer_id=engineer_id, demo=demo
+        )
+        await db.commit()
+    except HTTPException:
+        raise
+    except Exception:
+        await db.rollback()
+        raise _friendly_save_error()
     loaded = await _load_project(db, project_id)
     assert loaded
-    return _project_out(loaded, hide_money=not is_finance(user))
+    return _project_out(
+        loaded,
+        hide_money=not is_finance(user),
+        mask_client=_mask_client_for(user),
+    )
 
 
 @router.get("/projects/{project_id}/progress", response_model=list[ProjectProgressOut])

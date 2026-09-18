@@ -119,6 +119,8 @@ class LiveEmployeeOut(BaseModel):
     last_seen_at: Optional[datetime]
     last_clicks_delta: int
     last_keys_delta: int
+    day_clicks: int = 0
+    day_keys: int = 0
     idle_seconds: int
     last_screenshot_url: Optional[str] = None
 
@@ -177,6 +179,19 @@ class DashPipeline(BaseModel):
     done: int = 0
     total: int = 0
     open: int = 0
+
+
+class DashProgressRow(BaseModel):
+    """Today's end-of-day project % logs (PKT)."""
+
+    id: str
+    project_id: str
+    project_code: str = ""
+    project_name: str
+    employee_name: str
+    percent: float
+    note: str = ""
+    work_date: str
 
 
 class DashFinance(BaseModel):
@@ -257,6 +272,7 @@ class DashboardOut(BaseModel):
     week_delta_hours: float
     sparkline: list[float]
     roster: list[DashRosterRow]
+    progress_today: list[DashProgressRow] = Field(default_factory=list)
     finance: Optional[DashFinance] = None
     partner_shares: Optional[DashPartnerShares] = None
 
@@ -286,6 +302,7 @@ class ProjectAssigneeOut(BaseModel):
     full_name: str = ""
     code: str = ""
     is_lead: bool = False
+    role: str = ""
 
 
 class ProjectProgressOut(BaseModel):
@@ -312,6 +329,8 @@ class ProjectIn(BaseModel):
     work_scope: str = ""
     assignee_id: Optional[str] = None
     assignee_ids: list[str] = []
+    detailer_id: Optional[str] = None
+    engineer_id: Optional[str] = None
     area_sqft: Optional[float] = None
     storeys: Optional[int] = None
     phase: str = "intake"
@@ -338,6 +357,10 @@ class ProjectOut(BaseModel):
     assignee_id: Optional[str] = None
     assignee_name: str = ""
     assignees: list[ProjectAssigneeOut] = []
+    detailer_id: Optional[str] = None
+    detailer_name: str = ""
+    engineer_id: Optional[str] = None
+    engineer_name: str = ""
     area_sqft: Optional[float] = None
     storeys: Optional[int] = None
     phase: str

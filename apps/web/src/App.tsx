@@ -9,7 +9,7 @@ import { GuideCard } from "./components/GuideCard";
 import { RefreshButton } from "./components/RefreshButton";
 import { ManagerUpdateBanner } from "./components/ManagerUpdateBanner";
 import { ThemeSwitch } from "./components/ThemeSwitch";
-import { isTauriDesktop } from "./version";
+import { isTauriDesktop, MANAGER_APP_VERSION } from "./version";
 import { AccountPage } from "./pages/AccountPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DayPage } from "./pages/DayPage";
@@ -524,6 +524,10 @@ function Shell({ children }: { children: React.ReactNode }) {
       )}
       {children}
       <GuideCard manager={office || demo} />
+      <footer className="app-version-footer" aria-label="Application version">
+        CFS Designers EMS · v{MANAGER_APP_VERSION}
+        {isTauriDesktop() ? " · Desktop" : " · Web"}
+      </footer>
     </div>
   );
 }
@@ -639,8 +643,20 @@ function LivePage() {
             <p className="muted" title={r.last_window} style={{ textAlign: "center" }}>
               {r.last_window || "—"}
             </p>
-            <p className="muted" style={{ textAlign: "center" }}>
-              Δ clicks {r.last_clicks_delta} · keys {r.last_keys_delta}
+            <p
+              style={{
+                textAlign: "center",
+                margin: "6px 0 2px",
+                fontWeight: 700,
+                fontSize: 14,
+                color: "var(--accent, #c9a227)",
+              }}
+              title="Full day totals (PKT) — same source as Day detail"
+            >
+              Today · clicks {r.day_clicks ?? 0} · keys {r.day_keys ?? 0}
+            </p>
+            <p className="muted" style={{ textAlign: "center", fontSize: 12, marginTop: 0 }}>
+              Recent burst Δ {r.last_clicks_delta} / {r.last_keys_delta}
               {r.status === "idle" ? ` · idle ${r.idle_seconds}s` : ""}
             </p>
             {r.last_screenshot_url ? (

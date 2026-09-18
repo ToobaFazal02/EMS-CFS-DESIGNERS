@@ -30,6 +30,8 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | `58-wave0-1-test-matrix.md` | **17 Sep** Wave 0+1 shipped — identity + Agent idle/shots/sound + full happy/weeping tests |
 | `59-wave2-day-live-test-matrix.md` | **17 Sep** Wave 2 — Day auto-refresh + Live hint + test matrix |
 | `60-wave3-phase-c-test-matrix.md` | **17 Sep** Wave 3 Phase C (C1–C5) — codes/scopes/assignees/daily % + tests |
+| `61-projects-payments-flow-qa.md` | **18 Sep** Projects/payments soft gate + Detailer/Engineer QA |
+| `62-remaining-work-desktop-first.md` | **18 Sep LOCKED** Remaining work — Desktop-first ship, then web polish |
 | `43-lovable-dashboard-prompt.md` | Copy-paste Lovable prompt — **Dashboard tab only** |
 | `44-dashboard-predeploy.md` | **1 Sep 2026** Dashboard data + ultra-wide type + what to click before VPS |
 | `04-non-functional-requirements.md` | **All NFR** (perf, scale, security bar) |
@@ -77,6 +79,8 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | Area | Status |
 |---|---|
 | Workforce (agent, live, reports, PDF graph) | **Done** (Phase 1–2) — **pilot enroll now** (30 Aug voice) |
+| Waves 0–3 (trust + Phase C) | **Code in tree** — see `62` for Desktop ship gap |
+| Wave 4 Manager Setup / Desktop receive | **Next** — `docs/62-remaining-work-desktop-first.md` |
 | Rebrand → CFS Designers | **Done** on live `https://ems.cfsdesigners.com` |
 | Projects Kanban + payment gates | **Built** — client said use **after** employees are live |
 | Payments Tracking | **Built** (admin only) — same: after employee week |

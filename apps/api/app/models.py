@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, BigInteger, Float
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, BigInteger, Float, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -223,14 +223,21 @@ class Project(Base):
     invoices: Mapped[list["Invoice"]] = relationship(back_populates="project")
 
 
+class AssigneeRole(str, enum.Enum):
+    detailer = "detailer"
+    engineer = "engineer"
+
+
 class ProjectAssignee(Base):
-    """Phase C multi-assignee (keeps projects.assignee_id as primary/lead for legacy UI)."""
+    """One Detailer + one Engineer per project (projects.assignee_id = Detailer lead)."""
 
     __tablename__ = "project_assignees"
+    __table_args__ = (UniqueConstraint("project_id", "role", name="uq_project_assignee_role"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
     employee_id: Mapped[str] = mapped_column(ForeignKey("employees.id"), index=True)
+    role: Mapped[str] = mapped_column(String(20), default=AssigneeRole.detailer.value, index=True)
     is_lead: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

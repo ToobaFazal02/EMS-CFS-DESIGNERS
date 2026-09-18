@@ -23,9 +23,10 @@ from app.models import (
     Device,
     Employee,
     Invoice,
+    Project,
+    ProjectProgress,
     Punch,
     PunchType,
-    Project,
     Role,
     Screenshot,
     WindowSample,
@@ -37,6 +38,7 @@ from app.schemas import (
     DashLateInvoice,
     DashPartnerShares,
     DashPipeline,
+    DashProgressRow,
     DashRosterRow,
     DashboardOut,
     DaySessionOut,
@@ -226,12 +228,29 @@ async def _live_staff(db: AsyncSession, *, demo: bool = False) -> list[LiveEmplo
             select(Employee).where(Employee.active == True, Employee.is_demo == demo)  # noqa: E712
         )
     ).scalars().all()
+    staff = [e for e in emps if e.role == Role.employee]
+    day_clicks: dict[str, int] = defaultdict(int)
+    day_keys: dict[str, int] = defaultdict(int)
+    if staff and not demo:
+        today = today_pk()
+        start, end = day_bounds_utc(datetime(today.year, today.month, today.day))
+        ids = [e.id for e in staff]
+        buckets = (
+            await db.execute(
+                select(ActivityBucket).where(
+                    ActivityBucket.employee_id.in_(ids),
+                    ActivityBucket.bucket_start >= start,
+                    ActivityBucket.bucket_start < end,
+                )
+            )
+        ).scalars().all()
+        for b in buckets:
+            day_clicks[b.employee_id] += int(b.mouse_clicks or 0)
+            day_keys[b.employee_id] += int(b.key_presses or 0)
+
     out: list[LiveEmployeeOut] = []
-    for emp in emps:
-        if emp.role != Role.employee:
-            continue
+    for emp in staff:
         if demo:
-            # Demo catalog has no real screenshots — status-only placeholder cards
             out.append(
                 LiveEmployeeOut(
                     employee_id=emp.id,
@@ -242,6 +261,8 @@ async def _live_staff(db: AsyncSession, *, demo: bool = False) -> list[LiveEmplo
                     last_seen_at=None,
                     last_clicks_delta=0,
                     last_keys_delta=0,
+                    day_clicks=0,
+                    day_keys=0,
                     idle_seconds=0,
                     last_screenshot_url=None,
                 )
@@ -296,6 +317,8 @@ async def _live_staff(db: AsyncSession, *, demo: bool = False) -> list[LiveEmplo
                 last_seen_at=last_seen,
                 last_clicks_delta=clicks,
                 last_keys_delta=keys,
+                day_clicks=int(day_clicks.get(emp.id) or 0),
+                day_keys=int(day_keys.get(emp.id) or 0),
                 idle_seconds=idle,
                 last_screenshot_url=thumb,
             )
@@ -561,6 +584,44 @@ async def dashboard_summary(
 
     generated = now_pk().strftime("%H:%M")
     spark = [this_totals[d] for d in this_days]
+
+    today_s = today.isoformat()
+    progress_rows = list(
+        (
+            await db.execute(
+                select(ProjectProgress)
+                .options(
+                    selectinload(ProjectProgress.employee),
+                    selectinload(ProjectProgress.project),
+                )
+                .where(ProjectProgress.work_date == today_s)
+                .order_by(ProjectProgress.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    progress_today: list[DashProgressRow] = []
+    for row in progress_rows:
+        proj = row.project
+        if proj and bool(getattr(proj, "is_demo", False)) != demo:
+            continue
+        emp = row.employee
+        progress_today.append(
+            DashProgressRow(
+                id=row.id,
+                project_id=row.project_id,
+                project_code=(proj.code if proj else "") or "",
+                project_name=(proj.name if proj else "") or "—",
+                employee_name=(emp.full_name if emp else "") or "—",
+                percent=float(row.percent or 0),
+                note=(row.note or "").strip(),
+                work_date=row.work_date or today_s,
+            )
+        )
+        if len(progress_today) >= 20:
+            break
+
     return DashboardOut(
         generated_at=f"Updated {generated} PKT",
         timezone="Asia/Karachi",
@@ -574,6 +635,7 @@ async def dashboard_summary(
         week_delta_hours=round(this_so_far - last_so_far, 1),
         sparkline=[round(x, 2) for x in spark],
         roster=roster,
+        progress_today=progress_today,
         finance=finance,
         partner_shares=partner_shares,
     )

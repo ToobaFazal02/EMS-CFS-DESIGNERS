@@ -20,8 +20,8 @@ settings = get_settings()
 
 # ── App version endpoints (no auth — Agent / Manager check on startup) ────
 # Bump these whenever you ship a new Agent zip or Manager Setup.exe.
-LATEST_AGENT_VERSION = "1.1.4"
-LATEST_MANAGER_VERSION = "0.1.3"
+LATEST_AGENT_VERSION = "1.1.5"
+LATEST_MANAGER_VERSION = "0.1.4"
 DOWNLOADS_PAGE = "https://ems.cfsdesigners.com/downloads"
 AGENT_PACKAGE_URL = f"{DOWNLOADS_PAGE}/CFS-Agent-Install.zip"
 MANAGER_SETUP_URL = f"{DOWNLOADS_PAGE}/CFS-Designers-Manager-Setup.exe"

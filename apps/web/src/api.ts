@@ -81,6 +81,8 @@ export type LiveEmployee = {
   last_seen_at: string | null;
   last_clicks_delta: number;
   last_keys_delta: number;
+  day_clicks?: number;
+  day_keys?: number;
   idle_seconds: number;
   last_screenshot_url: string | null;
 };
@@ -103,14 +105,33 @@ function authHeaders(): HeadersInit {
 }
 
 async function apiError(r: Response, fallback: string): Promise<string> {
+  const statusHint = r.status ? ` (HTTP ${r.status})` : "";
   try {
-    const j = await r.json();
-    const d = j?.detail;
-    if (typeof d === "string") return d;
-    if (Array.isArray(d)) return d.map((x) => x.msg || JSON.stringify(x)).join("; ");
-    return fallback;
+    const text = await r.text();
+    if (!text.trim()) return `${fallback}${statusHint}`;
+    try {
+      const j = JSON.parse(text) as { detail?: unknown; message?: unknown };
+      const d = j?.detail;
+      if (typeof d === "string" && d.trim()) return d.trim();
+      if (Array.isArray(d)) {
+        const parts = d.map((x: { msg?: string; loc?: unknown[] }) => {
+          const loc = Array.isArray(x?.loc) ? x.loc.filter((p) => p !== "body").join(".") : "";
+          const msg = x?.msg || JSON.stringify(x);
+          return loc ? `${loc}: ${msg}` : msg;
+        });
+        const joined = parts.filter(Boolean).join("; ");
+        if (joined) return joined;
+      }
+      if (d && typeof d === "object") return JSON.stringify(d).slice(0, 400);
+      if (typeof j?.message === "string" && j.message.trim()) return j.message.trim();
+    } catch {
+      /* plain text / HTML body */
+    }
+    const clipped = text.replace(/\s+/g, " ").trim().slice(0, 280);
+    if (clipped && !/^<!DOCTYPE/i.test(clipped) && !/^<html/i.test(clipped)) return clipped;
+    return `${fallback}${statusHint}`;
   } catch {
-    return fallback;
+    return `${fallback}${statusHint}`;
   }
 }
 
@@ -218,6 +239,17 @@ export type DashPartnerShares = {
   asad_share_pkr?: number;
   split_percent: number;
 };
+export type DashProgressRow = {
+  id: string;
+  project_id: string;
+  project_code: string;
+  project_name: string;
+  employee_name: string;
+  percent: number;
+  note: string;
+  work_date: string;
+};
+
 export type DashboardSummary = {
   generated_at: string;
   timezone: string;
@@ -231,6 +263,7 @@ export type DashboardSummary = {
   week_delta_hours: number;
   sparkline: number[];
   roster: DashRosterRow[];
+  progress_today?: DashProgressRow[];
   finance: DashFinance | null;
   partner_shares: DashPartnerShares | null;
 };
@@ -372,6 +405,7 @@ export type ProjectAssignee = {
   full_name: string;
   code: string;
   is_lead: boolean;
+  role?: string;
 };
 
 export type ProjectProgressRow = {
@@ -438,6 +472,10 @@ export type ProjectRow = {
   assignee_id: string | null;
   assignee_name: string;
   assignees?: ProjectAssignee[];
+  detailer_id?: string | null;
+  detailer_name?: string;
+  engineer_id?: string | null;
+  engineer_name?: string;
   area_sqft: number | null;
   storeys: number | null;
   phase: string;

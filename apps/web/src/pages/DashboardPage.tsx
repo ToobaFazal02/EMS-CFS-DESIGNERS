@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchDashboard, type DashboardSummary } from "../api";
+import { fetchDashboard, type DashboardSummary, type DashProgressRow } from "../api";
 import { HoursWeekChart, MoneyBars, PipelineBars, PresenceDonut, Sparkline } from "../components/DashCharts";
 import { useToast } from "../components/ToastProvider";
 import { RefreshButton } from "../components/RefreshButton";
@@ -110,6 +110,7 @@ export function DashboardPage() {
   const lateRows = finance?.late || [];
   const shares = data?.partner_shares;
   const showPartnerShares = Boolean(shares);
+  const progressToday: DashProgressRow[] = data?.progress_today || [];
   const ready = data != null;
 
   return (
@@ -214,6 +215,50 @@ export function DashboardPage() {
               </p>
             </article>
           </div>
+
+          <article className="card dash-panel" style={{ marginBottom: 16 }}>
+            <div className="dash-panel-head">
+              <div>
+                <h3>End-of-day project progress</h3>
+                <p className="muted page-sub">
+                  Today (PKT) — staff logs from My Projects · Admin audit at a glance
+                </p>
+              </div>
+              <Link to="/projects">Open Projects →</Link>
+            </div>
+            {progressToday.length ? (
+              <ul className="dash-progress-list" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {progressToday.map((row) => (
+                  <li
+                    key={row.id}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr) auto",
+                      gap: 12,
+                      alignItems: "center",
+                      padding: "10px 0",
+                      borderBottom: "1px solid var(--border, #333)",
+                      fontSize: 14,
+                    }}
+                  >
+                    <span>
+                      {row.project_code ? (
+                        <strong style={{ color: "var(--accent, #c9a227)", marginRight: 8 }}>{row.project_code}</strong>
+                      ) : null}
+                      {row.project_name}
+                      {row.note ? <span className="muted"> — {row.note}</span> : null}
+                    </span>
+                    <span className="muted">{row.employee_name}</span>
+                    <strong style={{ color: "var(--accent, #c9a227)" }}>{row.percent}%</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted" style={{ margin: 0 }}>
+                No end-of-day % logged yet today. Staff open a job → My % today → Save.
+              </p>
+            )}
+          </article>
 
           <div className={`dash-panels${finance ? "" : " dash-panels-one"}`}>
             <article className="card dash-panel">

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
+import { useSearchParams } from "react-router-dom";
 import {
   deleteInvoice,
   fetchAuthedBlob,
@@ -151,6 +152,7 @@ function fillBillTo(client: ClientRow | undefined, prev: FormState): FormState {
 
 export function PaymentsPage() {
   const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<Tab>("invoices");
   const [rows, setRows] = useState<InvoiceRow[]>([]);
   const [clients, setClients] = useState<ClientRow[]>([]);
@@ -190,6 +192,61 @@ export function PaymentsPage() {
       window.removeEventListener("resize", onScroll);
     };
   }, [actionsMenu]);
+
+  /** Deep link from Design Queue payment gate: /payments?project=ID&kind=deposit */
+  useEffect(() => {
+    const projectId = (searchParams.get("project") || "").trim();
+    if (!projectId || !projects.length || !clients.length) return;
+    const p = projects.find((x) => x.id === projectId);
+    if (!p) {
+      toast.error("Project from link not found — pick it manually on the invoice form.");
+      setSearchParams({}, { replace: true });
+      return;
+    }
+    const kindRaw = (searchParams.get("kind") || "deposit").trim() || "deposit";
+    const kind = kindRaw === "final" || kindRaw === "balance" ? "balance" : kindRaw === "progress" ? "progress" : "deposit";
+    const client = clients.find((c) => c.id === p.client_id);
+    const value = Number(p.contract_value || 0);
+    const pct = Number(p.deposit_pct ?? 50);
+    const paid = Number(p.paid_amount || 0);
+    const depositAmt =
+      kind === "deposit" && value > 0
+        ? Math.round(value * (pct / 100) * 100) / 100
+        : kind === "balance" && value > 0
+          ? Math.max(0, Math.round((value - paid) * 100) / 100)
+          : value > 0
+            ? value
+            : 0;
+    const next: FormState = fillBillTo(client, {
+      ...emptyForm,
+      client_id: p.client_id || "",
+      project_id: p.id,
+      kind,
+      amount: depositAmt > 0 ? String(depositAmt) : "",
+      currency: p.currency || guessCurrencyFromLocation(client?.location || "") || "USD",
+      status: "paid",
+      line_items: [
+        {
+          ...emptyLine(),
+          description:
+            kind === "balance" ? "Final balance" : kind === "progress" ? "Progress payment" : `Deposit (${pct}% of contract)`,
+          qty: 1,
+          unit_price: depositAmt,
+          area: "1",
+          rate: depositAmt > 0 ? String(depositAmt) : "",
+        },
+      ],
+    });
+    setTab("invoices");
+    setEditing("new");
+    setForm(next);
+    toast.success(
+      kind === "balance"
+        ? "Balance invoice ready — confirm amount, then Save (status Paid)."
+        : "Deposit invoice ready — confirm amount, then Save (status Paid)."
+    );
+    setSearchParams({}, { replace: true });
+  }, [projects, clients, searchParams, setSearchParams, toast]);
 
   function toggleActionsMenu(e: ReactMouseEvent<HTMLButtonElement>, id: string) {
     e.stopPropagation();
