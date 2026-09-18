@@ -1051,7 +1051,7 @@ async def my_monthly_pdf(
     user: Annotated[Employee, Depends(get_current_user)],
     inline: bool = False,
 ) -> FileResponse:
-    """Personal monthly report — summary + every day (employee self-service)."""
+    """Personal monthly report — professional multi-section timesheet (staff self-service)."""
     reject_future_month(year, month)
     if user.role not in (Role.employee, Role.admin, Role.manager, Role.hr):
         raise HTTPException(status_code=403, detail="Monthly PDF not available for this role")
@@ -1068,9 +1068,65 @@ async def my_monthly_pdf(
     hours_map = await _hours_by_day(db, [user.id], days_list)
     by_day = hours_map.get(user.id) or {}
     day_rows = [
-        {"date": day.isoformat(), "net_hours": float(by_day.get(day) or 0), "present": float(by_day.get(day) or 0) > 0.01}
+        {
+            "date": day.isoformat(),
+            "net_hours": float(by_day.get(day) or 0),
+            "present": float(by_day.get(day) or 0) > 0.01,
+        }
         for day in days_list
     ]
+    start, _ = day_bounds_utc(datetime(year, month, 1))
+    end, _ = day_bounds_utc(datetime(next_first.year, next_first.month, next_first.day))
+    sessions = await _sessions_capped(db, user.id, start, end)
+    brk = sum(s["break_minutes"] for s in sessions) / 60.0
+    buckets = list(
+        (
+            await db.execute(
+                select(ActivityBucket).where(
+                    ActivityBucket.employee_id == user.id,
+                    ActivityBucket.bucket_start >= start,
+                    ActivityBucket.bucket_start < end,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    clicks = sum(int(b.mouse_clicks or 0) for b in buckets)
+    keys = sum(int(b.key_presses or 0) for b in buckets)
+    month_prefix = f"{year}-{month:02d}"
+    progress = list(
+        (
+            await db.execute(
+                select(ProjectProgress)
+                .options(selectinload(ProjectProgress.project))
+                .where(
+                    ProjectProgress.employee_id == user.id,
+                    ProjectProgress.work_date.startswith(month_prefix),
+                )
+                .order_by(ProjectProgress.work_date.asc(), ProjectProgress.created_at.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    progress_rows = [
+        {
+            "work_date": r.work_date or "",
+            "percent": float(r.percent or 0),
+            "note": (r.note or "").strip(),
+            "project_name": (r.project.name if r.project else "") or "—",
+            "project_code": (r.project.code if r.project else "") or "",
+        }
+        for r in progress
+    ]
+    rv = str(getattr(user.role, "value", user.role) or "")
+    role_label = {
+        "employee": "Staff",
+        "admin": "Admin",
+        "manager": "Manager",
+        "hr": "HR",
+    }.get(rv, "Staff")
     code_safe = (user.code or "me").replace("/", "-")
     out_path = settings.data_path / "reports" / f"monthly_{code_safe}_{year}_{month:02d}.pdf"
     build_personal_monthly_pdf(
@@ -1081,9 +1137,14 @@ async def my_monthly_pdf(
         employee_name=user.full_name or "",
         day_rows=day_rows,
         overtime_hours_per_day=float(settings.overtime_hours_per_day),
+        break_hours=round(brk, 2),
+        total_clicks=clicks,
+        total_keys=keys,
+        progress_rows=progress_rows,
+        role_label=role_label,
     )
     disposition = "inline" if inline else "attachment"
-    fname = f"monthly_{code_safe}_{year}_{month:02d}.pdf"
+    fname = f"CFS_Monthly_Report_{code_safe}_{year}_{month:02d}.pdf"
     return FileResponse(
         out_path,
         media_type="application/pdf",
@@ -1093,7 +1154,6 @@ async def my_monthly_pdf(
             "Content-Disposition": f'{disposition}; filename="{fname}"',
         },
     )
-
 
 @router.get("/reports/attendance.csv")
 async def attendance_csv(

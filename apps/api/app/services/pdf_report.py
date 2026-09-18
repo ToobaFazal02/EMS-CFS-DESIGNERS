@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from math import cos, radians, sin
 from pathlib import Path
 
@@ -680,10 +680,19 @@ def build_personal_monthly_pdf(
     employee_name: str,
     day_rows: list[dict],
     overtime_hours_per_day: float = 8.0,
+    break_hours: float = 0.0,
+    total_clicks: int = 0,
+    total_keys: int = 0,
+    progress_rows: list[dict] | None = None,
+    role_label: str = "Staff",
 ) -> Path:
     """
-    Employee self-service monthly report: summary + every calendar day.
-    day_rows: {date, net_hours, present} (PKT).
+    Professional personal monthly timesheet / attendance PDF (staff self-service).
+
+    Section model follows common HR monthly timesheet templates:
+    document header → control block → employee identity → period summary →
+    status legend → daily log → monthly totals → project progress (if any) →
+    reading notes → acknowledgement / confidentiality footer.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
@@ -693,11 +702,30 @@ def build_personal_monthly_pdf(
             pass
 
     month_label = datetime(year, month, 1).strftime("%B %Y")
+    period_start = datetime(year, month, 1).strftime("%d %b %Y")
+    if month == 12:
+        last_d = datetime(year, 12, 31)
+    else:
+        last_d = datetime(year, month + 1, 1) - timedelta(days=1)
+    period_end = last_d.strftime("%d %b %Y")
+
     present_days = [r for r in day_rows if float(r.get("net_hours") or 0) > 0.01]
     days_n = len(present_days)
     net = sum(float(r.get("net_hours") or 0) for r in present_days)
     avg = (net / days_n) if days_n else 0.0
     ot = max(0.0, net - (days_n * float(overtime_hours_per_day)))
+    # Weekdays Mon–Fri in month as scheduled baseline
+    scheduled = 0
+    for r in day_rows:
+        try:
+            d_obj = datetime.strptime(str(r.get("date") or ""), "%Y-%m-%d")
+            if d_obj.weekday() < 5:
+                scheduled += 1
+        except ValueError:
+            pass
+    off_days = max(0, scheduled - days_n)
+    attend_pct = round((days_n / scheduled) * 100, 1) if scheduled else 0.0
+    doc_id = f"EMS-MR-{employee_code or 'STAFF'}-{year}{month:02d}"
 
     doc = SimpleDocTemplate(
         str(path),
@@ -705,109 +733,298 @@ def build_personal_monthly_pdf(
         leftMargin=14 * mm,
         rightMargin=14 * mm,
         topMargin=12 * mm,
-        bottomMargin=12 * mm,
-        title=f"My Monthly Report — {month_label}",
-        author="CFS Designers",
+        bottomMargin=14 * mm,
+        title=f"Monthly Attendance Report — {employee_name} — {month_label}",
+        author="CFS Designers EMS",
     )
     styles = getSampleStyleSheet()
+    brand = ParagraphStyle(
+        "BrandH",
+        parent=styles["Normal"],
+        textColor=BLACK,
+        alignment=TA_CENTER,
+        fontSize=11,
+        fontName="Helvetica-Bold",
+        spaceAfter=2,
+    )
     title = ParagraphStyle(
-        "PMT",
+        "DocTitle",
         parent=styles["Heading1"],
         textColor=BLACK,
         alignment=TA_CENTER,
-        fontSize=16,
+        fontSize=15,
         spaceAfter=2,
+        spaceBefore=2,
         fontName="Helvetica-Bold",
+        leading=18,
     )
     sub = ParagraphStyle(
-        "PMS",
+        "DocSub",
         parent=styles["Normal"],
         alignment=TA_CENTER,
-        textColor=DARK,
+        textColor=GRAY,
+        fontSize=8.5,
+        spaceAfter=8,
+    )
+    h2 = ParagraphStyle(
+        "SecH",
+        parent=styles["Heading2"],
+        textColor=BLACK,
         fontSize=10,
-        spaceAfter=6,
+        spaceBefore=11,
+        spaceAfter=5,
+        fontName="Helvetica-Bold",
+        borderPadding=0,
+    )
+    body = ParagraphStyle(
+        "BodyT",
+        parent=styles["Normal"],
+        textColor=DARK,
+        fontSize=8.5,
+        leading=11,
+        spaceAfter=4,
+    )
+    small = ParagraphStyle(
+        "SmallT",
+        parent=styles["Normal"],
+        textColor=GRAY,
+        fontSize=7.5,
+        leading=9.5,
+        spaceAfter=3,
     )
     foot = ParagraphStyle(
-        "PMF",
+        "FootT",
         parent=styles["Normal"],
         alignment=TA_CENTER,
         textColor=GRAY,
         fontSize=7,
-        spaceBefore=8,
+        spaceBefore=6,
     )
-    body = ParagraphStyle(
-        "PMB",
+    cell = ParagraphStyle(
+        "CellT",
         parent=styles["Normal"],
-        textColor=DARK,
-        fontSize=9,
-        spaceAfter=8,
+        textColor=BLACK,
+        fontSize=7.5,
+        leading=9,
     )
 
-    who = f"{employee_name} (#{employee_code})" if employee_code else employee_name
-    story = [
-        Paragraph("CFS Designers", title),
-        Paragraph(f"My Monthly Attendance & Performance — {month_label}", sub),
-        Paragraph(who, ParagraphStyle("Who", parent=sub, fontName="Helvetica-Bold", spaceAfter=4)),
+    def _section(title_text: str) -> list:
+        return [
+            Paragraph(title_text, h2),
+            HRFlowable(width="100%", thickness=0.8, color=BLACK, spaceAfter=6),
+        ]
+
+    story: list = [
+        Paragraph("CFS DESIGNERS", brand),
+        Paragraph("Workforce · Employee Management System", sub),
+        Paragraph("MONTHLY ATTENDANCE & PERFORMANCE REPORT", title),
         Paragraph(
-            "This report is yours only. Daily PDF (My Day) has screenshots & session detail. "
-            "Team-wide Reports stay with Admin/Managers.",
-            body,
+            f"Document ID: {doc_id} · Classification: Confidential — Employee copy · Timezone: Asia/Karachi (PKT)",
+            sub,
         ),
-        HRFlowable(width="100%", thickness=1.5, color=BLACK, spaceAfter=10),
+        HRFlowable(width="100%", thickness=1.6, color=BLACK, spaceAfter=8),
     ]
 
-    summary = [
-        ["Days present", "Net work", "Avg / day", "Overtime"],
-        [
-            str(days_n),
-            hours_to_hm(net),
-            hours_to_hm(avg),
-            hours_to_hm(ot) if ot > 0 else "—",
-        ],
+    # 1) Document control
+    story.extend(_section("1. Document control"))
+    ctrl = [
+        ["Reporting period", f"{period_start} — {period_end} ({month_label})"],
+        ["Generated", format_generated()],
+        ["Document type", "Personal monthly timesheet / attendance roll-up"],
+        ["Audience", "Named employee (self-service) · Office may retain for audit"],
+        ["Standard day", f"{hours_to_hm(overtime_hours_per_day)} net work (OT above this × days present)"],
     ]
-    st = Table(summary, colWidths=[40 * mm, 40 * mm, 40 * mm, 40 * mm])
+    ct = Table(ctrl, colWidths=[42 * mm, 130 * mm])
+    ct.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("TEXTCOLOR", (0, 0), (-1, -1), BLACK),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("BACKGROUND", (0, 0), (0, -1), LIGHT),
+                ("BOX", (0, 0), (-1, -1), 0.6, BLACK),
+                ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
+            ]
+        )
+    )
+    story.append(ct)
+
+    # 2) Employee identity
+    story.extend(_section("2. Employee identification"))
+    ident = [
+        ["Employee name", employee_name or "—", "Employee code", employee_code or "—"],
+        ["Role", role_label or "Staff", "Report scope", "Own attendance & activity only"],
+    ]
+    it = Table(ident, colWidths=[32 * mm, 54 * mm, 32 * mm, 54 * mm])
+    it.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("BACKGROUND", (0, 0), (0, -1), LIGHT),
+                ("BACKGROUND", (2, 0), (2, -1), LIGHT),
+                ("BOX", (0, 0), (-1, -1), 0.6, BLACK),
+                ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    story.append(it)
+
+    # 3) Period summary
+    story.extend(_section("3. Period summary"))
+    story.append(
+        Paragraph(
+            "Snapshot of the reporting month. Hours are net working time (breaks excluded). "
+            "Activity counts are mouse clicks and key presses recorded while signed in.",
+            small,
+        )
+    )
+    summary = [
+        ["Metric", "Value", "Metric", "Value"],
+        ["Days present (P)", str(days_n), "Scheduled weekdays*", str(scheduled)],
+        ["Days with no hours**", str(off_days), "Attendance %", f"{attend_pct}%" if scheduled else "—"],
+        ["Net work (total)", hours_to_hm(net), "Break time (total)", hours_to_hm(break_hours)],
+        ["Average net / present day", hours_to_hm(avg), "Overtime (est.)", hours_to_hm(ot) if ot > 0 else "—"],
+        ["Clicks (month)", f"{int(total_clicks):,}", "Keys (month)", f"{int(total_keys):,}"],
+    ]
+    st = Table(summary, colWidths=[48 * mm, 38 * mm, 48 * mm, 38 * mm])
     st.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), BLACK),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
+                ("FONTNAME", (2, 1), (2, -1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("ALIGN", (1, 0), (1, -1), "CENTER"),
+                ("ALIGN", (3, 0), (3, -1), "CENTER"),
+                ("BACKGROUND", (0, 1), (0, -1), LIGHT),
+                ("BACKGROUND", (2, 1), (2, -1), LIGHT),
                 ("GRID", (0, 0), (-1, -1), 0.4, LINE),
                 ("BOX", (0, 0), (-1, -1), 1, BLACK),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("BACKGROUND", (0, 1), (-1, 1), LIGHT),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ]
         )
     )
     story.append(st)
-    story.append(Spacer(1, 12))
-    story.append(Paragraph("Day-by-day (Asia/Karachi)", ParagraphStyle("DH", parent=body, fontName="Helvetica-Bold")))
+    story.append(
+        Paragraph(
+            "* Scheduled weekdays = Mon–Fri in the calendar month (not a formal leave roster). "
+            "** Includes weekends and weekdays with 0.0 h tracked.",
+            small,
+        )
+    )
 
-    daily = [["Date", "Weekday", "Net work", "Status"]]
+    # 4) Legend
+    story.extend(_section("4. Status legend"))
+    legend = [
+        ["Code", "Meaning"],
+        ["P", "Present — net work hours recorded for this calendar day"],
+        ["—", "No tracked hours (off day, weekend, or not signed in)"],
+        ["OT", "Overtime estimate = Net work − (Days present × standard day)"],
+    ]
+    lg = Table(legend, colWidths=[18 * mm, 154 * mm])
+    lg.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), BLACK),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.35, LINE),
+                ("BOX", (0, 0), (-1, -1), 0.8, BLACK),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.white),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ]
+        )
+    )
+    story.append(lg)
+
+    # 5) Daily log
+    story.extend(_section("5. Daily attendance log"))
+    story.append(
+        Paragraph(
+            "One row per calendar day in the reporting period. Open any day in the app (My Day) "
+            "for sessions, screenshots, and the detailed daily PDF.",
+            small,
+        )
+    )
+    daily = [["Date", "Weekday", "Status", "Net work", "Remark"]]
     for r in day_rows:
         d_s = str(r.get("date") or "")
         try:
             d_obj = datetime.strptime(d_s, "%Y-%m-%d")
             wd = d_obj.strftime("%a")
             nice = d_obj.strftime("%d %b %Y")
+            is_weekend = d_obj.weekday() >= 5
         except ValueError:
-            wd, nice = "—", d_s
+            wd, nice, is_weekend = "—", d_s, False
         h = float(r.get("net_hours") or 0)
         present = h > 0.01
+        if present:
+            status, remark = "P", "Hours tracked"
+        elif is_weekend:
+            status, remark = "—", "Weekend"
+        else:
+            status, remark = "—", "No hours / not signed in"
         daily.append(
             [
                 nice,
                 wd,
+                status,
                 hours_to_hm(h) if present else "—",
-                "Present" if present else "Off / no hours",
+                remark,
             ]
         )
 
-    dt = Table(daily, colWidths=[42 * mm, 28 * mm, 36 * mm, 48 * mm])
+    dt = Table(daily, colWidths=[36 * mm, 22 * mm, 18 * mm, 28 * mm, 68 * mm])
     dt.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), BLACK),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+                ("ALIGN", (1, 0), (3, -1), "CENTER"),
+                ("ALIGN", (0, 0), (0, -1), "LEFT"),
+                ("ALIGN", (4, 0), (4, -1), "LEFT"),
+                ("GRID", (0, 0), (-1, -1), 0.3, LINE),
+                ("BOX", (0, 0), (-1, -1), 1, BLACK),
+                ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+            ]
+        )
+    )
+    story.append(dt)
+
+    # 6) Monthly totals strip
+    story.extend(_section("6. Monthly totals"))
+    totals = [
+        ["Present days", "Net work", "Break", "Avg / day", "OT (est.)", "Clicks", "Keys"],
+        [
+            str(days_n),
+            hours_to_hm(net),
+            hours_to_hm(break_hours),
+            hours_to_hm(avg),
+            hours_to_hm(ot) if ot > 0 else "—",
+            f"{int(total_clicks):,}",
+            f"{int(total_keys):,}",
+        ],
+    ]
+    tt = Table(totals, colWidths=[24 * mm, 26 * mm, 24 * mm, 26 * mm, 24 * mm, 24 * mm, 24 * mm])
+    tt.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), BLACK),
@@ -815,18 +1032,118 @@ def build_personal_monthly_pdf(
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("ALIGN", (0, 1), (0, -1), "LEFT"),
-                ("GRID", (0, 0), (-1, -1), 0.35, LINE),
+                ("BACKGROUND", (0, 1), (-1, 1), LIGHT),
                 ("BOX", (0, 0), (-1, -1), 1, BLACK),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+                ("INNERGRID", (0, 0), (-1, -1), 0.4, LINE),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ]
         )
     )
-    story.append(dt)
+    story.append(tt)
+
+    # 7) Project progress (optional)
+    prog = list(progress_rows or [])
+    story.extend(_section("7. Project progress logged this month"))
+    if prog:
+        story.append(
+            Paragraph(
+                "End-of-day % updates you saved on assigned jobs during this period. "
+                "Admin sees the same history on each project.",
+                small,
+            )
+        )
+        prow = [["Date", "Project", "Code", "%", "Note"]]
+        for p in prog[:40]:
+            prow.append(
+                [
+                    Paragraph(str(p.get("work_date") or "—"), cell),
+                    Paragraph(str(p.get("project_name") or "—")[:60], cell),
+                    Paragraph(str(p.get("project_code") or "—"), cell),
+                    f'{float(p.get("percent") or 0):.0f}%',
+                    Paragraph(str(p.get("note") or "—")[:80], cell),
+                ]
+            )
+        pt = Table(prow, colWidths=[26 * mm, 58 * mm, 24 * mm, 16 * mm, 48 * mm])
+        pt.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), BLACK),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+                    ("ALIGN", (3, 0), (3, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("GRID", (0, 0), (-1, -1), 0.3, LINE),
+                    ("BOX", (0, 0), (-1, -1), 0.8, BLACK),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+                    ("TOPPADDING", (0, 0), (-1, -1), 3),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ]
+            )
+        )
+        story.append(pt)
+    else:
+        story.append(
+            Paragraph(
+                "No end-of-day project % rows were logged in this month. "
+                "Use My dashboard → Log today’s project progress to record completion.",
+                body,
+            )
+        )
+
+    # 8) How to read / related reports
+    story.extend(_section("8. How to read this report"))
+    story.append(
+        Paragraph(
+            "• <b>Daily report (My Day):</b> sessions, idle, clicks/keys, screenshots, and day PDF.<br/>"
+            "• <b>This monthly report:</b> roll-up of attendance and activity for the full calendar month.<br/>"
+            "• <b>Team Reports (Admin/Manager):</b> multi-employee monthly pack — not shown to staff.<br/>"
+            "• Hours come from Sign In / Break / Sign Out and activity on the Employee Agent.",
+            body,
+        )
+    )
+
+    # 9) Acknowledgement
+    story.extend(_section("9. Acknowledgement"))
+    story.append(
+        Paragraph(
+            "This copy is generated for the named employee from live EMS records. "
+            "It does not replace payroll statements. Questions about hours or progress: contact your manager.",
+            body,
+        )
+    )
+    ack = [
+        ["Employee acknowledgement", "Office / manager review"],
+        ["Name: ________________________", "Name: ________________________"],
+        ["Date: ________________________", "Date: ________________________"],
+        ["Signature: ___________________", "Signature: ___________________"],
+    ]
+    at = Table(ack, colWidths=[86 * mm, 86 * mm])
+    at.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("BACKGROUND", (0, 0), (-1, 0), LIGHT),
+                ("BOX", (0, 0), (-1, -1), 0.8, BLACK),
+                ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    story.append(Spacer(1, 4))
+    story.append(at)
+
     story.append(Spacer(1, 12))
-    story.append(HRFlowable(width="100%", thickness=0.6, color=BLACK, spaceAfter=4))
-    story.append(Paragraph(f"Generated {format_generated()} · CFS Designers · Confidential — employee copy", foot))
+    story.append(HRFlowable(width="100%", thickness=0.7, color=BLACK, spaceAfter=4))
+    story.append(
+        Paragraph(
+            f"{doc_id} · Generated {format_generated()} · CFS Designers EMS · Confidential — do not redistribute",
+            foot,
+        )
+    )
     doc.build(story)
     return path

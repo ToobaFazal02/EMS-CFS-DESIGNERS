@@ -134,7 +134,10 @@ export function StaffHomePage() {
       return;
     }
     const code = att?.employee_code || "me";
-    triggerBlobDownload(res.blob, `monthly_${code}_${year}_${String(month).padStart(2, "0")}.pdf`);
+    triggerBlobDownload(
+      res.blob,
+      `CFS_Monthly_Report_${code}_${year}_${String(month).padStart(2, "0")}.pdf`
+    );
   }
 
   async function saveProgress() {
@@ -345,16 +348,17 @@ export function StaffHomePage() {
             </div>
           </div>
           <p className="muted" style={{ marginTop: 0 }}>
-            <strong>You get:</strong> personal day-by-day hours for {monthLabel}.{" "}
-            <strong>Daily detail</strong> (sessions, screenshots) stays on <Link to={`/day/${myId}`}>My Day</Link>.
-            Team-wide Reports remain Admin/Manager only.
+            <strong>You get a full monthly report:</strong> document control, your identity, period
+            summary, status legend, every day’s hours, monthly totals, project % logs, and how to read
+            it. <strong>Daily detail</strong> (sessions / screenshots) stays on{" "}
+            <Link to={`/day/${myId}`}>My Day</Link>. Team-wide Reports remain Admin/Manager only.
           </p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button type="button" className="secondary" onClick={viewMonthlyPdf}>
-              View PDF
+              View monthly report
             </button>
             <button type="button" onClick={downloadMonthlyPdf}>
-              Download PDF
+              Download monthly report
             </button>
           </div>
         </article>
