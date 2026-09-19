@@ -229,8 +229,7 @@ def section_flow(
 ) -> list:
     """
     Start a numbered/named section.
-    - new_page=True → hard PageBreak (major parts)
-    - else CondPageBreak so we never start a section with only a few lines left
+    Prefer CondPageBreak over hard PageBreak to avoid blank pages.
     """
     out: list = []
     if new_page:
@@ -240,6 +239,25 @@ def section_flow(
     out.append(Paragraph(title, styles["section"]))
     out.append(HRFlowable(width="100%", thickness=0.6, color=BLACK, spaceAfter=6))
     return out
+
+
+def section_lead(
+    styles: dict,
+    title: str,
+    *lead_flowables,
+    min_space: float = 55 * mm,
+) -> list:
+    """Section title + lead kept together (no orphan titles / empty pages)."""
+    return [
+        CondPageBreak(min_space),
+        KeepTogether(
+            [
+                Paragraph(title, styles["section"]),
+                HRFlowable(width="100%", thickness=0.6, color=BLACK, spaceAfter=6),
+                *lead_flowables,
+            ]
+        ),
+    ]
 
 
 def table_caption(styles: dict, text: str) -> Paragraph:

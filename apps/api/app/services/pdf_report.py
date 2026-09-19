@@ -115,7 +115,7 @@ def _activity_chart(
     labels = [h for h, _ in series]
     values = [max(0.0, float(v)) for _, v in series]
     width = 180 * mm
-    height = 105 * mm
+    height = 88 * mm
     d = Drawing(width, height)
 
     d.add(
@@ -130,9 +130,9 @@ def _activity_chart(
     )
 
     plot_x = 18 * mm
-    plot_y = 38 * mm
+    plot_y = 32 * mm
     plot_w = 155 * mm
-    plot_h = 52 * mm
+    plot_h = 44 * mm
 
     d.add(Rect(plot_x, plot_y, plot_w, plot_h, strokeColor=BLACK, fillColor=colors.white, strokeWidth=0.8))
 
@@ -316,22 +316,30 @@ def build_daily_pdf(
 
     # 1) Performance overview — keep title + table together
     story.extend(
-        layout.section_flow(styles, "1. Performance overview", min_space=70 * mm)
+        layout.section_lead(
+            styles,
+            "1. Performance overview",
+            layout.table_caption(styles, "Table I. Day summary metrics"),
+            layout.kv_table(styles, overview_rows),
+            min_space=70 * mm,
+        )
     )
-    story.append(layout.table_caption(styles, "Table I. Day summary metrics"))
-    story.append(layout.kv_table(styles, overview_rows))
 
-    # 2) Activity graph — new page so it never clips under sessions
-    story.extend(layout.section_flow(styles, "2. Activity graph (clicks / 30 min)", new_page=True))
-    story.append(
-        Paragraph(
-            "Half-hour click counts during the tracked day (office window extended if activity falls outside).",
-            styles["small"],
+    # 2) Activity graph — only break if not enough room (no forced blank page)
+    story.extend(
+        layout.section_lead(
+            styles,
+            "2. Activity graph (clicks / 30 min)",
+            Paragraph(
+                "Half-hour click counts during the tracked day (office window extended if activity falls outside).",
+                styles["small"],
+            ),
+            min_space=100 * mm,
         )
     )
     story.append(_activity_chart(activity_series or [], report_date=date_str))
 
-    # 3) Sessions — keep heading + full table together when reasonably sized
+    # 3) Sessions
     sess_rows = [["#", "Sign In", "Sign Out", "Break", "Net Work", "Status"]]
     for i, s in enumerate(sessions, 1):
         si = format_pk_time(s.get("sign_in")) if s.get("sign_in") else "—"
@@ -366,11 +374,16 @@ def build_daily_pdf(
         repeat_header=True,
         center_cols=(0, 1, 2, 3, 4, 5),
     )
-    story.extend(layout.section_flow(styles, "3. Sessions", new_page=True))
-    story.append(layout.table_caption(styles, "Table II. Sign-in / sign-out sessions"))
-    if len(sess_rows) <= 16:
-        story.append(KeepTogether([st]))
-    else:
+    story.extend(
+        layout.section_lead(
+            styles,
+            "3. Sessions",
+            layout.table_caption(styles, "Table II. Sign-in / sign-out sessions"),
+            st if len(sess_rows) <= 14 else Spacer(1, 1),
+            min_space=55 * mm,
+        )
+    )
+    if len(sess_rows) > 14:
         story.append(st)
 
     # 4) Categories + top windows
@@ -393,30 +406,27 @@ def build_daily_pdf(
         win_rows.append(["—", "—", "0"])
     wt = layout.styled_table(win_rows, [118 * mm, 22 * mm, 20 * mm], center_cols=(1, 2))
 
-    story.extend(layout.section_flow(styles, "4. Applications & windows", new_page=True))
-    story.append(layout.table_caption(styles, "Table III. Activity by category"))
-    story.append(KeepTogether([ct]))
+    story.extend(
+        layout.section_lead(
+            styles,
+            "4. Applications & windows",
+            layout.table_caption(styles, "Table III. Activity by category"),
+            ct,
+            min_space=50 * mm,
+        )
+    )
     story.append(Spacer(1, 8))
     story.append(layout.table_caption(styles, "Table IV. Top windows / apps"))
     story.append(wt)
 
-    # 5) Click time sheet
+    # 5) Click time sheet — heading stays with table start (no empty title-only page)
     log = click_log or []
     if log:
-        story.extend(layout.section_flow(styles, "5. Click time sheet", new_page=True))
-        story.append(
-            Paragraph(
-                "Minute-level activity log (window title and quantity). Header repeats on each page.",
-                styles["small"],
-            )
-        )
-        story.append(layout.table_caption(styles, "Table V. Click time sheet detail"))
         log_header = [
             Paragraph("<b>Minute</b>", styles["cell_b"]),
             Paragraph("<b>Window Title</b>", styles["cell_b"]),
             Paragraph("<b>Qty</b>", styles["cell_b"]),
         ]
-        # One long table with repeating header — professional multi-page tables
         body_rows = [log_header]
         for minute, title_text, qty in log[:500]:
             body_rows.append(
@@ -440,6 +450,19 @@ def build_daily_pdf(
                     ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
                     ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
                 ]
+            )
+        )
+        # Require enough free space so title + first rows share a page (no blank title page)
+        story.extend(
+            layout.section_lead(
+                styles,
+                "5. Click time sheet",
+                Paragraph(
+                    "Minute-level activity log (window title and quantity). Header repeats on each page.",
+                    styles["small"],
+                ),
+                layout.table_caption(styles, "Table V. Click time sheet detail"),
+                min_space=110 * mm,
             )
         )
         story.append(lt)
@@ -701,16 +724,20 @@ def build_personal_monthly_pdf(
     ]
     story.append(KeepTogether([layout.styled_table(legend, [18 * mm, 146 * mm])]))
 
-    # 5) Daily log — ALWAYS new page; header repeats across pages
-    story.extend(layout.section_flow(styles, "5. Daily attendance log", new_page=True))
-    story.append(
-        Paragraph(
-            "One row per calendar day. Open any day in the app (My Day) for sessions, "
-            "screenshots, and the detailed daily PDF.",
-            styles["small"],
+    # 5) Daily attendance log — long table; ensure room for title + rows
+    story.extend(
+        layout.section_lead(
+            styles,
+            "5. Daily attendance log",
+            Paragraph(
+                "One row per calendar day. Open any day in the app (My Day) for sessions, "
+                "screenshots, and the detailed daily PDF.",
+                styles["small"],
+            ),
+            layout.table_caption(styles, "Table V. Daily attendance log"),
+            min_space=90 * mm,
         )
     )
-    story.append(layout.table_caption(styles, "Table V. Daily attendance log"))
     daily = [["Date", "Weekday", "Status", "Net work", "Remark"]]
     for r in day_rows:
         d_s = str(r.get("date") or "")
@@ -747,43 +774,34 @@ def build_personal_monthly_pdf(
     story.append(dt)
 
     # 6) Monthly totals
-    story.extend(layout.section_flow(styles, "6. Monthly totals", new_page=True))
-    story.append(layout.table_caption(styles, "Table VI. Monthly totals"))
-    totals = [
-        ["Present days", "Net work", "Break", "Avg / day", "OT (est.)", "Clicks", "Keys"],
-        [
-            str(days_n),
-            hours_to_hm(net),
-            hours_to_hm(break_hours),
-            hours_to_hm(avg),
-            hours_to_hm(ot) if ot > 0 else "—",
-            f"{int(total_clicks):,}",
-            f"{int(total_keys):,}",
-        ],
-    ]
-    story.append(
-        KeepTogether(
-            [
-                layout.styled_table(
-                    totals,
-                    [24 * mm, 26 * mm, 22 * mm, 26 * mm, 24 * mm, 22 * mm, 20 * mm],
-                    center_cols=(0, 1, 2, 3, 4, 5, 6),
-                )
-            ]
+    story.extend(
+        layout.section_lead(
+            styles,
+            "6. Monthly totals",
+            layout.table_caption(styles, "Table VI. Monthly totals"),
+            layout.styled_table(
+                [
+                    ["Present days", "Net work", "Break", "Avg / day", "OT (est.)", "Clicks", "Keys"],
+                    [
+                        str(days_n),
+                        hours_to_hm(net),
+                        hours_to_hm(break_hours),
+                        hours_to_hm(avg),
+                        hours_to_hm(ot) if ot > 0 else "—",
+                        f"{int(total_clicks):,}",
+                        f"{int(total_keys):,}",
+                    ],
+                ],
+                [24 * mm, 26 * mm, 22 * mm, 26 * mm, 24 * mm, 22 * mm, 20 * mm],
+                center_cols=(0, 1, 2, 3, 4, 5, 6),
+            ),
+            min_space=45 * mm,
         )
     )
 
     # 7) Project progress
     prog = list(progress_rows or [])
-    story.extend(layout.section_flow(styles, "7. Project progress logged this month", new_page=True))
     if prog:
-        story.append(
-            Paragraph(
-                "End-of-day % updates saved on assigned jobs during this period.",
-                styles["small"],
-            )
-        )
-        story.append(layout.table_caption(styles, "Table VII. Project progress"))
         prow = [["Date", "Project", "Code", "%", "Note"]]
         for p in prog[:40]:
             prow.append(
@@ -795,6 +813,18 @@ def build_personal_monthly_pdf(
                     Paragraph(str(p.get("note") or "—")[:80], styles["cell"]),
                 ]
             )
+        story.extend(
+            layout.section_lead(
+                styles,
+                "7. Project progress logged this month",
+                Paragraph(
+                    "End-of-day % updates saved on assigned jobs during this period.",
+                    styles["small"],
+                ),
+                layout.table_caption(styles, "Table VII. Project progress"),
+                min_space=55 * mm,
+            )
+        )
         story.append(
             layout.styled_table(
                 prow,
@@ -804,35 +834,35 @@ def build_personal_monthly_pdf(
             )
         )
     else:
-        story.append(
-            Paragraph(
-                "No end-of-day project % rows were logged in this month. "
-                "Use My dashboard → Log today’s project progress to record completion.",
-                styles["body"],
+        story.extend(
+            layout.section_lead(
+                styles,
+                "7. Project progress logged this month",
+                Paragraph(
+                    "No end-of-day project % rows were logged in this month. "
+                    "Use My dashboard → Log today’s project progress to record completion.",
+                    styles["body"],
+                ),
+                min_space=40 * mm,
             )
         )
 
     # 8) How to read
-    story.extend(layout.section_flow(styles, "8. How to read this report", new_page=True))
-    story.append(
-        Paragraph(
-            "• <b>Daily report (My Day):</b> sessions, idle, clicks/keys, screenshots, and day PDF.<br/>"
-            "• <b>This monthly report:</b> roll-up of attendance and activity for the full calendar month.<br/>"
-            "• Hours come from Sign In / Break / Sign Out and activity on the Employee Agent.",
-            styles["body"],
+    story.extend(
+        layout.section_lead(
+            styles,
+            "8. How to read this report",
+            Paragraph(
+                "• <b>Daily report (My Day):</b> sessions, idle, clicks/keys, screenshots, and day PDF.<br/>"
+                "• <b>This monthly report:</b> roll-up of attendance and activity for the full calendar month.<br/>"
+                "• Hours come from Sign In / Break / Sign Out and activity on the Employee Agent.",
+                styles["body"],
+            ),
+            min_space=40 * mm,
         )
     )
 
     # 9) Acknowledgement
-    story.extend(layout.section_flow(styles, "9. Acknowledgement", new_page=True))
-    story.append(
-        Paragraph(
-            "This copy is generated for the named employee from live EMS records. "
-            "It does not replace payroll statements. Questions about hours or progress: contact your manager.",
-            styles["body"],
-        )
-    )
-    story.append(layout.table_caption(styles, "Table VIII. Acknowledgement"))
     ack = [
         ["Employee acknowledgement", "Office / manager review"],
         ["Name: ________________________", "Name: ________________________"],
@@ -854,8 +884,20 @@ def build_personal_monthly_pdf(
             ]
         )
     )
-    story.append(Spacer(1, 4))
-    story.append(at)
+    story.extend(
+        layout.section_lead(
+            styles,
+            "9. Acknowledgement",
+            Paragraph(
+                "This copy is generated for the named employee from live EMS records. "
+                "It does not replace payroll statements. Questions about hours or progress: contact your manager.",
+                styles["body"],
+            ),
+            layout.table_caption(styles, "Table VIII. Acknowledgement"),
+            at,
+            min_space=70 * mm,
+        )
+    )
     story.extend(
         layout.end_matter(
             styles,

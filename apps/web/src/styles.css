@@ -1384,13 +1384,23 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .app-version-footer {
   margin-top: auto;
-  padding: 10px 16px 14px;
+  padding: 12px 16px 16px;
   text-align: center;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: var(--text-muted, #888);
-  opacity: 0.85;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  font-weight: 600;
+  color: var(--text-muted);
+  opacity: 1;
   user-select: none;
+}
+html[data-theme="light"] .app-version-footer {
+  color: #3f3a32;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.55);
+}
+html[data-theme="dark"] .app-version-footer,
+:root:not([data-theme="light"]) .app-version-footer {
+  color: #c4c4c4;
 }
 .pay-gate-card {
   border: 1px solid rgba(239, 68, 68, 0.45);
@@ -5736,12 +5746,18 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
   grid-template-columns: 1.05fr 1fr;
   gap: 0;
   padding: 0;
-  overflow: hidden;
+  overflow: visible;
   margin-bottom: 16px;
 }
 .staff-split-left,
 .staff-split-right {
   padding: 20px 22px 22px;
+  min-width: 0;
+}
+.staff-split-right {
+  display: flex;
+  flex-direction: column;
+  max-height: min(560px, 70vh);
 }
 .staff-split-left {
   border-right: 1px solid var(--border);
@@ -5853,24 +5869,26 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
 .staff-job-list {
   list-style: none;
   margin: 0;
-  padding: 0 6px 0 0;
+  padding: 0 8px 8px 0;
   display: grid;
   gap: 14px;
-  max-height: 340px;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
-  scrollbar-color: var(--gold) rgba(255, 255, 255, 0.06);
+  scrollbar-color: var(--gold) rgba(128, 128, 128, 0.2);
 }
 .staff-job-list::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 .staff-job-list::-webkit-scrollbar-thumb {
   background: var(--gold);
   border-radius: 99px;
 }
 .staff-job-list::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(128, 128, 128, 0.15);
   border-radius: 99px;
 }
 .staff-job-actions {
@@ -5879,19 +5897,23 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
   align-items: flex-end;
   gap: 4px;
 }
+/* Beat global `button:hover { background: accent }` — gold-on-gold was invisible */
 .staff-hide-btn {
   appearance: none;
   border: 1px solid var(--card-border);
   background: transparent;
-  color: var(--muted);
+  color: var(--text-muted);
   font: inherit;
   font-size: 0.72rem;
-  padding: 2px 8px;
+  font-weight: 600;
+  padding: 3px 10px;
   border-radius: 6px;
   cursor: pointer;
 }
-.staff-hide-btn:hover {
-  color: var(--gold);
+.staff-hide-btn:hover,
+.staff-hide-btn:focus-visible {
+  background: var(--gold) !important;
+  color: #0a0a0a !important;
   border-color: var(--gold);
 }
 .staff-restore-btn {
@@ -5903,13 +5925,17 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
   border-radius: 8px;
   border: 1px dashed var(--card-border);
   background: transparent;
-  color: var(--muted);
+  color: var(--text-muted);
   font: inherit;
   font-size: 0.82rem;
+  font-weight: 600;
   cursor: pointer;
+  flex-shrink: 0;
 }
-.staff-restore-btn:hover {
-  color: var(--gold);
+.staff-restore-btn:hover,
+.staff-restore-btn:focus-visible {
+  background: var(--gold) !important;
+  color: #0a0a0a !important;
   border-color: var(--gold);
 }
 .staff-job-top {
@@ -6069,10 +6095,44 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
   .staff-split {
     grid-template-columns: 1fr;
   }
+  .staff-split-right {
+    max-height: min(420px, 60vh);
+  }
   .staff-split-left {
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
+}
+html[data-theme="light"] .staff-hide-btn,
+html[data-theme="light"] .staff-restore-btn {
+  color: #4a453c;
+  border-color: rgba(0, 0, 0, 0.18);
+}
+html[data-theme="light"] .staff-hide-btn:hover,
+html[data-theme="light"] .staff-hide-btn:focus-visible,
+html[data-theme="light"] .staff-restore-btn:hover,
+html[data-theme="light"] .staff-restore-btn:focus-visible {
+  background: var(--gold) !important;
+  color: #0a0a0a !important;
+}
+html[data-theme="light"] .staff-badge-present {
+  background: rgba(22, 163, 74, 0.15);
+  color: #166534;
+}
+html[data-theme="light"] .staff-badge-half {
+  background: rgba(217, 119, 6, 0.18);
+  color: #9a3412;
+}
+html[data-theme="light"] .staff-badge-weekend,
+html[data-theme="light"] .staff-badge-off {
+  background: rgba(0, 0, 0, 0.06);
+  color: #5c564c;
+}
+html[data-theme="light"] .staff-job-list::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.08);
+}
+html[data-theme="light"] .staff-inline-link {
+  color: #8a7018;
 }
 @media (max-width: 560px) {
   .staff-kpi-row {
