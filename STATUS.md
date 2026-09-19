@@ -20,26 +20,33 @@
 
 | Item | Status |
 |---|---|
-| Manager 0.1.5 + silent update + Tauri URL fixes | Done |
+| Manager **0.1.6** + silent update + `open_external_url` | Done (19 Sep) |
 | Password eye (WebView2 native hide) | Done |
 | Staff My dashboard + Lovable-inspired UX | Done |
-| Staff monthly professional PDF (view/download) | Done |
-| Month trend (capped vs work-day avg) + 100% bar fill | Done (19 Sep) |
-| Assigned work scroll + hide finished/manual | Done (19 Sep) |
-| Personal/daily PDF section page breaks | Done (19 Sep) |
+| Staff monthly + daily PDFs — IEEE/business professional layout | Done (19 Sep) |
+| Month trend + 100% bar + Assigned work scroll/hide | Done |
 | Live day clicks/keys + Dashboard EOD progress | Done (earlier) |
 | Soft payment gate + Detailer/Engineer | Done (earlier) |
+| Agent source **1.1.5** synced with API | Done (code) |
 
-## Still remaining (honest)
+## Still remaining (honest) — mostly ship / QA
 
 | Priority | What | Notes |
 |---|---|---|
-| **P0** | Desktop Manager smoke in Tauri + Setup rebuild | `tauri:dev` / Actions Setup.exe; office reinstall |
-| **P0** | Agent zip rebuild + 1-PC enroll/Sign In/shots test | Ship zip when green |
-| **P0** | Wave 4 ship | Upload Setup + Agent to VPS `/downloads/`; version API |
+| **P0** | GitHub Actions → Build Manager Setup **0.1.6** | Actions → “Build Manager Setup” → download artifact |
+| **P0** | Rebuild Agent zip **1.1.5** + 1-PC enroll/Sign In/shots | `apps/agent` packaging |
+| **P0** | Wave 4 ship | Upload Setup + Agent to VPS `/downloads/`; restart API; office reinstall |
 | **P1** | Doc 61 happy/edge walk | Soft gate / D/E / initials |
-| **P2** | Notify / audit bell | Not started — least priority |
+| **P2** | Notify / audit bell | Least priority |
 | **P3** | Signed Tauri updater polish | After click-update proven |
 | **P4** | Phase D admin mobile PWA | Last |
 
 **Data:** Never wipe `/var/lib/ems/ems.db`.
+
+## PDF layout standard (19 Sep)
+
+Applied IEEE/business technical-report conventions via `pdf_layout.py`:
+- ≥18 mm margins, running header + page numbers
+- Numbered sections; major sections start on a new page
+- Table captions above tables; `repeatRows=1` so headers repeat across pages
+- KeepTogether for short tables (no orphan session rows)

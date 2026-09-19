@@ -1,5 +1,5 @@
 /** Bump with every Manager Setup.exe release (keep in sync with tauri.conf.json + API). */
-export const MANAGER_APP_VERSION = "0.1.5";
+export const MANAGER_APP_VERSION = "0.1.6";
 
 /** Shown in web + desktop footer (same React shell). */
 export const WEB_APP_VERSION = MANAGER_APP_VERSION;

@@ -15,7 +15,6 @@ from reportlab.lib.units import mm
 from reportlab.platypus import (
     HRFlowable,
     KeepTogether,
-    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -218,7 +217,6 @@ def _header_table(style_label, style_value, rows: list[tuple[str, str]]) -> Tabl
     )
     return t
 
-
 def build_daily_pdf(
     path: Path,
     employee_name: str,
@@ -239,89 +237,25 @@ def build_daily_pdf(
     overview_note: str | None = None,
 ) -> Path:
     """
-    click_log: list of (minute_label, window_title, quantity) — Click Time Sheet rows.
+    Professional daily timesheet PDF (IEEE/business report layout).
+
+    click_log: list of (minute_label, window_title, quantity).
     """
+    from app.services import pdf_layout as layout
+    from app.services.window_categories import classify_window
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    # Always overwrite so managers never get a stale themed PDF
     if path.exists():
         try:
             path.unlink()
         except OSError:
             pass
 
-    doc = SimpleDocTemplate(
-        str(path),
-        pagesize=A4,
-        leftMargin=14 * mm,
-        rightMargin=14 * mm,
-        topMargin=12 * mm,
-        bottomMargin=12 * mm,
-        title=f"Daily Timesheet — {employee_name} — {date_str}",
-        author="CFS Designers",
-    )
-    styles = getSampleStyleSheet()
-    title = ParagraphStyle(
-        "TitleBW",
-        parent=styles["Heading1"],
-        textColor=BLACK,
-        alignment=TA_CENTER,
-        fontSize=16,
-        spaceAfter=2,
-        fontName="Helvetica-Bold",
-        leading=20,
-    )
-    sub = ParagraphStyle(
-        "SubBW",
-        parent=styles["Normal"],
-        alignment=TA_CENTER,
-        textColor=DARK,
-        fontSize=10,
-        spaceAfter=6,
-        fontName="Helvetica",
-    )
-    h2 = ParagraphStyle(
-        "H2BW",
-        parent=styles["Heading2"],
-        textColor=BLACK,
-        fontSize=11,
-        spaceBefore=10,
-        spaceAfter=5,
-        fontName="Helvetica-Bold",
-        borderPadding=0,
-    )
-    label = ParagraphStyle(
-        "Lab",
-        parent=styles["Normal"],
-        textColor=BLACK,
-        fontSize=9,
-        fontName="Helvetica-Bold",
-        alignment=TA_LEFT,
-    )
-    value = ParagraphStyle(
-        "Val",
-        parent=styles["Normal"],
-        textColor=BLACK,
-        fontSize=9,
-        fontName="Helvetica",
-        alignment=TA_LEFT,
-    )
-    foot = ParagraphStyle(
-        "Foot",
-        parent=styles["Normal"],
-        alignment=TA_CENTER,
-        textColor=GRAY,
-        fontSize=7,
-        spaceBefore=8,
-    )
-    cell = ParagraphStyle(
-        "Cell",
-        parent=styles["Normal"],
-        textColor=BLACK,
-        fontSize=7.5,
-        leading=9,
-    )
+    styles = layout.make_styles()
+    doc_id = f"EMS-DR-{employee_code or 'STAFF'}-{date_str.replace('-', '')}"
+    left_meta = f"{employee_name} · {date_str}"
 
-    # Overview times from sessions (like old Click Timesheet cover)
+    # Overview times from sessions
     first_in = None
     last_out = None
     open_session = False
@@ -332,7 +266,6 @@ def build_daily_pdf(
             last_out = s["sign_out"]
         if s.get("sign_in") and not s.get("sign_out"):
             open_session = True
-    # Daily Start/End follow proof-of-work (overnight Sign In must not show as yesterday's time)
     display_start = first_activity_at or first_in
     end_anchor = last_out
     if last_activity_at is not None:
@@ -365,29 +298,40 @@ def build_daily_pdf(
             "Overtime",
             hours_to_hm(max(0.0, float(net_hours) - float(overtime_hours_per_day)))
             if float(net_hours) > float(overtime_hours_per_day)
-            else "None (≤ "
-            + hours_to_hm(overtime_hours_per_day)
-            + " / day)",
+            else "None (≤ " + hours_to_hm(overtime_hours_per_day) + " / day)",
         ),
     ]
     if overview_note:
         overview_rows.append(("Note", overview_note))
 
-    story: list = [
-        Paragraph("CFS Designers", title),
-        Paragraph("Daily Timesheet", sub),
-        HRFlowable(width="100%", thickness=1.5, color=BLACK, spaceAfter=8),
-        Paragraph("Performance Overview", h2),
-        _header_table(
-            label,
-            value,
-            overview_rows,
-        ),
-        Paragraph("Graph Performance", h2),
-        _activity_chart(activity_series or [], report_date=date_str),
-        Paragraph("Sessions", h2),
-    ]
+    story: list = []
+    story.extend(
+        layout.cover_block(
+            styles,
+            org="CFS DESIGNERS",
+            title="Daily Timesheet",
+            subtitle=f"Document ID: {doc_id} · Classification: Confidential · Timezone: Asia/Karachi (PKT)",
+        )
+    )
 
+    # 1) Performance overview — keep title + table together
+    story.extend(
+        layout.section_flow(styles, "1. Performance overview", min_space=70 * mm)
+    )
+    story.append(layout.table_caption(styles, "Table I. Day summary metrics"))
+    story.append(layout.kv_table(styles, overview_rows))
+
+    # 2) Activity graph — new page so it never clips under sessions
+    story.extend(layout.section_flow(styles, "2. Activity graph (clicks / 30 min)", new_page=True))
+    story.append(
+        Paragraph(
+            "Half-hour click counts during the tracked day (office window extended if activity falls outside).",
+            styles["small"],
+        )
+    )
+    story.append(_activity_chart(activity_series or [], report_date=date_str))
+
+    # 3) Sessions — keep heading + full table together when reasonably sized
     sess_rows = [["#", "Sign In", "Sign Out", "Break", "Net Work", "Status"]]
     for i, s in enumerate(sessions, 1):
         si = format_pk_time(s.get("sign_in")) if s.get("sign_in") else "—"
@@ -416,150 +360,103 @@ def build_daily_pdf(
     if len(sess_rows) == 1:
         sess_rows.append(["—", "—", "—", "—", "—", "No sessions"])
 
-    st = Table(sess_rows, colWidths=[10 * mm, 32 * mm, 32 * mm, 28 * mm, 28 * mm, 30 * mm])
-    st.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), BLACK),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("TEXTCOLOR", (0, 1), (-1, -1), BLACK),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("GRID", (0, 0), (-1, -1), 0.4, LINE),
-                ("BOX", (0, 0), (-1, -1), 1, BLACK),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-            ]
-        )
+    st = layout.styled_table(
+        sess_rows,
+        [10 * mm, 32 * mm, 32 * mm, 28 * mm, 28 * mm, 34 * mm],
+        repeat_header=True,
+        center_cols=(0, 1, 2, 3, 4, 5),
     )
-    story.append(st)
+    story.extend(layout.section_flow(styles, "3. Sessions", new_page=True))
+    story.append(layout.table_caption(styles, "Table II. Sign-in / sign-out sessions"))
+    if len(sess_rows) <= 16:
+        story.append(KeepTogether([st]))
+    else:
+        story.append(st)
 
+    # 4) Categories + top windows
     cats = summarize_categories(top_windows)
-    story.append(PageBreak())
-    story.append(Paragraph("App Categories (Work vs Browser vs Other)", h2))
     cat_rows = [["Category", "Activity qty"]]
-    for label in ("Work", "Browser", "Other"):
-        cat_rows.append([label, str(cats.get(label, 0))])
-    ct = Table(cat_rows, colWidths=[80 * mm, 40 * mm])
-    ct.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), BLACK),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("ALIGN", (1, 0), (1, -1), "CENTER"),
-                ("GRID", (0, 0), (-1, -1), 0.4, LINE),
-                ("BOX", (0, 0), (-1, -1), 1, BLACK),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-            ]
-        )
-    )
-    story.append(ct)
+    for lab in ("Work", "Browser", "Other"):
+        cat_rows.append([lab, str(cats.get(lab, 0))])
+    ct = layout.styled_table(cat_rows, [90 * mm, 50 * mm], center_cols=(1,))
 
-    story.append(Paragraph("Top Windows / Apps", h2))
-    win_rows: list = [[Paragraph("<b>Window title</b>", cell), Paragraph("<b>Cat</b>", cell), Paragraph("<b>Qty</b>", cell)]]
-    from app.services.window_categories import classify_window
-
+    win_rows: list = [["Window title", "Cat", "Qty"]]
     for title_text, clicks in (top_windows or [])[:20]:
         win_rows.append(
             [
-                Paragraph((title_text or "(blank)")[:80].replace("&", "&amp;"), cell),
-                Paragraph(classify_window(title_text or ""), cell),
-                Paragraph(str(clicks), cell),
+                Paragraph((title_text or "(blank)")[:80].replace("&", "&amp;"), styles["cell"]),
+                classify_window(title_text or ""),
+                str(clicks),
             ]
         )
     if len(win_rows) == 1:
-        win_rows.append([Paragraph("—", cell), Paragraph("—", cell), Paragraph("0", cell)])
-    wt = Table(win_rows, colWidths=[120 * mm, 25 * mm, 20 * mm])
-    wt.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), BLACK),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("ALIGN", (1, 0), (2, -1), "CENTER"),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("GRID", (0, 0), (-1, -1), 0.3, LINE),
-                ("BOX", (0, 0), (-1, -1), 1, BLACK),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-            ]
-        )
-    )
+        win_rows.append(["—", "—", "0"])
+    wt = layout.styled_table(win_rows, [118 * mm, 22 * mm, 20 * mm], center_cols=(1, 2))
+
+    story.extend(layout.section_flow(styles, "4. Applications & windows", new_page=True))
+    story.append(layout.table_caption(styles, "Table III. Activity by category"))
+    story.append(KeepTogether([ct]))
+    story.append(Spacer(1, 8))
+    story.append(layout.table_caption(styles, "Table IV. Top windows / apps"))
     story.append(wt)
 
-    # Click Time Sheet detail (old software style)
+    # 5) Click time sheet
     log = click_log or []
     if log:
-        story.append(PageBreak())
-        story.append(Paragraph("Click Time Sheet", h2))
+        story.extend(layout.section_flow(styles, "5. Click time sheet", new_page=True))
+        story.append(
+            Paragraph(
+                "Minute-level activity log (window title and quantity). Header repeats on each page.",
+                styles["small"],
+            )
+        )
+        story.append(layout.table_caption(styles, "Table V. Click time sheet detail"))
         log_header = [
-            Paragraph("<b>Minute</b>", cell),
-            Paragraph("<b>Window Title</b>", cell),
-            Paragraph("<b>Qty</b>", cell),
+            Paragraph("<b>Minute</b>", styles["cell_b"]),
+            Paragraph("<b>Window Title</b>", styles["cell_b"]),
+            Paragraph("<b>Qty</b>", styles["cell_b"]),
         ]
-        chunk: list = [log_header]
-        for minute, title_text, qty in log[:400]:
-            chunk.append(
+        # One long table with repeating header — professional multi-page tables
+        body_rows = [log_header]
+        for minute, title_text, qty in log[:500]:
+            body_rows.append(
                 [
-                    Paragraph(minute.replace("&", "&amp;"), cell),
-                    Paragraph((title_text or "(blank)")[:85].replace("&", "&amp;"), cell),
-                    Paragraph(str(qty), cell),
+                    Paragraph(str(minute).replace("&", "&amp;"), styles["cell"]),
+                    Paragraph((title_text or "(blank)")[:85].replace("&", "&amp;"), styles["cell"]),
+                    Paragraph(str(qty), styles["cell"]),
                 ]
             )
-            if len(chunk) >= 36:
-                lt = Table(chunk, colWidths=[32 * mm, 120 * mm, 18 * mm])
-                lt.setStyle(
-                    TableStyle(
-                        [
-                            ("BACKGROUND", (0, 0), (-1, 0), BLACK),
-                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                            ("ALIGN", (2, 0), (2, -1), "CENTER"),
-                            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                            ("GRID", (0, 0), (-1, -1), 0.25, LINE),
-                            ("BOX", (0, 0), (-1, -1), 0.8, BLACK),
-                            ("TOPPADDING", (0, 0), (-1, -1), 2),
-                            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-                        ]
-                    )
-                )
-                story.append(KeepTogether([lt]))
-                story.append(Spacer(1, 4))
-                chunk = [log_header]
-        if len(chunk) > 1:
-            lt = Table(chunk, colWidths=[32 * mm, 120 * mm, 18 * mm])
-            lt.setStyle(
-                TableStyle(
-                    [
-                        ("BACKGROUND", (0, 0), (-1, 0), BLACK),
-                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                        ("ALIGN", (2, 0), (2, -1), "CENTER"),
-                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                        ("GRID", (0, 0), (-1, -1), 0.25, LINE),
-                        ("BOX", (0, 0), (-1, -1), 0.8, BLACK),
-                        ("TOPPADDING", (0, 0), (-1, -1), 2),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-                    ]
-                )
+        lt = Table(body_rows, colWidths=[32 * mm, 118 * mm, 18 * mm], repeatRows=1)
+        lt.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), BLACK),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("ALIGN", (2, 0), (2, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("GRID", (0, 0), (-1, -1), 0.25, LINE),
+                    ("BOX", (0, 0), (-1, -1), 0.8, BLACK),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+                ]
             )
-            story.append(lt)
+        )
+        story.append(lt)
 
-    story.append(Spacer(1, 10))
-    story.append(HRFlowable(width="100%", thickness=0.6, color=BLACK, spaceAfter=4))
-    story.append(
-        Paragraph(
-            f"Generated {format_generated()} · CFS Designers · Confidential",
-            foot,
+    story.extend(
+        layout.end_matter(
+            styles,
+            f"{doc_id} · Generated {format_generated()} · CFS Designers EMS · Confidential",
         )
     )
-    doc.build(story)
+
+    doc = layout.make_doc(
+        str(path),
+        title=f"Daily Timesheet — {employee_name} — {date_str}",
+    )
+    on_page = layout.make_page_drawer(doc_id=doc_id, left_meta=left_meta)
+    doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
     return path
 
 
@@ -570,7 +467,9 @@ def build_monthly_pdf(
     rows: list[dict],
     overtime_hours_per_day: float = 8.0,
 ) -> Path:
-    """Team monthly summary PDF — black/white, no instructional filler."""
+    """Team monthly summary PDF — professional layout, repeating headers."""
+    from app.services import pdf_layout as layout
+
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         try:
@@ -579,52 +478,26 @@ def build_monthly_pdf(
             pass
 
     month_label = datetime(year, month, 1).strftime("%B %Y")
-    doc = SimpleDocTemplate(
-        str(path),
-        pagesize=A4,
-        leftMargin=14 * mm,
-        rightMargin=14 * mm,
-        topMargin=12 * mm,
-        bottomMargin=12 * mm,
-        title=f"Monthly Attendance — {month_label}",
-        author="CFS Designers",
-    )
-    styles = getSampleStyleSheet()
-    title = ParagraphStyle(
-        "MT",
-        parent=styles["Heading1"],
-        textColor=BLACK,
-        alignment=TA_CENTER,
-        fontSize=16,
-        spaceAfter=2,
-        fontName="Helvetica-Bold",
-    )
-    sub = ParagraphStyle(
-        "MS",
-        parent=styles["Normal"],
-        alignment=TA_CENTER,
-        textColor=DARK,
-        fontSize=10,
-        spaceAfter=8,
-    )
-    foot = ParagraphStyle(
-        "MF",
-        parent=styles["Normal"],
-        alignment=TA_CENTER,
-        textColor=GRAY,
-        fontSize=7,
-        spaceBefore=8,
-    )
+    styles = layout.make_styles()
+    doc_id = f"EMS-TM-{year}{month:02d}"
 
-    story = [
-        Paragraph("CFS Designers", title),
-        Paragraph(f"Monthly Attendance — {month_label}", sub),
+    story: list = []
+    story.extend(
+        layout.cover_block(
+            styles,
+            org="CFS DESIGNERS",
+            title="Monthly Attendance — Team Summary",
+            subtitle=f"{month_label} · Document ID: {doc_id} · Confidential",
+        )
+    )
+    story.append(
         Paragraph(
-            f"Overtime = Net Work − (Days Present × {hours_to_hm(overtime_hours_per_day)} standard)",
-            ParagraphStyle("Hint", parent=sub, fontSize=8, textColor=GRAY),
-        ),
-        HRFlowable(width="100%", thickness=1.5, color=BLACK, spaceAfter=10),
-    ]
+            f"Overtime = Net Work − (Days Present × {hours_to_hm(overtime_hours_per_day)} standard day).",
+            styles["small"],
+        )
+    )
+    story.extend(layout.section_flow(styles, "1. Employee roll-up", min_space=50 * mm))
+    story.append(layout.table_caption(styles, f"Table I. Team attendance — {month_label}"))
 
     table_rows = [["Code", "Employee", "Days", "Net Work", "Break", "Avg/Day", "OT"]]
     for r in rows:
@@ -647,30 +520,23 @@ def build_monthly_pdf(
     if len(table_rows) == 1:
         table_rows.append(["—", "—", "0", hours_to_hm(0), hours_to_hm(0), hours_to_hm(0), "—"])
 
-    t = Table(table_rows, colWidths=[16 * mm, 48 * mm, 16 * mm, 26 * mm, 22 * mm, 24 * mm, 22 * mm])
-    t.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), BLACK),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("TEXTCOLOR", (0, 1), (-1, -1), BLACK),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("ALIGN", (1, 1), (1, -1), "LEFT"),
-                ("GRID", (0, 0), (-1, -1), 0.4, LINE),
-                ("BOX", (0, 0), (-1, -1), 1, BLACK),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-            ]
-        )
+    t = layout.styled_table(
+        table_rows,
+        [16 * mm, 48 * mm, 14 * mm, 24 * mm, 22 * mm, 24 * mm, 20 * mm],
+        repeat_header=True,
+        center_cols=(0, 2, 3, 4, 5, 6),
     )
     story.append(t)
-    story.append(Spacer(1, 14))
-    story.append(HRFlowable(width="100%", thickness=0.6, color=BLACK, spaceAfter=4))
-    story.append(Paragraph(f"Generated {format_generated()} · CFS Designers · Confidential", foot))
-    doc.build(story)
+    story.extend(
+        layout.end_matter(
+            styles,
+            f"{doc_id} · Generated {format_generated()} · CFS Designers · Confidential",
+        )
+    )
+
+    doc = layout.make_doc(str(path), title=f"Monthly Attendance — {month_label}")
+    on_page = layout.make_page_drawer(doc_id=doc_id, left_meta=month_label)
+    doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
     return path
 
 
@@ -690,13 +556,14 @@ def build_personal_monthly_pdf(
     role_label: str = "Staff",
 ) -> Path:
     """
-    Professional personal monthly timesheet / attendance PDF (staff self-service).
+    Professional personal monthly attendance PDF.
 
-    Section model follows common HR monthly timesheet templates:
-    document header → control block → employee identity → period summary →
-    status legend → daily log → monthly totals → project progress (if any) →
-    reading notes → acknowledgement / confidentiality footer.
+    Layout follows IEEE/business technical-report conventions:
+    cover → numbered sections on clean page starts → captions above tables →
+    repeating table headers → acknowledgement.
     """
+    from app.services import pdf_layout as layout
+
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         try:
@@ -717,7 +584,6 @@ def build_personal_monthly_pdf(
     net = sum(float(r.get("net_hours") or 0) for r in present_days)
     avg = (net / days_n) if days_n else 0.0
     ot = max(0.0, net - (days_n * float(overtime_hours_per_day)))
-    # Weekdays Mon–Fri in month as scheduled baseline
     scheduled = 0
     for r in day_rows:
         try:
@@ -730,170 +596,77 @@ def build_personal_monthly_pdf(
     attend_pct = round((days_n / scheduled) * 100, 1) if scheduled else 0.0
     doc_id = f"EMS-MR-{employee_code or 'STAFF'}-{year}{month:02d}"
 
-    doc = SimpleDocTemplate(
-        str(path),
-        pagesize=A4,
-        leftMargin=14 * mm,
-        rightMargin=14 * mm,
-        topMargin=12 * mm,
-        bottomMargin=14 * mm,
-        title=f"Monthly Attendance Report — {employee_name} — {month_label}",
-        author="CFS Designers EMS",
-    )
-    styles = getSampleStyleSheet()
-    brand = ParagraphStyle(
-        "BrandH",
-        parent=styles["Normal"],
-        textColor=BLACK,
-        alignment=TA_CENTER,
-        fontSize=11,
-        fontName="Helvetica-Bold",
-        spaceAfter=2,
-    )
-    title = ParagraphStyle(
-        "DocTitle",
-        parent=styles["Heading1"],
-        textColor=BLACK,
-        alignment=TA_CENTER,
-        fontSize=15,
-        spaceAfter=2,
-        spaceBefore=2,
-        fontName="Helvetica-Bold",
-        leading=18,
-    )
-    sub = ParagraphStyle(
-        "DocSub",
-        parent=styles["Normal"],
-        alignment=TA_CENTER,
-        textColor=GRAY,
-        fontSize=8.5,
-        spaceAfter=8,
-    )
-    h2 = ParagraphStyle(
-        "SecH",
-        parent=styles["Heading2"],
-        textColor=BLACK,
-        fontSize=10,
-        spaceBefore=11,
-        spaceAfter=5,
-        fontName="Helvetica-Bold",
-        borderPadding=0,
-    )
-    body = ParagraphStyle(
-        "BodyT",
-        parent=styles["Normal"],
-        textColor=DARK,
-        fontSize=8.5,
-        leading=11,
-        spaceAfter=4,
-    )
-    small = ParagraphStyle(
-        "SmallT",
-        parent=styles["Normal"],
-        textColor=GRAY,
-        fontSize=7.5,
-        leading=9.5,
-        spaceAfter=3,
-    )
-    foot = ParagraphStyle(
-        "FootT",
-        parent=styles["Normal"],
-        alignment=TA_CENTER,
-        textColor=GRAY,
-        fontSize=7,
-        spaceBefore=6,
-    )
-    cell = ParagraphStyle(
-        "CellT",
-        parent=styles["Normal"],
-        textColor=BLACK,
-        fontSize=7.5,
-        leading=9,
-    )
-
-    def _section(title_text: str, *, page_break: bool = False) -> list:
-        out: list = []
-        if page_break:
-            out.append(PageBreak())
-        out.extend(
-            [
-                Paragraph(title_text, h2),
-                HRFlowable(width="100%", thickness=0.8, color=BLACK, spaceAfter=6),
-            ]
-        )
-        return out
-
-    story: list = [
-        Paragraph("CFS DESIGNERS", brand),
-        Paragraph("Workforce · Employee Management System", sub),
-        Paragraph("MONTHLY ATTENDANCE & PERFORMANCE REPORT", title),
-        Paragraph(
-            f"Document ID: {doc_id} · Classification: Confidential — Employee copy · Timezone: Asia/Karachi (PKT)",
-            sub,
-        ),
-        HRFlowable(width="100%", thickness=1.6, color=BLACK, spaceAfter=8),
-    ]
-
-    # 1) Document control
-    story.extend(_section("1. Document control"))
-    ctrl = [
-        ["Reporting period", f"{period_start} — {period_end} ({month_label})"],
-        ["Generated", format_generated()],
-        ["Document type", "Personal monthly timesheet / attendance roll-up"],
-        ["Audience", "Named employee (self-service) · Office may retain for audit"],
-        ["Standard day", f"{hours_to_hm(overtime_hours_per_day)} net work (OT above this × days present)"],
-    ]
-    ct = Table(ctrl, colWidths=[42 * mm, 130 * mm])
-    ct.setStyle(
-        TableStyle(
-            [
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("TEXTCOLOR", (0, 0), (-1, -1), BLACK),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ("BACKGROUND", (0, 0), (0, -1), LIGHT),
-                ("BOX", (0, 0), (-1, -1), 0.6, BLACK),
-                ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
-            ]
+    styles = layout.make_styles()
+    story: list = []
+    story.extend(
+        layout.cover_block(
+            styles,
+            org="CFS DESIGNERS",
+            title="Monthly Attendance & Performance Report",
+            subtitle=(
+                f"Document ID: {doc_id} · Confidential — Employee copy · "
+                f"Timezone: Asia/Karachi (PKT)"
+            ),
         )
     )
-    story.append(ct)
 
-    # 2) Employee identity
-    story.extend(_section("2. Employee identification"))
+    # Page 1: control + identity + summary + legend (kept compact)
+    story.extend(layout.section_flow(styles, "1. Document control", min_space=40 * mm))
+    story.append(layout.table_caption(styles, "Table I. Document control"))
+    story.append(
+        layout.kv_table(
+            styles,
+            [
+                ("Reporting period", f"{period_start} — {period_end} ({month_label})"),
+                ("Generated", format_generated()),
+                ("Document type", "Personal monthly timesheet / attendance roll-up"),
+                ("Audience", "Named employee (self-service)"),
+                ("Standard day", f"{hours_to_hm(overtime_hours_per_day)} net work"),
+            ],
+        )
+    )
+
+    story.extend(layout.section_flow(styles, "2. Employee identification", min_space=35 * mm))
+    story.append(layout.table_caption(styles, "Table II. Employee identification"))
     ident = [
-        ["Employee name", employee_name or "—", "Employee code", employee_code or "—"],
-        ["Role", role_label or "Staff", "Report scope", "Own attendance & activity only"],
+        [
+            Paragraph("<b>Employee name</b>", styles["cell"]),
+            Paragraph(employee_name or "—", styles["cell"]),
+            Paragraph("<b>Employee code</b>", styles["cell"]),
+            Paragraph(employee_code or "—", styles["cell"]),
+        ],
+        [
+            Paragraph("<b>Role</b>", styles["cell"]),
+            Paragraph(role_label or "Staff", styles["cell"]),
+            Paragraph("<b>Report scope</b>", styles["cell"]),
+            Paragraph("Own attendance & activity only", styles["cell"]),
+        ],
     ]
-    it = Table(ident, colWidths=[32 * mm, 54 * mm, 32 * mm, 54 * mm])
+    it = Table(ident, colWidths=[32 * mm, 50 * mm, 32 * mm, 50 * mm])
     it.setStyle(
         TableStyle(
             [
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("BACKGROUND", (0, 0), (0, -1), LIGHT),
                 ("BACKGROUND", (2, 0), (2, -1), LIGHT),
-                ("BOX", (0, 0), (-1, -1), 0.6, BLACK),
+                ("BOX", (0, 0), (-1, -1), 0.8, BLACK),
                 ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
             ]
         )
     )
     story.append(it)
 
-    # 3) Period summary
-    story.extend(_section("3. Period summary"))
+    story.extend(layout.section_flow(styles, "3. Period summary", min_space=50 * mm))
     story.append(
         Paragraph(
-            "Snapshot of the reporting month. Hours are net working time (breaks excluded). "
-            "Activity counts are mouse clicks and key presses recorded while signed in.",
-            small,
+            "Snapshot of the reporting month. Hours are net working time (breaks excluded).",
+            styles["small"],
         )
     )
+    story.append(layout.table_caption(styles, "Table III. Period summary metrics"))
     summary = [
         ["Metric", "Value", "Metric", "Value"],
         ["Days present (P)", str(days_n), "Scheduled weekdays*", str(scheduled)],
@@ -902,73 +675,42 @@ def build_personal_monthly_pdf(
         ["Average net / present day", hours_to_hm(avg), "Overtime (est.)", hours_to_hm(ot) if ot > 0 else "—"],
         ["Clicks (month)", f"{int(total_clicks):,}", "Keys (month)", f"{int(total_keys):,}"],
     ]
-    st = Table(summary, colWidths=[48 * mm, 38 * mm, 48 * mm, 38 * mm])
-    st.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), BLACK),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
-                ("FONTNAME", (2, 1), (2, -1), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("ALIGN", (1, 0), (1, -1), "CENTER"),
-                ("ALIGN", (3, 0), (3, -1), "CENTER"),
-                ("BACKGROUND", (0, 1), (0, -1), LIGHT),
-                ("BACKGROUND", (2, 1), (2, -1), LIGHT),
-                ("GRID", (0, 0), (-1, -1), 0.4, LINE),
-                ("BOX", (0, 0), (-1, -1), 1, BLACK),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]
-        )
+    st = layout.styled_table(
+        summary,
+        [46 * mm, 36 * mm, 46 * mm, 36 * mm],
+        repeat_header=True,
+        center_cols=(1, 3),
     )
+    # Bold first column of each pair for data rows — styled_table already bold header
     story.append(st)
     story.append(
         Paragraph(
-            "* Scheduled weekdays = Mon–Fri in the calendar month (not a formal leave roster). "
+            "* Scheduled weekdays = Mon–Fri in the calendar month. "
             "** Includes weekends and weekdays with 0.0 h tracked.",
-            small,
+            styles["small"],
         )
     )
 
-    # 4) Legend
-    story.extend(_section("4. Status legend"))
+    story.extend(layout.section_flow(styles, "4. Status legend", min_space=40 * mm))
+    story.append(layout.table_caption(styles, "Table IV. Status legend"))
     legend = [
         ["Code", "Meaning"],
         ["P", "Present — net work hours recorded for this calendar day"],
         ["—", "No tracked hours (off day, weekend, or not signed in)"],
         ["OT", "Overtime estimate = Net work − (Days present × standard day)"],
     ]
-    lg = Table(legend, colWidths=[18 * mm, 154 * mm])
-    lg.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), BLACK),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("GRID", (0, 0), (-1, -1), 0.35, LINE),
-                ("BOX", (0, 0), (-1, -1), 0.8, BLACK),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.white),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ]
-        )
-    )
-    story.append(lg)
+    story.append(KeepTogether([layout.styled_table(legend, [18 * mm, 146 * mm])]))
 
-    # 5) Daily log — new page (professional section start)
-    story.extend(_section("5. Daily attendance log", page_break=True))
+    # 5) Daily log — ALWAYS new page; header repeats across pages
+    story.extend(layout.section_flow(styles, "5. Daily attendance log", new_page=True))
     story.append(
         Paragraph(
-            "One row per calendar day in the reporting period. Open any day in the app (My Day) "
-            "for sessions, screenshots, and the detailed daily PDF.",
-            small,
+            "One row per calendar day. Open any day in the app (My Day) for sessions, "
+            "screenshots, and the detailed daily PDF.",
+            styles["small"],
         )
     )
+    story.append(layout.table_caption(styles, "Table V. Daily attendance log"))
     daily = [["Date", "Weekday", "Status", "Net work", "Remark"]]
     for r in day_rows:
         d_s = str(r.get("date") or "")
@@ -996,30 +738,17 @@ def build_personal_monthly_pdf(
                 remark,
             ]
         )
-
-    dt = Table(daily, colWidths=[36 * mm, 22 * mm, 18 * mm, 28 * mm, 68 * mm])
-    dt.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), BLACK),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 7.5),
-                ("ALIGN", (1, 0), (3, -1), "CENTER"),
-                ("ALIGN", (0, 0), (0, -1), "LEFT"),
-                ("ALIGN", (4, 0), (4, -1), "LEFT"),
-                ("GRID", (0, 0), (-1, -1), 0.3, LINE),
-                ("BOX", (0, 0), (-1, -1), 1, BLACK),
-                ("TOPPADDING", (0, 0), (-1, -1), 2.5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-            ]
-        )
+    dt = layout.styled_table(
+        daily,
+        [34 * mm, 20 * mm, 18 * mm, 26 * mm, 66 * mm],
+        repeat_header=True,
+        center_cols=(1, 2, 3),
     )
     story.append(dt)
 
-    # 6) Monthly totals strip
-    story.extend(_section("6. Monthly totals"))
+    # 6) Monthly totals
+    story.extend(layout.section_flow(styles, "6. Monthly totals", new_page=True))
+    story.append(layout.table_caption(styles, "Table VI. Monthly totals"))
     totals = [
         ["Present days", "Net work", "Break", "Avg / day", "OT (est.)", "Clicks", "Keys"],
         [
@@ -1032,102 +761,85 @@ def build_personal_monthly_pdf(
             f"{int(total_keys):,}",
         ],
     ]
-    tt = Table(totals, colWidths=[24 * mm, 26 * mm, 24 * mm, 26 * mm, 24 * mm, 24 * mm, 24 * mm])
-    tt.setStyle(
-        TableStyle(
+    story.append(
+        KeepTogether(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), BLACK),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
-                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("BACKGROUND", (0, 1), (-1, 1), LIGHT),
-                ("BOX", (0, 0), (-1, -1), 1, BLACK),
-                ("INNERGRID", (0, 0), (-1, -1), 0.4, LINE),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                layout.styled_table(
+                    totals,
+                    [24 * mm, 26 * mm, 22 * mm, 26 * mm, 24 * mm, 22 * mm, 20 * mm],
+                    center_cols=(0, 1, 2, 3, 4, 5, 6),
+                )
             ]
         )
     )
-    story.append(tt)
 
-    # 7) Project progress — new page
+    # 7) Project progress
     prog = list(progress_rows or [])
-    story.extend(_section("7. Project progress logged this month", page_break=True))
+    story.extend(layout.section_flow(styles, "7. Project progress logged this month", new_page=True))
     if prog:
         story.append(
             Paragraph(
-                "End-of-day % updates you saved on assigned jobs during this period. "
-                "Admin sees the same history on each project.",
-                small,
+                "End-of-day % updates saved on assigned jobs during this period.",
+                styles["small"],
             )
         )
+        story.append(layout.table_caption(styles, "Table VII. Project progress"))
         prow = [["Date", "Project", "Code", "%", "Note"]]
         for p in prog[:40]:
             prow.append(
                 [
-                    Paragraph(str(p.get("work_date") or "—"), cell),
-                    Paragraph(str(p.get("project_name") or "—")[:60], cell),
-                    Paragraph(str(p.get("project_code") or "—"), cell),
+                    Paragraph(str(p.get("work_date") or "—"), styles["cell"]),
+                    Paragraph(str(p.get("project_name") or "—")[:60], styles["cell"]),
+                    Paragraph(str(p.get("project_code") or "—"), styles["cell"]),
                     f'{float(p.get("percent") or 0):.0f}%',
-                    Paragraph(str(p.get("note") or "—")[:80], cell),
+                    Paragraph(str(p.get("note") or "—")[:80], styles["cell"]),
                 ]
             )
-        pt = Table(prow, colWidths=[26 * mm, 58 * mm, 24 * mm, 16 * mm, 48 * mm])
-        pt.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), BLACK),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 7.5),
-                    ("ALIGN", (3, 0), (3, -1), "CENTER"),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("GRID", (0, 0), (-1, -1), 0.3, LINE),
-                    ("BOX", (0, 0), (-1, -1), 0.8, BLACK),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
-                    ("TOPPADDING", (0, 0), (-1, -1), 3),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ]
+        story.append(
+            layout.styled_table(
+                prow,
+                [24 * mm, 56 * mm, 22 * mm, 16 * mm, 46 * mm],
+                repeat_header=True,
+                center_cols=(3,),
             )
         )
-        story.append(pt)
     else:
         story.append(
             Paragraph(
                 "No end-of-day project % rows were logged in this month. "
                 "Use My dashboard → Log today’s project progress to record completion.",
-                body,
+                styles["body"],
             )
         )
 
-    # 8) How to read / related reports — new page
-    story.extend(_section("8. How to read this report", page_break=True))
+    # 8) How to read
+    story.extend(layout.section_flow(styles, "8. How to read this report", new_page=True))
     story.append(
         Paragraph(
             "• <b>Daily report (My Day):</b> sessions, idle, clicks/keys, screenshots, and day PDF.<br/>"
             "• <b>This monthly report:</b> roll-up of attendance and activity for the full calendar month.<br/>"
             "• Hours come from Sign In / Break / Sign Out and activity on the Employee Agent.",
-            body,
+            styles["body"],
         )
     )
 
-    # 9) Acknowledgement — new page
-    story.extend(_section("9. Acknowledgement", page_break=True))
+    # 9) Acknowledgement
+    story.extend(layout.section_flow(styles, "9. Acknowledgement", new_page=True))
     story.append(
         Paragraph(
             "This copy is generated for the named employee from live EMS records. "
             "It does not replace payroll statements. Questions about hours or progress: contact your manager.",
-            body,
+            styles["body"],
         )
     )
+    story.append(layout.table_caption(styles, "Table VIII. Acknowledgement"))
     ack = [
         ["Employee acknowledgement", "Office / manager review"],
         ["Name: ________________________", "Name: ________________________"],
         ["Date: ________________________", "Date: ________________________"],
         ["Signature: ___________________", "Signature: ___________________"],
     ]
-    at = Table(ack, colWidths=[86 * mm, 86 * mm])
+    at = Table(ack, colWidths=[82 * mm, 82 * mm])
     at.setStyle(
         TableStyle(
             [
@@ -1136,22 +848,29 @@ def build_personal_monthly_pdf(
                 ("BACKGROUND", (0, 0), (-1, 0), LIGHT),
                 ("BOX", (0, 0), (-1, -1), 0.8, BLACK),
                 ("INNERGRID", (0, 0), (-1, -1), 0.35, LINE),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ]
         )
     )
     story.append(Spacer(1, 4))
     story.append(at)
-
-    story.append(Spacer(1, 12))
-    story.append(HRFlowable(width="100%", thickness=0.7, color=BLACK, spaceAfter=4))
-    story.append(
-        Paragraph(
+    story.extend(
+        layout.end_matter(
+            styles,
             f"{doc_id} · Generated {format_generated()} · CFS Designers EMS · Confidential — do not redistribute",
-            foot,
         )
     )
-    doc.build(story)
+
+    doc = layout.make_doc(
+        str(path),
+        title=f"Monthly Attendance Report — {employee_name} — {month_label}",
+    )
+    on_page = layout.make_page_drawer(
+        doc_id=doc_id,
+        left_meta=f"{employee_name} · {month_label}",
+    )
+    doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
     return path
+

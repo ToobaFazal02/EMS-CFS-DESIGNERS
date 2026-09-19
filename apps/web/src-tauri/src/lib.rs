@@ -92,6 +92,27 @@ foreach ($exe in $candidates) {{
   Ok(())
 }
 
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+  let u = url.trim();
+  if u.is_empty() || !(u.starts_with("https://") || u.starts_with("http://")) {
+    return Err("Invalid URL".into());
+  }
+  #[cfg(windows)]
+  {
+    Command::new("cmd")
+      .args(["/C", "start", "", u])
+      .spawn()
+      .map_err(|e| format!("Could not open URL: {e}"))?;
+    return Ok(());
+  }
+  #[cfg(not(windows))]
+  {
+    let _ = u;
+    Err("open_external_url is Windows-only".into())
+  }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -105,7 +126,10 @@ pub fn run() {
       }
       Ok(())
     })
-    .invoke_handler(tauri::generate_handler![start_silent_manager_update])
+    .invoke_handler(tauri::generate_handler![
+      start_silent_manager_update,
+      open_external_url
+    ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }

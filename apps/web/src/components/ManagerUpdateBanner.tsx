@@ -56,11 +56,16 @@ export function ManagerUpdateBanner() {
       const msg = e instanceof Error ? e.message : String(e || "Update failed");
       setErr(msg);
       setPhase("error");
-      // Fallback: open download in browser / default handler
+      // Fallback: open download via Tauri (WebView2 window.open is unreliable)
       try {
-        window.open(info.url, "_blank", "noopener,noreferrer");
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("open_external_url", { url: info.url });
       } catch {
-        /* ignore */
+        try {
+          window.open(info.url, "_blank", "noopener,noreferrer");
+        } catch {
+          /* ignore */
+        }
       }
     }
   }
