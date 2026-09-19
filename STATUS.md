@@ -24,6 +24,9 @@
 | Password eye (WebView2 native hide) | Done |
 | Staff My dashboard + Lovable-inspired UX | Done |
 | Staff monthly professional PDF (view/download) | Done |
+| Month trend (capped vs work-day avg) + 100% bar fill | Done (19 Sep) |
+| Assigned work scroll + hide finished/manual | Done (19 Sep) |
+| Personal/daily PDF section page breaks | Done (19 Sep) |
 | Live day clicks/keys + Dashboard EOD progress | Done (earlier) |
 | Soft payment gate + Detailer/Engineer | Done (earlier) |
 

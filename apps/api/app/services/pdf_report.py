@@ -15,6 +15,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import (
     HRFlowable,
     KeepTogether,
+    PageBreak,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -436,6 +437,7 @@ def build_daily_pdf(
     story.append(st)
 
     cats = summarize_categories(top_windows)
+    story.append(PageBreak())
     story.append(Paragraph("App Categories (Work vs Browser vs Other)", h2))
     cat_rows = [["Category", "Activity qty"]]
     for label in ("Work", "Browser", "Other"):
@@ -494,6 +496,7 @@ def build_daily_pdf(
     # Click Time Sheet detail (old software style)
     log = click_log or []
     if log:
+        story.append(PageBreak())
         story.append(Paragraph("Click Time Sheet", h2))
         log_header = [
             Paragraph("<b>Minute</b>", cell),
@@ -808,11 +811,17 @@ def build_personal_monthly_pdf(
         leading=9,
     )
 
-    def _section(title_text: str) -> list:
-        return [
-            Paragraph(title_text, h2),
-            HRFlowable(width="100%", thickness=0.8, color=BLACK, spaceAfter=6),
-        ]
+    def _section(title_text: str, *, page_break: bool = False) -> list:
+        out: list = []
+        if page_break:
+            out.append(PageBreak())
+        out.extend(
+            [
+                Paragraph(title_text, h2),
+                HRFlowable(width="100%", thickness=0.8, color=BLACK, spaceAfter=6),
+            ]
+        )
+        return out
 
     story: list = [
         Paragraph("CFS DESIGNERS", brand),
@@ -951,8 +960,8 @@ def build_personal_monthly_pdf(
     )
     story.append(lg)
 
-    # 5) Daily log
-    story.extend(_section("5. Daily attendance log"))
+    # 5) Daily log — new page (professional section start)
+    story.extend(_section("5. Daily attendance log", page_break=True))
     story.append(
         Paragraph(
             "One row per calendar day in the reporting period. Open any day in the app (My Day) "
@@ -1042,9 +1051,9 @@ def build_personal_monthly_pdf(
     )
     story.append(tt)
 
-    # 7) Project progress (optional)
+    # 7) Project progress — new page
     prog = list(progress_rows or [])
-    story.extend(_section("7. Project progress logged this month"))
+    story.extend(_section("7. Project progress logged this month", page_break=True))
     if prog:
         story.append(
             Paragraph(
@@ -1092,20 +1101,19 @@ def build_personal_monthly_pdf(
             )
         )
 
-    # 8) How to read / related reports
-    story.extend(_section("8. How to read this report"))
+    # 8) How to read / related reports — new page
+    story.extend(_section("8. How to read this report", page_break=True))
     story.append(
         Paragraph(
             "• <b>Daily report (My Day):</b> sessions, idle, clicks/keys, screenshots, and day PDF.<br/>"
             "• <b>This monthly report:</b> roll-up of attendance and activity for the full calendar month.<br/>"
-            "• <b>Team Reports (Admin/Manager):</b> multi-employee monthly pack — not shown to staff.<br/>"
             "• Hours come from Sign In / Break / Sign Out and activity on the Employee Agent.",
             body,
         )
     )
 
-    # 9) Acknowledgement
-    story.extend(_section("9. Acknowledgement"))
+    # 9) Acknowledgement — new page
+    story.extend(_section("9. Acknowledgement", page_break=True))
     story.append(
         Paragraph(
             "This copy is generated for the named employee from live EMS records. "

@@ -97,6 +97,29 @@ function niceDate(iso: string): string {
 
 type ProjDelta = { prev: number | null; latest: number; delta: number | null; when: string };
 
+const HIDDEN_PROJECTS_KEY = "ems_staff_hidden_projects";
+
+function readHiddenProjectIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(HIDDEN_PROJECTS_KEY);
+    const arr = raw ? (JSON.parse(raw) as unknown) : [];
+    return new Set(Array.isArray(arr) ? arr.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeHiddenProjectIds(ids: Set<string>) {
+  localStorage.setItem(HIDDEN_PROJECTS_KEY, JSON.stringify([...ids]));
+}
+
+function projectIsFinished(p: ProjectRow, latestPct?: number | null): boolean {
+  const ws = (p.work_state || "").toLowerCase();
+  if (ws === "done" || ws === "completed" || ws === "closed") return true;
+  const pct = latestPct != null ? Number(latestPct) : p.latest_progress_pct;
+  return pct != null && Number(pct) >= 100;
+}
+
 /**
  * Staff home — Lovable-inspired CFS dark/gold UX (web + Desktop same React).
  */
@@ -110,6 +133,7 @@ export function StaffHomePage() {
   const [day, setDay] = useState<DaySummary | null>(null);
   const [att, setAtt] = useState<MeAttendance | null>(null);
   const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => readHiddenProjectIds());
   const [deltas, setDeltas] = useState<Record<string, ProjDelta>>({});
   const [busy, setBusy] = useState(false);
   const [pdfPreview, setPdfPreview] = useState<{ url: string; title: string } | null>(null);
@@ -131,7 +155,13 @@ export function StaffHomePage() {
       ]);
       setDay(d);
       setAtt(a);
-      const mine = (projs || []).filter((p) => (p.work_state || "") !== "done");
+      const hidden = readHiddenProjectIds();
+      setHiddenIds(hidden);
+      const mine = (projs || []).filter((p) => {
+        if (hidden.has(p.id)) return false;
+        if (projectIsFinished(p)) return false;
+        return true;
+      });
       setProjects(mine);
       setProgProject((cur) => {
         if (cur && mine.some((p) => p.id === cur)) return cur;
@@ -144,7 +174,7 @@ export function StaffHomePage() {
 
       const nextDeltas: Record<string, ProjDelta> = {};
       await Promise.all(
-        mine.slice(0, 8).map(async (p) => {
+        mine.slice(0, 12).map(async (p) => {
           try {
             const hist: ProjectProgressRow[] = await fetchProjectProgress(p.id);
             const mineRows = hist.filter((r) => r.employee_id === myId);
@@ -232,7 +262,15 @@ export function StaffHomePage() {
     setSavingProg(true);
     try {
       await postProjectProgress(progProject, { percent: progPct, note: progNote.trim() });
-      toast.success("Progress saved — Admin can see it.");
+      if (progPct >= 100) {
+        const next = new Set(hiddenIds);
+        next.add(progProject);
+        writeHiddenProjectIds(next);
+        setHiddenIds(next);
+        toast.success("Progress saved at 100% — removed from Assigned work.");
+      } else {
+        toast.success("Progress saved.");
+      }
       setProgNote("");
       await load(false);
     } catch (e) {
@@ -240,6 +278,31 @@ export function StaffHomePage() {
     } finally {
       setSavingProg(false);
     }
+  }
+
+  function hideProjectFromDashboard(id: string) {
+    const next = new Set(hiddenIds);
+    next.add(id);
+    writeHiddenProjectIds(next);
+    setHiddenIds(next);
+    setProjects((cur) => {
+      const rest = cur.filter((p) => p.id !== id);
+      setProgProject((sel) => {
+        if (sel !== id) return sel;
+        const id0 = rest[0]?.id || "";
+        if (rest[0]?.latest_progress_pct != null) setProgPct(Number(rest[0].latest_progress_pct));
+        return id0;
+      });
+      return rest;
+    });
+    toast.success("Hidden from Assigned work. Still on My Projects.");
+  }
+
+  function clearHiddenProjects() {
+    writeHiddenProjectIds(new Set());
+    setHiddenIds(new Set());
+    void load(false);
+    toast.success("Hidden jobs restored on this dashboard.");
   }
 
   const monthLabel = new Date(year, month - 1, 1).toLocaleString("en", { month: "long", year: "numeric" });
@@ -254,12 +317,31 @@ export function StaffHomePage() {
   const activeRate = Math.min(100, Math.round(((clicks + keys) / activityDenom) * 100));
 
   const sparkVals = (att?.days || []).map((d) => d.net_hours);
-  const half = Math.floor(sparkVals.length / 2) || 1;
-  const firstHalf = sparkVals.slice(0, half).reduce((s, v) => s + v, 0);
-  const secondHalf = sparkVals.slice(half).reduce((s, v) => s + v, 0);
-  const trendPct =
-    firstHalf > 0.05 ? Math.round(((secondHalf - firstHalf) / firstHalf) * 1000) / 10 : secondHalf > 0 ? 100 : 0;
-  const trendUp = trendPct >= 0;
+  // Sensible trend: avg hours on recent present days vs earlier present days (capped).
+  const presentHours = (att?.days || []).filter((d) => d.present && d.net_hours > 0.01).map((d) => d.net_hours);
+  const recentN = Math.min(5, presentHours.length);
+  const recentSlice = presentHours.slice(-recentN);
+  const earlierSlice = presentHours.slice(0, Math.max(0, presentHours.length - recentN));
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : 0);
+  const recentAvg = avg(recentSlice);
+  const earlierAvg = avg(earlierSlice);
+  let trendLabel = "Not enough days yet";
+  let trendValue = "—";
+  let trendUp = true;
+  if (presentHours.length < 2) {
+    trendLabel = presentHours.length === 1 ? "First work days this month" : "No work days yet";
+    trendValue = recentAvg > 0 ? formatHm(recentAvg) : "—";
+  } else if (earlierAvg < 0.15) {
+    trendUp = true;
+    trendValue = formatHm(recentAvg);
+    trendLabel = "Avg on recent work days";
+  } else {
+    const raw = ((recentAvg - earlierAvg) / earlierAvg) * 100;
+    const capped = Math.max(-99, Math.min(99, Math.round(raw)));
+    trendUp = capped >= 0;
+    trendValue = `${capped > 0 ? "+" : ""}${capped}%`;
+    trendLabel = `vs earlier work days (avg ${formatHm(recentAvg)} lately)`;
+  }
 
   const chartDays = (att?.days || []).map((d) => ({
     label: String(Number(d.date.slice(-2))),
@@ -319,13 +401,13 @@ export function StaffHomePage() {
         </article>
         <article className="staff-kpi">
           <p className="staff-kpi-label">Month trend</p>
-          <p className={`staff-kpi-value ${trendUp ? "is-up" : "is-down"}`}>
-            {trendPct > 0 ? "+" : ""}
-            {trendPct}%
-          </p>
-          <p className="staff-kpi-meta">{trendUp ? "Later half trending up" : "Later half softer"} vs earlier</p>
+          <p className={`staff-kpi-value ${trendUp ? "is-up" : "is-down"}`}>{trendValue}</p>
+          <p className="staff-kpi-meta">{trendLabel}</p>
           <div className="staff-kpi-spark">
-            <Sparkline values={sparkVals.length ? sparkVals : [0]} color={trendUp ? "#4ade80" : "#fb923c"} />
+            <Sparkline
+              values={presentHours.length ? presentHours : sparkVals.length ? sparkVals : [0]}
+              color={trendUp ? "#4ade80" : "#fb923c"}
+            />
           </div>
         </article>
       </div>
@@ -371,6 +453,7 @@ export function StaffHomePage() {
                   max={100}
                   step={1}
                   value={progPct}
+                  style={{ ["--fill" as string]: `${progPct}%` }}
                   onChange={(e) => setProgPct(Number(e.target.value))}
                 />
               </div>
@@ -402,10 +485,11 @@ export function StaffHomePage() {
             <span className="staff-active-pill">{projects.length} active</span>
           </div>
           <ul className="staff-job-list">
-            {projects.slice(0, 6).map((p) => {
+            {projects.map((p) => {
               const dlt = deltas[p.id];
-              const pct = dlt?.latest ?? p.latest_progress_pct ?? 0;
+              const pct = Math.min(100, Math.max(0, dlt?.latest ?? p.latest_progress_pct ?? 0));
               const delta = dlt?.delta;
+              const barPct = pct >= 99.5 ? 100 : pct;
               return (
                 <li key={p.id}>
                   <div className="staff-job-top">
@@ -416,22 +500,38 @@ export function StaffHomePage() {
                         {dlt?.when ? `Updated ${dlt.when}` : "No % logged yet"}
                       </p>
                     </div>
-                    <em>{pct}%</em>
+                    <div className="staff-job-actions">
+                      <em>{Math.round(pct)}%</em>
+                      <button
+                        type="button"
+                        className="staff-hide-btn"
+                        title="Hide from Assigned work"
+                        onClick={() => hideProjectFromDashboard(p.id)}
+                      >
+                        Hide
+                      </button>
+                    </div>
                   </div>
                   <div className="staff-proj-bar" aria-hidden>
-                    <i style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+                    <i style={{ width: `${barPct}%` }} />
                   </div>
                   <p className={`staff-delta${delta != null && delta > 0 ? " is-up" : ""}`}>
                     {delta != null && dlt?.prev != null
-                      ? `${dlt.prev}% → ${pct}% = ${delta >= 0 ? "+" : ""}${delta}% last change`
+                      ? `${dlt.prev}% → ${Math.round(pct)}% = ${delta >= 0 ? "+" : ""}${delta}% last change`
                       : "No change in latest update"}
                   </p>
                 </li>
               );
             })}
-            {!projects.length ? <li className="muted">No active jobs.</li> : null}
+            {!projects.length ? (
+              <li className="muted">No open jobs on this dashboard. Finished (100%) and hidden jobs stay on My Projects.</li>
+            ) : null}
           </ul>
-          <p className="staff-admin-note">Admin sees the same history (40% → 50% = +10% today).</p>
+          {hiddenIds.size > 0 ? (
+            <button type="button" className="staff-restore-btn" onClick={clearHiddenProjects}>
+              Restore {hiddenIds.size} hidden job{hiddenIds.size === 1 ? "" : "s"}
+            </button>
+          ) : null}
           <Link className="staff-inline-link" to="/projects">
             All my projects →
           </Link>
@@ -474,8 +574,8 @@ export function StaffHomePage() {
             <p className="staff-eyebrow">{monthLabel}</p>
             <h2 className="staff-section-title">My monthly report</h2>
             <p className="muted">
-              Personal day-by-day attendance and activity PDF. Daily sessions and screenshots live on My Day; team
-              reports are admin-only.
+              Personal day-by-day attendance and activity PDF for the selected month. Sessions and screenshots are on My
+              Day.
             </p>
           </div>
           <div className="staff-report-actions">

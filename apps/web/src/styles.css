@@ -5764,9 +5764,53 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
   background: rgba(201, 162, 39, 0.08);
 }
 .staff-range {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  accent-color: var(--gold);
-  height: 28px;
+  height: 10px;
+  border-radius: 99px;
+  cursor: pointer;
+  background: linear-gradient(
+    to right,
+    var(--gold) 0%,
+    var(--gold) var(--fill, 0%),
+    rgba(255, 255, 255, 0.12) var(--fill, 0%)
+  );
+  outline: none;
+}
+.staff-range::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 99px;
+  background: transparent;
+}
+.staff-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 2px solid #0a0a0a;
+  box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.35);
+  cursor: pointer;
+}
+.staff-range::-moz-range-track {
+  height: 10px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.staff-range::-moz-range-progress {
+  height: 10px;
+  border-radius: 99px;
+  background: var(--gold);
+}
+.staff-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 2px solid #0a0a0a;
   cursor: pointer;
 }
 .staff-note {
@@ -5809,9 +5853,64 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
 .staff-job-list {
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 6px 0 0;
   display: grid;
   gap: 14px;
+  max-height: 340px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold) rgba(255, 255, 255, 0.06);
+}
+.staff-job-list::-webkit-scrollbar {
+  width: 6px;
+}
+.staff-job-list::-webkit-scrollbar-thumb {
+  background: var(--gold);
+  border-radius: 99px;
+}
+.staff-job-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 99px;
+}
+.staff-job-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.staff-hide-btn {
+  appearance: none;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.staff-hide-btn:hover {
+  color: var(--gold);
+  border-color: var(--gold);
+}
+.staff-restore-btn {
+  appearance: none;
+  display: block;
+  width: 100%;
+  margin: 10px 0 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--card-border);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.staff-restore-btn:hover {
+  color: var(--gold);
+  border-color: var(--gold);
 }
 .staff-job-top {
   display: flex;
@@ -5837,11 +5936,6 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
 }
 .staff-delta.is-up {
   color: #4ade80;
-}
-.staff-admin-note {
-  margin: 14px 0 8px;
-  font-size: 0.78rem;
-  color: var(--muted);
 }
 .staff-inline-link {
   font-size: 0.9rem;
@@ -5960,8 +6054,9 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
 .staff-proj-bar i {
   display: block;
   height: 100%;
+  max-width: 100%;
   background: linear-gradient(90deg, #c9a227, #e8c547);
-  border-radius: 99px;
+  border-radius: 0;
 }
 .staff-hours-svg {
   width: 100%;
