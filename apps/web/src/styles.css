@@ -5644,6 +5644,71 @@ html[data-theme="light"] .table-center tr.is-pay-blocked td {
   color: var(--gold);
   font-weight: 700;
 }
+.dash-progress-emp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  padding-right: 4px;
+}
+.dash-progress-emp {
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.12));
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0 12px 2px;
+}
+html[data-theme="light"] .dash-progress-emp {
+  background: rgba(0, 0, 0, 0.02);
+}
+.dash-progress-emp > summary {
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.5rem 1.25rem;
+  align-items: center;
+  column-gap: 12px;
+  padding: 12px 0;
+  cursor: pointer;
+  font-weight: 600;
+  user-select: none;
+}
+.dash-progress-emp > summary::-webkit-details-marker {
+  display: none;
+}
+.dash-progress-emp > summary::after {
+  content: "▾";
+  color: var(--gold);
+  font-size: 0.85rem;
+  transition: transform 0.15s ease;
+  justify-self: end;
+  text-align: center;
+  width: 1.25rem;
+}
+.dash-progress-emp[open] > summary::after {
+  transform: rotate(-180deg);
+}
+.dash-progress-emp > summary:hover .dash-progress-emp-name,
+.dash-progress-emp > summary:focus-visible .dash-progress-emp-name {
+  color: var(--gold);
+}
+.dash-progress-emp-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-progress-emp-meta {
+  justify-self: end;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.dash-progress-emp .dash-progress-week {
+  margin-bottom: 8px;
+  padding-top: 0;
+}
 .staff-week-progress {
   list-style: none;
   margin: 10px 0 0;
@@ -5729,6 +5794,13 @@ html[data-theme="light"] .table-center tr.is-pay-blocked td {
 .notify-panel-head strong {
   font-size: 0.95rem;
   color: var(--text);
+}
+.notify-panel-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 .notify-mark-all {
   appearance: none;

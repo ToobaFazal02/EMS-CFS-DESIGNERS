@@ -136,9 +136,22 @@ export function NotifyBell() {
         <div className="notify-panel" role="dialog" aria-label="Office notifications">
           <div className="notify-panel-head">
             <strong>Alerts</strong>
-            <button type="button" className="notify-mark-all" disabled={busy || unread === 0} onClick={() => void onMarkAll()}>
-              Mark all read
-            </button>
+            <div className="notify-panel-actions">
+              <button
+                type="button"
+                className="notify-mark-all"
+                onClick={() => {
+                  unlockNotifyAudio();
+                  playNotifyChime();
+                }}
+                title="Play a soft test chime (Desktop needs one click first)"
+              >
+                Test sound
+              </button>
+              <button type="button" className="notify-mark-all" disabled={busy || unread === 0} onClick={() => void onMarkAll()}>
+                Mark all read
+              </button>
+            </div>
           </div>
           {err ? <p className="notify-empty">{err}</p> : null}
           {!err && !items.length ? <p className="notify-empty">No office alerts yet.</p> : null}

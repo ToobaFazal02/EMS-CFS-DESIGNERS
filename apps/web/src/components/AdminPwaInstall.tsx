@@ -7,9 +7,10 @@ type BeforeInstallPromptEvent = Event & {
 
 const DISMISS_KEY = "ems_pwa_install_dismissed";
 
-function isOfficeRole(): boolean {
+/** Install banner + SW — Admin and HR only (never manager, employee, demo). */
+function isAdminOrHr(): boolean {
   const r = localStorage.getItem("ems_role") || "";
-  return r === "admin" || r === "manager" || r === "hr";
+  return r === "admin" || r === "hr";
 }
 
 function isStandalone(): boolean {
@@ -43,7 +44,7 @@ export function AdminPwaInstall() {
   });
 
   useEffect(() => {
-    if (!isOfficeRole() || isStandalone()) return;
+    if (!isAdminOrHr() || isStandalone()) return;
     function onBip(e: Event) {
       e.preventDefault();
       setDeferred(e as BeforeInstallPromptEvent);
@@ -78,20 +79,20 @@ export function AdminPwaInstall() {
     setDismissed(true);
   }
 
-  if (!isOfficeRole() || installed || dismissed) return null;
+  if (!isAdminOrHr() || installed || dismissed) return null;
   // Show on mobile always (tip), or when browser offers Install
   if (!deferred && !iosTip && !isMobileUa()) return null;
 
   return (
     <div className="pwa-install-bar" role="status">
       <div className="pwa-install-text">
-        <strong>Install Admin app (phone)</strong>
+        <strong>Install Admin / HR app (phone)</strong>
         <span>
           {deferred
-            ? "Add CFS EMS to your home screen — Live, Day, Projects, Payments (office glance). Not for employee Sign In."
+            ? "Add CFS EMS to your home screen — Live, Day, Projects (Admin/HR only). Not for employees or Sign In."
             : iosTip
-              ? "iPhone Safari: Share → Add to Home Screen. Use production HTTPS URL while logged in as Admin."
-              : "Android Chrome: menu (⋮) → Install app / Add to Home screen. Open https://ems.cfsdesigners.com as Admin."}
+              ? "iPhone Safari: Share → Add to Home Screen. Production HTTPS, logged in as Admin or HR."
+              : "Android Chrome: menu (⋮) → Install app. Open https://ems.cfsdesigners.com as Admin or HR."}
         </span>
       </div>
       <div className="pwa-install-actions">
@@ -108,10 +109,10 @@ export function AdminPwaInstall() {
   );
 }
 
-/** Register SW only for office roles after login (admin PWA). */
+/** Register SW only for Admin / HR after login (phone home-screen app). */
 export function registerAdminServiceWorker(): void {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
-  if (!isOfficeRole()) return;
+  if (!isAdminOrHr()) return;
   window.setTimeout(() => {
     navigator.serviceWorker.register("/sw.js").catch(() => undefined);
   }, 2000);

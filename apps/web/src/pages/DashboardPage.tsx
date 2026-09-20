@@ -38,6 +38,23 @@ function isAbort(e: unknown) {
   return (e instanceof DOMException && e.name === "AbortError") || (e instanceof Error && e.name === "AbortError");
 }
 
+/** Group Past-7-day rows under each employee so the list stays short as headcount grows. */
+function groupProgressByEmployee(rows: DashProgressRow[]): { name: string; rows: DashProgressRow[] }[] {
+  const map = new Map<string, DashProgressRow[]>();
+  for (const row of rows) {
+    const name = (row.employee_name || "—").trim() || "—";
+    const list = map.get(name);
+    if (list) list.push(row);
+    else map.set(name, [row]);
+  }
+  return Array.from(map.entries())
+    .map(([name, empRows]) => ({
+      name,
+      rows: [...empRows].sort((a, b) => (b.work_date || "").localeCompare(a.work_date || "")),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+}
+
 export function DashboardPage() {
   const toast = useToast();
   const [data, setData] = useState<DashboardSummary | null>(null);
@@ -112,6 +129,7 @@ export function DashboardPage() {
   const showPartnerShares = Boolean(shares);
   const progressToday: DashProgressRow[] = data?.progress_today || [];
   const progressWeek: DashProgressRow[] = data?.progress_week || [];
+  const progressWeekByEmployee = groupProgressByEmployee(progressWeek);
   const ready = data != null;
 
   return (
@@ -260,31 +278,48 @@ export function DashboardPage() {
               </p>
             )}
             <h4 className="dash-progress-week-title">Past 7 days</h4>
-            {progressWeek.length ? (
-              <ul className="dash-progress-list dash-progress-week" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {progressWeek.map((row) => (
-                  <li
-                    key={`w-${row.id}`}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "88px minmax(0, 1.2fr) minmax(0, 1fr) auto",
-                      gap: 10,
-                      alignItems: "center",
-                      padding: "8px 0",
-                      borderBottom: "1px solid var(--border, #333)",
-                      fontSize: 13,
-                    }}
-                  >
-                    <span className="muted">{row.work_date}</span>
-                    <span>
-                      {row.project_code ? <strong style={{ color: "var(--accent)" }}>{row.project_code} </strong> : null}
-                      {row.project_name}
-                    </span>
-                    <span className="muted">{row.employee_name}</span>
-                    <strong style={{ color: "var(--accent, #c9a227)" }}>{row.percent}%</strong>
-                  </li>
+            <p className="muted page-sub" style={{ margin: "0 0 10px" }}>
+              Open an employee name to see their daily % movement (keeps the board short when the team grows).
+            </p>
+            {progressWeekByEmployee.length ? (
+              <div className="dash-progress-emp-list">
+                {progressWeekByEmployee.map((group) => (
+                  <details key={group.name} className="dash-progress-emp">
+                    <summary>
+                      <span className="dash-progress-emp-name">{group.name}</span>
+                      <span className="muted dash-progress-emp-meta">
+                        {group.rows.length} update{group.rows.length === 1 ? "" : "s"}
+                      </span>
+                    </summary>
+                    <ul className="dash-progress-list dash-progress-week" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                      {group.rows.map((row) => (
+                        <li
+                          key={`w-${row.id}`}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "88px minmax(0, 1fr) auto",
+                            gap: 10,
+                            alignItems: "center",
+                            padding: "8px 0",
+                            borderBottom: "1px solid var(--border, #333)",
+                            fontSize: 13,
+                          }}
+                        >
+                          <span className="muted">{row.work_date}</span>
+                          <span>
+                            {row.project_code ? (
+                              <strong style={{ color: "var(--accent)" }}>{row.project_code} </strong>
+                            ) : null}
+                            {row.project_name}
+                            {row.note ? <span className="muted"> — {row.note}</span> : null}
+                          </span>
+                          <strong style={{ color: "var(--accent, #c9a227)" }}>{row.percent}%</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
                 ))}
-              </ul>
+              </div>
             ) : (
               <p className="muted" style={{ margin: 0 }}>
                 No progress rows in the last 7 days yet.

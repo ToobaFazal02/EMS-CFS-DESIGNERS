@@ -1213,11 +1213,6 @@ export function ProjectsPage() {
                                 {p.gate === "need_deposit" ? "Deposit due" : "Final pay"}
                               </span>
                             ) : null}
-                            {!finance && (p.gate === "need_deposit" || p.gate === "need_final") ? (
-                              <span className="pill pill-blocked" title="Office has not cleared payment yet — you can still work design phases">
-                                {p.gate === "need_final" ? "Balance pending" : "Advance pending"}
-                              </span>
-                            ) : null}
                             {finance && contract > 0 && !blocked && fullyPaid ? (
                               <span className="pill pill-ok">Paid</span>
                             ) : null}
@@ -1312,7 +1307,7 @@ export function ProjectsPage() {
               {filtered.map((p) => {
                 const blocked = p.gate === "need_deposit" || p.gate === "need_final";
                 return (
-                <tr key={p.id} className={blocked ? "is-pay-blocked" : undefined}>
+                <tr key={p.id} className={finance && blocked ? "is-pay-blocked" : undefined}>
                   <td>
                     <strong style={{ color: "var(--accent, #c9a227)" }}>{p.code || "—"}</strong>
                   </td>

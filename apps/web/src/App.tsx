@@ -229,12 +229,14 @@ function MainNavLinks({
   partner,
   demo,
   myId,
+  downloads,
 }: {
   office: boolean;
   finance: boolean;
   partner: boolean;
   demo: boolean;
   myId: string;
+  downloads: boolean;
 }) {
   if (demo) {
     return (
@@ -246,7 +248,6 @@ function MainNavLinks({
         <NavLink to="/employees">Team</NavLink>
         <NavLink to="/projects">Projects</NavLink>
         <NavLink to="/expenses">Expenses</NavLink>
-        <NavLink to="/downloads">Downloads</NavLink>
       </>
     );
   }
@@ -263,7 +264,7 @@ function MainNavLinks({
         {partner ? <NavLink to="/partner-shares">Shares</NavLink> : null}
         <NavLink to="/expenses">Expenses</NavLink>
         <NavLink to="/reports">Reports</NavLink>
-        <NavLink to="/downloads">Downloads</NavLink>
+        {downloads ? <NavLink to="/downloads">Downloads</NavLink> : null}
       </>
     );
   }
@@ -274,7 +275,6 @@ function MainNavLinks({
       </NavLink>
       {myId ? <NavLink to={`/day/${myId}`}>My Day</NavLink> : null}
       <NavLink to="/projects">My Projects</NavLink>
-      <NavLink to="/downloads">Downloads</NavLink>
     </>
   );
 }
@@ -290,6 +290,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const finance = isFinanceRole();
   const partner = isPartnerRole();
   const demo = isDemoRole();
+  const downloads = role === "admin" || role === "hr";
   const nav = useNavigate();
   const loc = useLocation();
 
@@ -300,10 +301,11 @@ function Shell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (office || demo) {
+    const canInstallPwa = role === "admin" || role === "hr";
+    if (canInstallPwa) {
       void import("./components/AdminPwaInstall").then((m) => m.registerAdminServiceWorker());
     }
-  }, [office, demo]);
+  }, [role]);
 
   useEffect(() => {
     setNavOpen(false);
@@ -349,7 +351,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className={`app-shell${isTauriDesktop() ? " app-shell-desktop" : ""}`}>
       <ManagerUpdateBanner />
-      {(office || demo) ? <AdminPwaInstall /> : null}
+      {role === "admin" || role === "hr" ? <AdminPwaInstall /> : null}
       <header className="topbar">
         <div className="topbar-lead">
           <div className="brand">
@@ -361,7 +363,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
         <nav className="nav nav-desktop" aria-label="Main">
-          <MainNavLinks office={office} finance={finance} partner={partner} demo={demo} myId={myId} />
+          <MainNavLinks office={office} finance={finance} partner={partner} demo={demo} myId={myId} downloads={downloads} />
         </nav>
         <div className="topbar-actions">
           <div className="user-chip" title={`${name}${role ? ` · ${roleLabel(role)}` : ""}`}>
@@ -494,7 +496,7 @@ function Shell({ children }: { children: React.ReactNode }) {
                 </svg>
               </button>
             </div>
-            <MainNavLinks office={office} finance={finance} partner={partner} demo={demo} myId={myId} />
+            <MainNavLinks office={office} finance={finance} partner={partner} demo={demo} myId={myId} downloads={downloads} />
             <div
               className="nav-mobile-settings"
               onClick={(e) => e.stopPropagation()}
@@ -548,6 +550,10 @@ function Shell({ children }: { children: React.ReactNode }) {
 
 function DownloadsRoute() {
   if (!localStorage.getItem("ems_token")) return <Navigate to="/login" replace />;
+  const role = localStorage.getItem("ems_role") || "";
+  if (role !== "admin" && role !== "hr") {
+    return <Navigate to="/" replace />;
+  }
   return (
     <Shell>
       <DownloadsPage />

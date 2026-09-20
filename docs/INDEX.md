@@ -33,8 +33,9 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | `61-projects-payments-flow-qa.md` | **18 Sep** Projects/payments soft gate + Detailer/Engineer QA |
 | `62-remaining-work-desktop-first.md` | **18 Sep LOCKED** Desktop+Agent **100% first** on branch **`desktop+agent`** → web/mobile least priority |
 | `64-signed-updater-ops.md` | P3 signed Tauri updater checklist (keys + CI) |
-| `65-admin-pwa.md` | P4 admin-only mobile PWA (home screen, not store) |
-| `66-desktop-notify-pwa-test.md` | How to run Desktop, hear notify, install Admin PWA, Agent smoke |
+| `65-admin-pwa.md` | P4 Admin/**HR**-only mobile PWA (home screen; not manager/employee) |
+| `66-desktop-notify-pwa-test.md` | How to run Desktop, hear notify, install Admin/HR PWA, Agent smoke |
+| `pdfs/` | **Ops PDF pack v0.1.6** — QA, security, Hostinger, local, break/fix, auto-update honesty, master AI prompt |
 | `63-lovable-staff-dashboard-prompt.md` | **18 Sep** Lovable prompt — Staff My dashboard aesthetic |
 | `43-lovable-dashboard-prompt.md` | Copy-paste Lovable prompt — **Dashboard tab only** |
 | `44-dashboard-predeploy.md` | **1 Sep 2026** Dashboard data + ultra-wide type + what to click before VPS |

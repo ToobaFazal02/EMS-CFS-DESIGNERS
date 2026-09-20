@@ -33,13 +33,14 @@ npm run tauri:dev
 
 No beep? Click bell once, then trigger another alert. Browser/Desktop must allow sound for the app.
 
-## 3) Admin mobile “app” (PWA — not Play Store)
+## 3) Admin / HR mobile “app” (PWA — not Play Store)
 
-There is **no** separate APK/IPA. Admin installs the **website** to the home screen.
+There is **no** separate APK/IPA. **Admin or HR** installs the **website** to the home screen.  
+**Manager, Employee, Demo must never see the Install banner.**
 
 1. Phone Chrome/Safari → `https://ems.cfsdesigners.com` (HTTPS required)
-2. Login **Admin / Manager / HR**
-3. Banner **Install Admin app** → Install  
+2. Login **Admin** or **HR**
+3. Banner **Install Admin / HR app** → Install  
    - Android: also ⋮ → Install app  
    - iPhone: Share → Add to Home Screen
 4. Open from home icon → same Manager UI (glance)
@@ -48,9 +49,9 @@ There is **no** separate APK/IPA. Admin installs the **website** to the home scr
 
 | Works | Does not |
 |---|---|
-| Dashboard, Live, Day, Projects, Payments, Reports, Downloads, bell | Employee Agent Sign In / Out |
-| View PDFs, progress, unpaid red cards | Screenshot capture from phone |
-| Staff cannot install as “Agent” punch app | |
+| Dashboard, Live, Day, Projects, Reports, Downloads, bell (role-gated) | Employee Agent Sign In / Out |
+| View PDFs, progress dropdowns, unpaid red cards | Screenshot capture from phone |
+| Staff / Manager cannot install as “Agent” punch app | |
 
 ## 4) Agent test (staff PC)
 

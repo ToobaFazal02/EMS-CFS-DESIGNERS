@@ -23,7 +23,7 @@ export const MANAGER_GUIDE: GuideStep[] = [
   {
     path: "/projects",
     title: "Projects",
-    body: "Create jobs with client (staff see [Initial] · location only), scope, Detailer + Engineer. Staff move design phases freely; Advance pending badge if deposit unpaid. Hard lock only Stamped / Field / Run. Staff log end-of-day %; Admin audits history (40%→50%).",
+    body: "Create jobs with client (staff see [Initial] · location only), scope, Detailer + Engineer. Staff move design phases freely. Deposit/final payment badges are Admin/Manager only — staff never see Advance pending. Hard lock only Stamped / Field / Run. Staff log end-of-day %; Admin audits history.",
   },
   {
     path: "/payments",

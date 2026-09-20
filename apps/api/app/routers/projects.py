@@ -254,7 +254,7 @@ def _project_out(p: Project, *, hide_money: bool = False, mask_client: bool = Fa
         latest_progress_pct=progress,
     )
     if hide_money:
-        # Staff see ops fields only — never payment wording in comments; keep soft gate badge
+        # Staff / HR: ops fields only — never payment $ or Advance/Deposit badges (gate blanked in API).
         safe_comments = p.comments or ""
         low = safe_comments.lower()
         if any(w in low for w in ("paid", "deposit", "invoice", "$", "payment", "advance", "balance")):
@@ -266,7 +266,7 @@ def _project_out(p: Project, *, hide_money: bool = False, mask_client: bool = Fa
             deposit_pct=0,
             currency="",
             paid_amount=0,
-            gate=gate_status(p),
+            gate="ok",
         )
     return ProjectOut(
         **base_kwargs,
