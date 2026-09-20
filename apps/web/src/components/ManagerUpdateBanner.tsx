@@ -80,10 +80,10 @@ export function ManagerUpdateBanner() {
         </strong>
         <span>
           {phase === "updating"
-            ? "Downloading and installing in the background. App will restart. Server data stays safe."
+            ? "Downloading Setup and installing silently (/S). App will exit and relaunch. Server data stays safe."
             : phase === "error"
-              ? `Could not auto-install (${err}). Opening manual download…`
-              : `You have v${MANAGER_APP_VERSION}. Click Update — installs in the background.`}
+              ? `Auto-install failed (${err}). Opening download page…`
+              : `You have v${MANAGER_APP_VERSION}. One click installs the new Setup in the background (Phase E MVP).`}
         </span>
       </div>
       <button

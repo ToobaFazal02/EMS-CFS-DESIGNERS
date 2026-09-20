@@ -8,6 +8,8 @@ import { AuthedImg } from "./components/AuthedImg";
 import { GuideCard } from "./components/GuideCard";
 import { RefreshButton } from "./components/RefreshButton";
 import { ManagerUpdateBanner } from "./components/ManagerUpdateBanner";
+import { NotifyBell } from "./components/NotifyBell";
+import { AdminPwaInstall } from "./components/AdminPwaInstall";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { isTauriDesktop, MANAGER_APP_VERSION } from "./version";
 import { AccountPage } from "./pages/AccountPage";
@@ -298,6 +300,12 @@ function Shell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (office || demo) {
+      void import("./components/AdminPwaInstall").then((m) => m.registerAdminServiceWorker());
+    }
+  }, [office, demo]);
+
+  useEffect(() => {
     setNavOpen(false);
     setGearOpen(false);
   }, [loc.pathname]);
@@ -341,6 +349,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className={`app-shell${isTauriDesktop() ? " app-shell-desktop" : ""}`}>
       <ManagerUpdateBanner />
+      {(office || demo) ? <AdminPwaInstall /> : null}
       <header className="topbar">
         <div className="topbar-lead">
           <div className="brand">
@@ -355,6 +364,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <MainNavLinks office={office} finance={finance} partner={partner} demo={demo} myId={myId} />
         </nav>
         <div className="topbar-actions">
+          {office || demo ? <NotifyBell /> : null}
           <div className="user-chip" title={`${name}${role ? ` · ${roleLabel(role)}` : ""}`}>
             <span className="user-chip-avatar" aria-hidden>
               {(name || "U")

@@ -344,3 +344,30 @@ class OfficeExpense(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     created_by: Mapped[Employee | None] = relationship()
+
+
+class OfficeNotification(Base):
+    """In-app office alerts (admin/manager/HR bell). Recipient-scoped reads separately."""
+
+    __tablename__ = "office_notifications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    kind: Mapped[str] = mapped_column(String(40), index=True, default="info")
+    title: Mapped[str] = mapped_column(String(200))
+    body: Mapped[str] = mapped_column(Text, default="")
+    href: Mapped[str] = mapped_column(String(300), default="")
+    ref_key: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    payload_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class OfficeNotificationRead(Base):
+    """Per-office-user read state (standard inbox pattern)."""
+
+    __tablename__ = "office_notification_reads"
+
+    notification_id: Mapped[str] = mapped_column(
+        ForeignKey("office_notifications.id", ondelete="CASCADE"), primary_key=True
+    )
+    employee_id: Mapped[str] = mapped_column(ForeignKey("employees.id", ondelete="CASCADE"), primary_key=True)
+    read_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

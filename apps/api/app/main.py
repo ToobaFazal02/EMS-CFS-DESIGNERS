@@ -9,7 +9,16 @@ from starlette.responses import Response
 
 from app.config import get_settings
 from app.db import Base, engine
-from app.routers import agent, auth_employees, expenses, manager, partner_shares, payments, projects
+from app.routers import (
+    agent,
+    auth_employees,
+    expenses,
+    manager,
+    notifications,
+    partner_shares,
+    payments,
+    projects,
+)
 from app.services.schema_patch import ensure_sqlite_columns
 
 settings = get_settings()
@@ -84,6 +93,7 @@ app.include_router(projects.router)
 app.include_router(payments.router)
 app.include_router(expenses.router)
 app.include_router(partner_shares.router)
+app.include_router(notifications.router)
 
 
 @app.get("/api/v1/health")

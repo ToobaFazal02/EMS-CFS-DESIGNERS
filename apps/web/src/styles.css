@@ -5550,6 +5550,196 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
   color: #7a1f2e !important;
 }
 
+/* Phase D — Admin PWA install bar */
+.pwa-install-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba(201, 162, 39, 0.12);
+  border-bottom: 1px solid rgba(201, 162, 39, 0.35);
+  color: var(--text);
+}
+.pwa-install-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.pwa-install-text strong {
+  color: var(--gold);
+}
+.pwa-install-btn {
+  height: 36px;
+  padding: 0 16px;
+  font-weight: 700;
+}
+html[data-theme="light"] .pwa-install-bar {
+  background: rgba(201, 162, 39, 0.16);
+}
+
+/* Office notification bell (P2) */
+.notify-wrap {
+  position: relative;
+}
+.notify-bell {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.12));
+  background: transparent !important;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+.notify-bell:hover,
+.notify-bell:focus-visible {
+  background: rgba(201, 162, 39, 0.14) !important;
+  color: var(--gold);
+  border-color: var(--gold);
+}
+.notify-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+.notify-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(420px, 70vh);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface, #141414);
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.14));
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  z-index: 80;
+}
+.notify-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+}
+.notify-panel-head strong {
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.notify-mark-all {
+  appearance: none;
+  border: 0;
+  background: transparent !important;
+  color: var(--gold);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.notify-mark-all:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.notify-empty {
+  margin: 0;
+  padding: 20px 14px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  text-align: center;
+}
+.notify-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+.notify-list li {
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+.notify-list li.is-unread {
+  background: rgba(201, 162, 39, 0.06);
+}
+.notify-list a,
+.notify-row-btn {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+  width: 100%;
+  border: 0;
+  background: transparent !important;
+  font: inherit;
+  cursor: pointer;
+}
+.notify-list a:hover,
+.notify-row-btn:hover {
+  background: rgba(201, 162, 39, 0.1) !important;
+}
+.notify-kind {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.notify-kind-warning { color: #f59e0b; }
+.notify-kind-alert { color: #f87171; }
+.notify-kind-info { color: var(--gold); }
+.notify-list strong {
+  font-size: 0.9rem;
+  color: var(--text);
+  font-weight: 600;
+}
+.notify-list strong.is-unread {
+  font-weight: 700;
+}
+.notify-body {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+.notify-time {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  opacity: 0.85;
+}
+html[data-theme="light"] .notify-panel {
+  background: #fff;
+  box-shadow: 0 12px 36px rgba(40, 30, 10, 0.18);
+}
+html[data-theme="light"] .notify-bell {
+  border-color: rgba(0, 0, 0, 0.12);
+  color: var(--text);
+}
+html[data-theme="light"] .notify-list li.is-unread {
+  background: rgba(201, 162, 39, 0.1);
+}
+
 /* Manager Desktop — Update available (Phase E) */
 .app-update-banner {
   display: flex;

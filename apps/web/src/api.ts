@@ -867,4 +867,59 @@ export async function fetchPartnerShares(opts?: {
   return r.json();
 }
 
+export type OfficeNotification = {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  href: string;
+  created_at: string;
+  read: boolean;
+};
+
+export async function fetchNotifications(opts?: {
+  unreadOnly?: boolean;
+  limit?: number;
+}): Promise<OfficeNotification[]> {
+  const q = new URLSearchParams();
+  if (opts?.unreadOnly) q.set("unread_only", "1");
+  if (opts?.limit) q.set("limit", String(opts.limit));
+  const qs = q.toString();
+  const r = await fetch(`${apiBase()}/api/v1/notifications${qs ? `?${qs}` : ""}`, {
+    headers: authHeaders(),
+  });
+  if (r.status === 401) {
+    localStorage.removeItem("ems_token");
+    throw new Error("Session expired — sign in again");
+  }
+  if (r.status === 403) return [];
+  if (!r.ok) throw new Error(await apiError(r, "Failed to load notifications"));
+  return r.json();
+}
+
+export async function fetchNotificationUnreadCount(): Promise<number> {
+  const r = await fetch(`${apiBase()}/api/v1/notifications/unread-count`, {
+    headers: authHeaders(),
+  });
+  if (!r.ok) return 0;
+  const data = (await r.json()) as { unread?: number };
+  return Math.max(0, Number(data.unread) || 0);
+}
+
+export async function markNotificationsRead(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  await fetch(`${apiBase()}/api/v1/notifications/mark-read`, {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await fetch(`${apiBase()}/api/v1/notifications/mark-all-read`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+}
+
 export { authHeaders };

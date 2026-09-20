@@ -8,6 +8,7 @@ from sqlalchemy import delete, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.services.notifications import notify_office
 from app.auth import (
     get_current_user,
     is_demo_user,
@@ -707,6 +708,18 @@ async def update_project(
                 ),
             )
         )
+        await notify_office(
+            db,
+            kind="warning",
+            title="Deposit unpaid — phase advanced",
+            body=(
+                f"Project {(p.code or p.name or p.id)[:80]} left Intake without a Paid deposit "
+                f"({p.phase} → {body.phase})."
+            ),
+            href="/projects",
+            ref_key=f"deposit_unpaid:{p.id}:{body.phase}",
+            payload={"project_id": p.id, "to_phase": body.phase},
+        )
     if allow and hard:
         db.add(
             AuditLog(
@@ -717,6 +730,18 @@ async def update_project(
                     {"project_id": p.id, "phase": body.phase, "reason": (body.override_reason or "")[:200]}
                 ),
             )
+        )
+        await notify_office(
+            db,
+            kind="alert",
+            title="Payment gate override",
+            body=(
+                f"Hard payment gate overridden for {(p.code or p.name or p.id)[:80]} "
+                f"at phase {body.phase}."
+            ),
+            href="/projects",
+            ref_key=f"gate_override:{p.id}:{body.phase}:{datetime.utcnow().strftime('%Y%m%d%H')}",
+            payload={"project_id": p.id, "phase": body.phase},
         )
 
     p.name = name
@@ -829,6 +854,16 @@ async def post_project_progress(
         )
         db.add(row)
     p.updated_at = datetime.utcnow()
+    if user.role == Role.employee:
+        await notify_office(
+            db,
+            kind="info",
+            title="Staff progress update",
+            body=f"{(emp.full_name or 'Staff')} logged {pct:.0f}% on {(p.code or p.name or '')[:60]}",
+            href="/projects",
+            ref_key=f"progress:{project_id}:{emp_id}:{work_date}",
+            payload={"project_id": project_id, "percent": pct, "employee_id": emp_id},
+        )
     await db.commit()
     await db.refresh(row)
     loaded = (
@@ -864,6 +899,15 @@ async def delete_project(
             entity="project",
             payload_json=json.dumps({"project_id": project_id, "name": name[:120]}),
         )
+    )
+    await notify_office(
+        db,
+        kind="alert",
+        title="Project deleted",
+        body=f"Project “{name[:100]}” was deleted.",
+        href="/projects",
+        ref_key=f"project_delete:{project_id}",
+        payload={"project_id": project_id},
     )
     await db.commit()
     return {"ok": True, "id": project_id}
