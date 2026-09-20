@@ -31,7 +31,7 @@ MUTED = colors.HexColor("#555555")
 
 # Keep in sync with apps/web/src/version.ts + apps/api agent LATEST_* versions
 PACK_VERSION = "0.1.6"
-AGENT_VERSION = "1.1.5"
+AGENT_VERSION = "1.1.6"
 BRANCH = "desktop+agent"
 DOC_DATE = date.today().isoformat()
 VERSION_LINE = (

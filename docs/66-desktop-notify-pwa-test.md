@@ -28,10 +28,10 @@ npm run tauri:dev
 1. **Click once** anywhere in the app (unlocks audio — WebView2 rule).
 2. Keep Admin Desktop open.
 3. In another browser / staff account: open a project → leave Intake **without** Paid deposit (soft gate), **or** staff saves My % today.
-4. Within ~45s Admin bell badge increases → **soft beep**.
+4. Within ~45s Admin bell badge increases → **louder two-tone alert**.
 5. Click **bell** (next to gear) → see alert → Mark read.
 
-No beep? Click bell once, then trigger another alert. Browser/Desktop must allow sound for the app.
+No beep? Click anywhere in the app once (unlocks audio), then trigger another alert.
 
 ## 3) Admin / HR mobile “app” (PWA — not Play Store)
 

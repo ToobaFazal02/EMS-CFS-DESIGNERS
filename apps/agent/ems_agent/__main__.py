@@ -277,7 +277,7 @@ class CaptureService(QObject):
 
 APP_DISPLAY_NAME = "CFS Designers Agent"
 # Bump this on every release so the auto-update check can compare versions.
-AGENT_VERSION = "1.1.5"
+AGENT_VERSION = "1.1.6"
 DOWNLOADS_URL = "https://ems.cfsdesigners.com/downloads"
 AGENT_PACKAGE_URL = f"{DOWNLOADS_URL}/CFS-Agent-Install.zip"
 
@@ -503,9 +503,9 @@ class MainWindow(QWidget):
         self.btn_in = QPushButton("Sign In")
         self.btn_in.setObjectName("success")
         self.btn_break_in = QPushButton("Break In")
-        self.btn_break_in.setObjectName("secondary")
+        self.btn_break_in.setObjectName("breakIdle")
         self.btn_break_out = QPushButton("Break Out")
-        self.btn_break_out.setObjectName("secondary")
+        self.btn_break_out.setObjectName("breakIdle")
         self.btn_out = QPushButton("Sign Out")
         self.btn_out.setObjectName("danger")
         for b, t in (
@@ -515,7 +515,17 @@ class MainWindow(QWidget):
             (self.btn_out, "sign_out"),
         ):
             b.setCursor(Qt.PointingHandCursor)
+            # No Windows dashed focus rect on punch / enroll actions (click-first UI)
+            b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            b.setAutoDefault(False)
+            b.setDefault(False)
             b.clicked.connect(lambda checked=False, pt=t: self.on_punch(pt))
+
+        self.btn_reenroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.btn_reenroll.setAutoDefault(False)
+        self.btn_enroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.btn_enroll.setAutoDefault(False)
+        self.btn_download_update.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(22, 18, 22, 18)
@@ -785,23 +795,53 @@ class MainWindow(QWidget):
             QPushButton {
                 border: none; padding: 11px 14px;
                 border-radius: 7px; font-weight: 600;
+                outline: none;
+            }
+            QPushButton:focus {
+                outline: none;
             }
             QPushButton#primary { background: #C9A227; color: #0A0A0A; }
             QPushButton#primary:hover { background: #E0B93A; }
+            QPushButton#primary:focus { border: none; outline: none; }
             QPushButton#success { background: #1B7A3A; color: #FFFFFF; }
             QPushButton#success:hover { background: #21964A; }
+            QPushButton#success:focus { border: none; outline: none; }
+            QPushButton#successDone {
+                background: #14532D; color: #A7F3D0;
+                border: 1px solid #166534;
+            }
+            QPushButton#successDone:focus { border: 1px solid #166534; outline: none; }
             QPushButton#danger { background: #B42318; color: #FFFFFF; }
             QPushButton#danger:hover { background: #D92D20; }
+            QPushButton#danger:focus { border: none; outline: none; }
             QPushButton#secondary {
                 background: #161616; color: #F0E6C8;
                 border: 1px solid #6B5A22;
             }
             QPushButton#secondary:hover { background: #1F1A0C; border-color: #C9A227; }
+            QPushButton#secondary:focus { border: 1px solid #6B5A22; outline: none; }
+            QPushButton#breakReady {
+                background: #2A2208; color: #F8E9A8;
+                border: 2px solid #C9A227;
+            }
+            QPushButton#breakReady:hover { background: #3A2F0C; border-color: #E0B93A; }
+            QPushButton#breakReady:focus { border: 2px solid #C9A227; outline: none; }
+            QPushButton#breakPressed {
+                background: #101010; color: #5C5C5C;
+                border: 1px solid #2A2A2A;
+            }
+            QPushButton#breakPressed:focus { border: 1px solid #2A2A2A; outline: none; }
+            QPushButton#breakIdle {
+                background: #121212; color: #6E6550;
+                border: 1px solid #3A3420;
+            }
+            QPushButton#breakIdle:focus { border: 1px solid #3A3420; outline: none; }
             QPushButton#ghost {
                 background: transparent; color: #D4D4D4;
                 border: 1px solid #3A3A3A;
             }
             QPushButton#ghost:hover { border-color: #8A8A8A; color: #FFFFFF; }
+            QPushButton#ghost:focus { border: 1px solid #3A3A3A; outline: none; }
             QPushButton:disabled {
                 background: #1C1C1C; color: #6A6A6A; border: 1px solid #2A2A2A;
             }
@@ -910,17 +950,59 @@ class MainWindow(QWidget):
         else:
             self._on_sync_text("Online" if state != "offline" else "Ready")
 
+    def _restyle(self, btn: QPushButton) -> None:
+        """Force Qt to re-apply objectName stylesheet after state change."""
+        btn.style().unpolish(btn)
+        btn.style().polish(btn)
+        btn.update()
+
     def _update_buttons(self) -> None:
         st = self.svc.state
         stuck = self._server_signed_in and st == "offline"
-        self.btn_in.setEnabled(st == "offline" and not stuck)
-        self.btn_break_in.setEnabled(st == "working" or st == "idle")
-        self.btn_break_out.setEnabled(st == "break")
-        self.btn_out.setEnabled(st != "offline" or stuck)
+        live = st in ("working", "idle", "break")
+
+        if live or stuck:
+            self.btn_in.setText("Signed In")
+            self.btn_in.setEnabled(False)
+            self.btn_in.setObjectName("successDone")
+            self.btn_in.setToolTip("Already signed in — use Sign Out when the day ends")
+        else:
+            self.btn_in.setText("Sign In")
+            self.btn_in.setEnabled(True)
+            self.btn_in.setObjectName("success")
+            self.btn_in.setToolTip("Start tracking screenshots & activity")
+
+        if st == "break":
+            # On break: Break In looks pressed/dim; Break Out is the golden next action
+            self.btn_break_in.setEnabled(False)
+            self.btn_break_in.setObjectName("breakPressed")
+            self.btn_break_in.setToolTip("You are on break")
+            self.btn_break_out.setEnabled(True)
+            self.btn_break_out.setObjectName("breakReady")
+            self.btn_break_out.setToolTip("End break and resume tracking")
+        elif st in ("working", "idle"):
+            self.btn_break_in.setEnabled(True)
+            self.btn_break_in.setObjectName("breakReady")
+            self.btn_break_in.setToolTip("Start break — screenshots pause")
+            self.btn_break_out.setEnabled(False)
+            self.btn_break_out.setObjectName("breakIdle")
+            self.btn_break_out.setToolTip("Not on break")
+        else:
+            self.btn_break_in.setEnabled(False)
+            self.btn_break_out.setEnabled(False)
+            self.btn_break_in.setObjectName("breakIdle")
+            self.btn_break_out.setObjectName("breakIdle")
+            self.btn_break_in.setToolTip("")
+            self.btn_break_out.setToolTip("")
+
+        self.btn_out.setEnabled(live or stuck)
         if stuck:
             self.btn_out.setText("End Session")
         else:
             self.btn_out.setText("Sign Out")
+
+        for b in (self.btn_in, self.btn_break_in, self.btn_break_out, self.btn_out):
+            self._restyle(b)
 
     def on_punch(self, punch_type: str) -> None:
         if not self.svc.cfg.get("device_token"):

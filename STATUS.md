@@ -6,14 +6,14 @@
 | Current phase | Code complete on `desktop+agent` — **P0 ship/QA** left |
 | Git branch | **`desktop+agent`** |
 | Manager / Web | **0.1.6** |
-| Agent | **1.1.5** |
+| Agent | **1.1.6** |
 
 ## Coverage map (20 Sep) — what’s done in code
 
 | Area | Status | Docs / PDFs |
 |---|---|---|
 | Desktop Manager (same React) | Done — need Setup rebuild for office | `48`, `62`, `66` |
-| Employee Agent 1.1.5 | Done in source — zip ship pending | `62` |
+| Employee Agent 1.1.6 | Done in source — zip ship pending (Sign In label, Break states, no focus dashed border) | `62` |
 | Past 7 days | Per-employee dropdown + **aligned** update counts | — |
 | Payment badges | **Admin/Manager only** — staff never see Advance pending | — |
 | Downloads nav | **Admin + HR only** | — |

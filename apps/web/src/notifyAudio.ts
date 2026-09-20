@@ -1,4 +1,4 @@
-/** Soft alert chime — unlock AudioContext after first user gesture (Desktop WebView2). */
+/** Office alert chime — louder two-tone; unlock AudioContext after first user gesture (Desktop WebView2). */
 
 let sharedCtx: AudioContext | null = null;
 let unlocked = false;
@@ -24,21 +24,29 @@ export function unlockNotifyAudio(): void {
   });
 }
 
+function tone(ctx: AudioContext, freq: number, start: number, dur: number, peak: number): void {
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = "sine";
+  o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, start);
+  g.gain.exponentialRampToValueAtTime(peak, start + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  o.connect(g);
+  g.connect(ctx.destination);
+  o.start(start);
+  o.stop(start + dur + 0.02);
+}
+
+/** Distinct office alert — two-note chime, audible on Desktop speakers. */
 export function playNotifyChime(): void {
   try {
     const ctx = getCtx();
     if (!ctx) return;
     if (ctx.state === "suspended") void ctx.resume();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = "sine";
-    o.frequency.value = 880;
-    g.gain.value = 0.05;
-    o.connect(g);
-    g.connect(ctx.destination);
-    o.start();
-    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.2);
-    o.stop(ctx.currentTime + 0.22);
+    const t0 = ctx.currentTime;
+    tone(ctx, 880, t0, 0.16, 0.22);
+    tone(ctx, 1174.7, t0 + 0.14, 0.22, 0.28);
   } catch {
     /* ignore */
   }
