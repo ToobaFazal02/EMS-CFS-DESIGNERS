@@ -5596,6 +5596,28 @@ html[data-theme="light"] .gear-menu .gear-logout:hover {
   padding: 0 16px;
   font-weight: 700;
 }
+.pwa-install-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.pwa-dismiss-btn {
+  appearance: none;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: transparent !important;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.pwa-dismiss-btn:hover {
+  color: var(--gold);
+  border-color: var(--gold);
+}
 html[data-theme="light"] .pwa-install-bar {
   background: rgba(201, 162, 39, 0.16);
 }

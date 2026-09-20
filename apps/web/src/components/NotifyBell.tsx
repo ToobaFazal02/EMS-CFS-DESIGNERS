@@ -8,6 +8,8 @@ import {
   type OfficeNotification,
 } from "../api";
 
+import { armNotifyAudioUnlock, playNotifyChime, unlockNotifyAudio } from "../notifyAudio";
+
 function relativeTime(iso: string): string {
   try {
     const t = new Date(iso.endsWith("Z") ? iso : `${iso}Z`).getTime();
@@ -44,23 +46,7 @@ export function NotifyBell() {
       setItems(list);
       setUnread((prev) => {
         if (primedRef.current && count > prev && document.visibilityState === "visible") {
-          try {
-            const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-            const ctx = new AC();
-            const o = ctx.createOscillator();
-            const g = ctx.createGain();
-            o.type = "sine";
-            o.frequency.value = 880;
-            g.gain.value = 0.04;
-            o.connect(g);
-            g.connect(ctx.destination);
-            o.start();
-            g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
-            o.stop(ctx.currentTime + 0.2);
-            window.setTimeout(() => void ctx.close(), 300);
-          } catch {
-            /* autoplay blocked */
-          }
+          playNotifyChime();
         }
         primedRef.current = true;
         return count;
@@ -70,6 +56,8 @@ export function NotifyBell() {
       setErr(e instanceof Error ? e.message : "Could not load alerts");
     }
   }, []);
+
+  useEffect(() => armNotifyAudioUnlock(), []);
 
   useEffect(() => {
     void refresh();
@@ -94,6 +82,7 @@ export function NotifyBell() {
   }, [open]);
 
   async function onOpen() {
+    unlockNotifyAudio();
     setOpen((v) => !v);
     if (!open) void refresh();
   }

@@ -195,13 +195,13 @@ API: `GET /api/v1/me/attendance` · `GET /api/v1/me/monthly.pdf` (self only).
 
 | Pri | Item | Notes |
 |---|---|---|
-| R1 | Doc **61** full happy/edge walk (browser) | Soft gate + D/E roles + initials privacy |
-| R2 | Notify / audit bell (admin) | Deposit unpaid phase advance + useful office alerts — **not started** |
-| R3 | Any leftover Projects UX from client voice | Only if still needed after Desktop smoke |
+| R1 | Doc **61** full happy/edge walk (browser) | Soft gate + D/E roles + initials privacy — **QA remaining** |
+| R2 | Notify / audit bell (admin) | **Done (20 Sep)** — bell + alerts + soft chime; see `66` |
+| R3 | Any leftover Projects UX from client voice | Unpaid red highlight **done**; more only if client asks |
 | R4 | Ops: enroll video / one-pager | Not code |
 | R5 | Sales white-label demo | Backlog — after CFS ops stable (`docs/41`) |
 
-*(Conversation backlog labels like “notify bell / ship” land here as R2 + Step 3.)*
+*(R2 shipped on `desktop+agent`. Next gate = Wave 4 Setup + Agent zip on VPS.)*
 
 ---
 
@@ -209,9 +209,8 @@ API: `GET /api/v1/me/attendance` · `GET /api/v1/me/monthly.pdf` (self only).
 
 | Item | When |
 |---|---|
-| Signed `@tauri-apps/plugin-updater` | After click→background MVP proven on Desktop in office |
-| Phase D admin PWA / mobile | **Last** — only after Desktop + Agent 100%; admin glance only; never employee Sign In on phone |
-| Wave 5 pixel polish | Only if Setup still feels “not like web” after Wave 4 |
+| Signed `@tauri-apps/plugin-updater` | Checklist in `docs/64` — after silent MVP proven in office |
+| Phase D admin PWA / mobile | **Done in code (20 Sep)** — `docs/65` + `docs/66`; install from HTTPS home screen |
 
 ---
 
