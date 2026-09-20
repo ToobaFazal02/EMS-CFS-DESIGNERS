@@ -4,6 +4,7 @@ import {
   fetchAuthedBlob,
   fetchDay,
   fetchMyAttendance,
+  fetchMyProgressWeek,
   fetchProjectProgress,
   fetchProjects,
   postProjectProgress,
@@ -11,6 +12,7 @@ import {
   type DaySummary,
   type MeAttendance,
   type MeAttendanceDay,
+  type MeProgressRow,
   type ProjectProgressRow,
   type ProjectRow,
 } from "../api";
@@ -142,19 +144,22 @@ export function StaffHomePage() {
   const [progPct, setProgPct] = useState(50);
   const [progNote, setProgNote] = useState("");
   const [savingProg, setSavingProg] = useState(false);
+  const [weekProgress, setWeekProgress] = useState<MeProgressRow[]>([]);
 
   async function load(notify = false) {
     if (!myId) return;
     setBusy(true);
     try {
       const today = todayPktISO();
-      const [d, a, projs] = await Promise.all([
+      const [d, a, projs, weekProg] = await Promise.all([
         fetchDay(myId, today),
         fetchMyAttendance(year, month),
         fetchProjects(),
+        fetchMyProgressWeek().catch(() => [] as MeProgressRow[]),
       ]);
       setDay(d);
       setAtt(a);
+      setWeekProgress(weekProg || []);
       const hidden = readHiddenProjectIds();
       setHiddenIds(hidden);
       const mine = (projs || []).filter((p) => {
@@ -536,6 +541,37 @@ export function StaffHomePage() {
             All my projects →
           </Link>
         </div>
+      </section>
+
+      <section className="card staff-panel">
+        <p className="staff-eyebrow">Last 7 days</p>
+        <h2 className="staff-section-title">My project % history</h2>
+        <p className="muted staff-chart-cap">Daily updates you saved — so you can see how much moved each day.</p>
+        {weekProgress.length ? (
+          <ul className="staff-week-progress">
+            {weekProgress.map((row) => (
+              <li key={row.id}>
+                <span className="muted">{row.work_date}</span>
+                <span>
+                  {row.project_code ? <strong>{row.project_code} · </strong> : null}
+                  {row.project_name}
+                </span>
+                <em>
+                  {Math.round(row.percent)}%
+                  {row.delta != null ? (
+                    <span className={row.delta > 0 ? "is-up" : undefined}>
+                      {" "}
+                      ({row.delta >= 0 ? "+" : ""}
+                      {row.delta})
+                    </span>
+                  ) : null}
+                </em>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">No % logs in the last 7 days yet. Save progress above to build history.</p>
+        )}
       </section>
 
       <section className="card staff-panel">

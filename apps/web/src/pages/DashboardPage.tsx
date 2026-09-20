@@ -111,6 +111,7 @@ export function DashboardPage() {
   const shares = data?.partner_shares;
   const showPartnerShares = Boolean(shares);
   const progressToday: DashProgressRow[] = data?.progress_today || [];
+  const progressWeek: DashProgressRow[] = data?.progress_week || [];
   const ready = data != null;
 
   return (
@@ -221,7 +222,7 @@ export function DashboardPage() {
               <div>
                 <h3>End-of-day project progress</h3>
                 <p className="muted page-sub">
-                  Today (PKT) — staff logs from My Projects · Admin audit at a glance
+                  Today (PKT) — staff logs · Past 7 days below so you see daily % movement
                 </p>
               </div>
               <Link to="/projects">Open Projects →</Link>
@@ -254,8 +255,39 @@ export function DashboardPage() {
                 ))}
               </ul>
             ) : (
-              <p className="muted" style={{ margin: 0 }}>
+              <p className="muted" style={{ margin: "0 0 12px" }}>
                 No end-of-day % logged yet today. Staff open a job → My % today → Save.
+              </p>
+            )}
+            <h4 className="dash-progress-week-title">Past 7 days</h4>
+            {progressWeek.length ? (
+              <ul className="dash-progress-list dash-progress-week" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {progressWeek.map((row) => (
+                  <li
+                    key={`w-${row.id}`}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "88px minmax(0, 1.2fr) minmax(0, 1fr) auto",
+                      gap: 10,
+                      alignItems: "center",
+                      padding: "8px 0",
+                      borderBottom: "1px solid var(--border, #333)",
+                      fontSize: 13,
+                    }}
+                  >
+                    <span className="muted">{row.work_date}</span>
+                    <span>
+                      {row.project_code ? <strong style={{ color: "var(--accent)" }}>{row.project_code} </strong> : null}
+                      {row.project_name}
+                    </span>
+                    <span className="muted">{row.employee_name}</span>
+                    <strong style={{ color: "var(--accent, #c9a227)" }}>{row.percent}%</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted" style={{ margin: 0 }}>
+                No progress rows in the last 7 days yet.
               </p>
             )}
           </article>

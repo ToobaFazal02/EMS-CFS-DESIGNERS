@@ -46,6 +46,7 @@ from app.schemas import (
     LiveEmployeeOut,
     MeAttendanceDay,
     MeAttendanceOut,
+    MeProgressRow,
     PunchOut,
 )
 from app.services.duration import hours_to_hm
@@ -588,6 +589,7 @@ async def dashboard_summary(
     spark = [this_totals[d] for d in this_days]
 
     today_s = today.isoformat()
+    week_start_s = (today - timedelta(days=6)).isoformat()
     progress_rows = list(
         (
             await db.execute(
@@ -596,32 +598,34 @@ async def dashboard_summary(
                     selectinload(ProjectProgress.employee),
                     selectinload(ProjectProgress.project),
                 )
-                .where(ProjectProgress.work_date == today_s)
-                .order_by(ProjectProgress.created_at.desc())
+                .where(ProjectProgress.work_date >= week_start_s)
+                .order_by(ProjectProgress.work_date.desc(), ProjectProgress.created_at.desc())
             )
         )
         .scalars()
         .all()
     )
     progress_today: list[DashProgressRow] = []
+    progress_week: list[DashProgressRow] = []
     for row in progress_rows:
         proj = row.project
         if proj and bool(getattr(proj, "is_demo", False)) != demo:
             continue
         emp = row.employee
-        progress_today.append(
-            DashProgressRow(
-                id=row.id,
-                project_id=row.project_id,
-                project_code=(proj.code if proj else "") or "",
-                project_name=(proj.name if proj else "") or "—",
-                employee_name=(emp.full_name if emp else "") or "—",
-                percent=float(row.percent or 0),
-                note=(row.note or "").strip(),
-                work_date=row.work_date or today_s,
-            )
+        item = DashProgressRow(
+            id=row.id,
+            project_id=row.project_id,
+            project_code=(proj.code if proj else "") or "",
+            project_name=(proj.name if proj else "") or "—",
+            employee_name=(emp.full_name if emp else "") or "—",
+            percent=float(row.percent or 0),
+            note=(row.note or "").strip(),
+            work_date=row.work_date or today_s,
         )
-        if len(progress_today) >= 20:
+        progress_week.append(item)
+        if (row.work_date or "") == today_s and len(progress_today) < 20:
+            progress_today.append(item)
+        if len(progress_week) >= 80:
             break
 
     return DashboardOut(
@@ -638,6 +642,7 @@ async def dashboard_summary(
         sparkline=[round(x, 2) for x in spark],
         roster=roster,
         progress_today=progress_today,
+        progress_week=progress_week,
         finance=finance,
         partner_shares=partner_shares,
     )
@@ -1041,6 +1046,66 @@ async def my_attendance(
         break_hours=round(brk, 2),
         days=day_rows,
     )
+
+
+@router.get("/me/progress-week", response_model=list[MeProgressRow])
+async def my_progress_week(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[Employee, Depends(get_current_user)],
+) -> list[MeProgressRow]:
+    """Staff: own end-of-day % for the last 7 PKT calendar days."""
+    if user.role not in (Role.employee, Role.admin, Role.manager, Role.hr):
+        raise HTTPException(status_code=403, detail="Not available for this role")
+    today = now_pk().date()
+    start = (today - timedelta(days=6)).isoformat()
+    rows = list(
+        (
+            await db.execute(
+                select(ProjectProgress)
+                .options(selectinload(ProjectProgress.project))
+                .where(
+                    ProjectProgress.employee_id == user.id,
+                    ProjectProgress.work_date >= start,
+                )
+                .order_by(ProjectProgress.work_date.desc(), ProjectProgress.created_at.desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # Previous % per project for delta (earlier row in full history)
+    out: list[MeProgressRow] = []
+    for row in rows[:40]:
+        proj = row.project
+        prev = (
+            await db.execute(
+                select(ProjectProgress)
+                .where(
+                    ProjectProgress.project_id == row.project_id,
+                    ProjectProgress.employee_id == user.id,
+                    ProjectProgress.work_date < (row.work_date or ""),
+                )
+                .order_by(ProjectProgress.work_date.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        pct = float(row.percent or 0)
+        delta = None
+        if prev is not None:
+            delta = round(pct - float(prev.percent or 0), 1)
+        out.append(
+            MeProgressRow(
+                id=row.id,
+                project_id=row.project_id,
+                project_code=(proj.code if proj else "") or "",
+                project_name=(proj.name if proj else "") or "—",
+                percent=pct,
+                note=(row.note or "").strip(),
+                work_date=row.work_date or "",
+                delta=delta,
+            )
+        )
+    return out
 
 
 @router.get("/me/monthly.pdf")

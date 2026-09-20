@@ -114,25 +114,25 @@ def _activity_chart(
     series = expand_half_hour_series(bucket_clicks, report_date=report_date)
     labels = [h for h, _ in series]
     values = [max(0.0, float(v)) for _, v in series]
-    width = 180 * mm
-    height = 88 * mm
+    width = 164 * mm  # must fit A4 content width (≤174mm with 18mm margins)
+    height = 78 * mm
     d = Drawing(width, height)
 
     d.add(
         String(
             width / 2,
-            height - 10,
+            height - 8,
             "Graph Performance (per 30 min intervals)",
             textAnchor="middle",
-            fontSize=11,
+            fontSize=10,
             fillColor=BLACK,
         )
     )
 
-    plot_x = 18 * mm
-    plot_y = 32 * mm
-    plot_w = 155 * mm
-    plot_h = 44 * mm
+    plot_x = 16 * mm
+    plot_y = 28 * mm
+    plot_w = 140 * mm
+    plot_h = 40 * mm
 
     d.add(Rect(plot_x, plot_y, plot_w, plot_h, strokeColor=BLACK, fillColor=colors.white, strokeWidth=0.8))
 
@@ -148,17 +148,17 @@ def _activity_chart(
     for t in range(0, int(y_max) + 1, tick_step):
         yy = plot_y + (t / y_max) * plot_h
         d.add(Line(plot_x, yy, plot_x + plot_w, yy, strokeColor=LINE, strokeWidth=0.4))
-        d.add(String(plot_x - 3, yy - 2, str(t), textAnchor="end", fontSize=6, fillColor=GRAY))
+        d.add(String(plot_x - 2.5, yy - 2, str(t), textAnchor="end", fontSize=6, fillColor=GRAY))
 
     yg = Group()
-    yg.add(String(0, 0, "Click Count", fontSize=8, fillColor=BLACK, textAnchor="middle"))
+    yg.add(String(0, 0, "Click Count", fontSize=7.5, fillColor=BLACK, textAnchor="middle"))
     a = radians(90)
-    yg.transform = (cos(a), sin(a), -sin(a), cos(a), 7 * mm, plot_y + plot_h / 2)
+    yg.transform = (cos(a), sin(a), -sin(a), cos(a), 6 * mm, plot_y + plot_h / 2)
     d.add(yg)
 
     n = max(len(values), 1)
-    gap = 1.2
-    bar_w = max(2.5, (plot_w - gap * (n + 1)) / n)
+    gap = 0.8
+    bar_w = max(1.8, (plot_w - gap * (n + 1)) / n)
 
     if vmax <= 0:
         d.add(
@@ -189,10 +189,18 @@ def _activity_chart(
 
     d.add(Line(plot_x, plot_y, plot_x + plot_w, plot_y, strokeColor=BLACK, strokeWidth=0.9))
 
-    font_sz = 4.5 if report_date else 5.5
+    # Sparse HH:MM labels only (avoid overflow / unreadable overlap)
+    label_step = 1
+    if n > 24:
+        label_step = 4
+    elif n > 16:
+        label_step = 2
     for i, lab in enumerate(labels):
+        if i % label_step != 0 and i != n - 1:
+            continue
+        short = str(lab).split()[-1] if " " in str(lab) else str(lab)
         x = plot_x + gap + i * (bar_w + gap) + bar_w / 2
-        d.add(_rotated_label(x + 2, plot_y - 4, lab, font_size=font_sz))
+        d.add(_rotated_label(x + 1, plot_y - 3, short, font_size=5.5))
 
     return d
 
@@ -419,7 +427,7 @@ def build_daily_pdf(
     story.append(layout.table_caption(styles, "Table IV. Top windows / apps"))
     story.append(wt)
 
-    # 5) Click time sheet — heading stays with table start (no empty title-only page)
+    # 5) Click time sheet — title + first rows kept together (no blank title page)
     log = click_log or []
     if log:
         log_header = [
@@ -427,45 +435,53 @@ def build_daily_pdf(
             Paragraph("<b>Window Title</b>", styles["cell_b"]),
             Paragraph("<b>Qty</b>", styles["cell_b"]),
         ]
-        body_rows = [log_header]
+        data_rows = []
         for minute, title_text, qty in log[:500]:
-            body_rows.append(
+            data_rows.append(
                 [
                     Paragraph(str(minute).replace("&", "&amp;"), styles["cell"]),
                     Paragraph((title_text or "(blank)")[:85].replace("&", "&amp;"), styles["cell"]),
                     Paragraph(str(qty), styles["cell"]),
                 ]
             )
-        lt = Table(body_rows, colWidths=[32 * mm, 118 * mm, 18 * mm], repeatRows=1)
-        lt.setStyle(
-            TableStyle(
+        tbl_style = TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), BLACK),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("ALIGN", (2, 0), (2, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("GRID", (0, 0), (-1, -1), 0.25, LINE),
+                ("BOX", (0, 0), (-1, -1), 0.8, BLACK),
+                ("TOPPADDING", (0, 0), (-1, -1), 2),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+            ]
+        )
+        cols = [32 * mm, 118 * mm, 18 * mm]
+        first_n = min(18, len(data_rows))
+        first_tbl = Table([log_header] + data_rows[:first_n], colWidths=cols, repeatRows=0)
+        first_tbl.setStyle(tbl_style)
+        from reportlab.platypus import CondPageBreak
+
+        story.append(CondPageBreak(48 * mm))
+        story.append(
+            KeepTogether(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), BLACK),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("ALIGN", (2, 0), (2, -1), "CENTER"),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("GRID", (0, 0), (-1, -1), 0.25, LINE),
-                    ("BOX", (0, 0), (-1, -1), 0.8, BLACK),
-                    ("TOPPADDING", (0, 0), (-1, -1), 2),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+                    Paragraph("5. Click time sheet", styles["section"]),
+                    HRFlowable(width="100%", thickness=0.6, color=BLACK, spaceAfter=6),
+                    Paragraph(
+                        "Minute-level activity log (window title and quantity). Header repeats on each page.",
+                        styles["small"],
+                    ),
+                    layout.table_caption(styles, "Table V. Click time sheet detail"),
+                    first_tbl,
                 ]
             )
         )
-        # Require enough free space so title + first rows share a page (no blank title page)
-        story.extend(
-            layout.section_lead(
-                styles,
-                "5. Click time sheet",
-                Paragraph(
-                    "Minute-level activity log (window title and quantity). Header repeats on each page.",
-                    styles["small"],
-                ),
-                layout.table_caption(styles, "Table V. Click time sheet detail"),
-                min_space=110 * mm,
-            )
-        )
-        story.append(lt)
+        if len(data_rows) > first_n:
+            rest = Table([log_header] + data_rows[first_n:], colWidths=cols, repeatRows=1)
+            rest.setStyle(tbl_style)
+            story.append(rest)
 
     story.extend(
         layout.end_matter(

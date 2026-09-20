@@ -182,7 +182,7 @@ class DashPipeline(BaseModel):
 
 
 class DashProgressRow(BaseModel):
-    """Today's end-of-day project % logs (PKT)."""
+    """End-of-day project % log row (PKT work_date)."""
 
     id: str
     project_id: str
@@ -192,6 +192,19 @@ class DashProgressRow(BaseModel):
     percent: float
     note: str = ""
     work_date: str
+
+
+class MeProgressRow(BaseModel):
+    """Staff: own recent end-of-day % rows."""
+
+    id: str
+    project_id: str
+    project_code: str = ""
+    project_name: str
+    percent: float
+    note: str = ""
+    work_date: str
+    delta: float | None = None
 
 
 class MeAttendanceDay(BaseModel):
@@ -294,6 +307,7 @@ class DashboardOut(BaseModel):
     sparkline: list[float]
     roster: list[DashRosterRow]
     progress_today: list[DashProgressRow] = Field(default_factory=list)
+    progress_week: list[DashProgressRow] = Field(default_factory=list)
     finance: Optional[DashFinance] = None
     partner_shares: Optional[DashPartnerShares] = None
 

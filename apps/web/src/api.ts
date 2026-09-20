@@ -255,6 +255,27 @@ export type DashProgressRow = {
   work_date: string;
 };
 
+export type MeProgressRow = {
+  id: string;
+  project_id: string;
+  project_code: string;
+  project_name: string;
+  percent: number;
+  note: string;
+  work_date: string;
+  delta: number | null;
+};
+
+export async function fetchMyProgressWeek(): Promise<MeProgressRow[]> {
+  const r = await fetch(`${apiBase()}/api/v1/me/progress-week`, { headers: authHeaders() });
+  if (r.status === 401) {
+    localStorage.removeItem("ems_token");
+    throw new Error("Session expired — sign in again");
+  }
+  if (!r.ok) return [];
+  return r.json();
+}
+
 export type DashboardSummary = {
   generated_at: string;
   timezone: string;
@@ -269,6 +290,7 @@ export type DashboardSummary = {
   sparkline: number[];
   roster: DashRosterRow[];
   progress_today?: DashProgressRow[];
+  progress_week?: DashProgressRow[];
   finance: DashFinance | null;
   partner_shares: DashPartnerShares | null;
 };

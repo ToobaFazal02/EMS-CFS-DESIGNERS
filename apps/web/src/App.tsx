@@ -364,7 +364,6 @@ function Shell({ children }: { children: React.ReactNode }) {
           <MainNavLinks office={office} finance={finance} partner={partner} demo={demo} myId={myId} />
         </nav>
         <div className="topbar-actions">
-          {office || demo ? <NotifyBell /> : null}
           <div className="user-chip" title={`${name}${role ? ` · ${roleLabel(role)}` : ""}`}>
             <span className="user-chip-avatar" aria-hidden>
               {(name || "U")
@@ -379,21 +378,23 @@ function Shell({ children }: { children: React.ReactNode }) {
               {role ? <span className="user-chip-role">{roleLabel(role)}</span> : null}
             </span>
           </div>
-          <button
-            type="button"
-            className="nav-toggle"
-            aria-label={navOpen ? "Close menu" : "Open menu"}
-            aria-expanded={navOpen}
-            onClick={() => {
-              setGearOpen(false);
-              setNavOpen((v) => !v);
-            }}
-          >
-            <span />
-            <span />
-            <span />
-          </button>
-          <div className="gear-wrap" ref={gearRef}>
+          <div className="topbar-icon-cluster">
+            {office || demo ? <NotifyBell /> : null}
+            <button
+              type="button"
+              className="nav-toggle"
+              aria-label={navOpen ? "Close menu" : "Open menu"}
+              aria-expanded={navOpen}
+              onClick={() => {
+                setGearOpen(false);
+                setNavOpen((v) => !v);
+              }}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+            <div className="gear-wrap" ref={gearRef}>
               <button
                 type="button"
                 className="gear-btn"
@@ -454,6 +455,7 @@ function Shell({ children }: { children: React.ReactNode }) {
                 </button>
               </div>
             ) : null}
+          </div>
           </div>
         </div>
       </header>

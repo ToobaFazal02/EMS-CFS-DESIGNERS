@@ -33,6 +33,7 @@ export function NotifyBell() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const wrapRef = useRef<HTMLDivElement>(null);
+  const primedRef = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -41,7 +42,29 @@ export function NotifyBell() {
         fetchNotificationUnreadCount(),
       ]);
       setItems(list);
-      setUnread(count);
+      setUnread((prev) => {
+        if (primedRef.current && count > prev && document.visibilityState === "visible") {
+          try {
+            const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+            const ctx = new AC();
+            const o = ctx.createOscillator();
+            const g = ctx.createGain();
+            o.type = "sine";
+            o.frequency.value = 880;
+            g.gain.value = 0.04;
+            o.connect(g);
+            g.connect(ctx.destination);
+            o.start();
+            g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+            o.stop(ctx.currentTime + 0.2);
+            window.setTimeout(() => void ctx.close(), 300);
+          } catch {
+            /* autoplay blocked */
+          }
+        }
+        primedRef.current = true;
+        return count;
+      });
       setErr("");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Could not load alerts");

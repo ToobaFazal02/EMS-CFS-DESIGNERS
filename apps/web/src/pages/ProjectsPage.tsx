@@ -1309,8 +1309,10 @@ export function ProjectsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
-                <tr key={p.id}>
+              {filtered.map((p) => {
+                const blocked = p.gate === "need_deposit" || p.gate === "need_final";
+                return (
+                <tr key={p.id} className={blocked ? "is-pay-blocked" : undefined}>
                   <td>
                     <strong style={{ color: "var(--accent, #c9a227)" }}>{p.code || "—"}</strong>
                   </td>
@@ -1371,7 +1373,8 @@ export function ProjectsPage() {
                     </td>
                   ) : null}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
