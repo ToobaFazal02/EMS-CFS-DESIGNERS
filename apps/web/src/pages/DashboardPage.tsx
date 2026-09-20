@@ -272,11 +272,7 @@ export function DashboardPage() {
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="muted" style={{ margin: "0 0 12px" }}>
-                No end-of-day % logged yet today. Staff open a job → My % today → Save.
-              </p>
-            )}
+            ) : null}
             <h4 className="dash-progress-week-title">Past 7 days</h4>
             {progressWeekByEmployee.length ? (
               <div className="dash-progress-emp-list">
