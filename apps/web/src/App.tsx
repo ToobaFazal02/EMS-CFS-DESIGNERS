@@ -275,6 +275,7 @@ function MainNavLinks({
       </NavLink>
       {myId ? <NavLink to={`/day/${myId}`}>My Day</NavLink> : null}
       <NavLink to="/projects">My Projects</NavLink>
+      {downloads ? <NavLink to="/downloads">Downloads</NavLink> : null}
     </>
   );
 }
@@ -290,7 +291,8 @@ function Shell({ children }: { children: React.ReactNode }) {
   const finance = isFinanceRole();
   const partner = isPartnerRole();
   const demo = isDemoRole();
-  const downloads = role === "admin" || role === "hr";
+  // Desktop Setup + Agent: everyone except demo. Mobile PWA: Admin/HR only.
+  const downloads = !demo && Boolean(role);
   const nav = useNavigate();
   const loc = useLocation();
 
@@ -304,7 +306,10 @@ function Shell({ children }: { children: React.ReactNode }) {
     const canInstallPwa = role === "admin" || role === "hr";
     if (canInstallPwa) {
       void import("./components/AdminPwaInstall").then((m) => m.registerAdminServiceWorker());
+      return;
     }
+    // Staff / Manager / Demo: no phone "Install app" — Desktop Setup is via Downloads instead
+    void import("./components/AdminPwaInstall").then((m) => m.blockStaffPwaInstall());
   }, [role]);
 
   useEffect(() => {
@@ -551,7 +556,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 function DownloadsRoute() {
   if (!localStorage.getItem("ems_token")) return <Navigate to="/login" replace />;
   const role = localStorage.getItem("ems_role") || "";
-  if (role !== "admin" && role !== "hr") {
+  if (role === "demo") {
     return <Navigate to="/" replace />;
   }
   return (

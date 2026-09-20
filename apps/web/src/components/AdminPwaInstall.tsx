@@ -113,7 +113,55 @@ export function AdminPwaInstall() {
 export function registerAdminServiceWorker(): void {
   if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
   if (!isAdminOrHr()) return;
+  ensureManifestLink(true);
   window.setTimeout(() => {
     navigator.serviceWorker.register("/sw.js").catch(() => undefined);
   }, 2000);
+}
+
+/**
+ * Staff / Manager must not get Chrome “Install app / Open in app” (phone PWA).
+ * Desktop install is Setup.exe from Downloads — Agent is the punch app.
+ */
+export function blockStaffPwaInstall(): void {
+  if (typeof window === "undefined") return;
+  ensureManifestLink(false);
+  if ("serviceWorker" in navigator) {
+    void navigator.serviceWorker.getRegistrations().then((regs) => {
+      for (const r of regs) void r.unregister();
+    });
+  }
+}
+
+function ensureManifestLink(allow: boolean): void {
+  try {
+    const existing = document.querySelector('link[rel="manifest"]');
+    if (!allow) {
+      existing?.remove();
+      document.querySelector('meta[name="mobile-web-app-capable"]')?.remove();
+      document.querySelector('meta[name="apple-mobile-web-app-capable"]')?.remove();
+      document.querySelector('meta[name="apple-mobile-web-app-title"]')?.remove();
+      return;
+    }
+    if (!existing) {
+      const link = document.createElement("link");
+      link.rel = "manifest";
+      link.href = "/manifest.webmanifest";
+      document.head.appendChild(link);
+    }
+    const ensureMeta = (name: string, content: string) => {
+      let m = document.querySelector(`meta[name="${name}"]`);
+      if (!m) {
+        m = document.createElement("meta");
+        m.setAttribute("name", name);
+        document.head.appendChild(m);
+      }
+      m.setAttribute("content", content);
+    };
+    ensureMeta("mobile-web-app-capable", "yes");
+    ensureMeta("apple-mobile-web-app-capable", "yes");
+    ensureMeta("apple-mobile-web-app-title", "CFS EMS");
+  } catch {
+    /* ignore */
+  }
 }

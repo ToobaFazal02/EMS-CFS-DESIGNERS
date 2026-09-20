@@ -35,6 +35,7 @@ Read `STATUS.md` before coding. This index is the map of every locked plan.
 | `64-signed-updater-ops.md` | P3 signed Tauri updater checklist (keys + CI) |
 | `65-admin-pwa.md` | P4 Admin/**HR**-only mobile PWA (home screen; not manager/employee) |
 | `66-desktop-notify-pwa-test.md` | How to run Desktop, hear notify, install Admin/HR PWA, Agent smoke |
+| `67-client-delivery-checklist.md` | **Client handoff** — staff Desktop+Agent install + VPS + GitHub build order |
 | `pdfs/` | **Ops PDF pack v0.1.6** — QA, security, Hostinger, local, break/fix, auto-update honesty, master AI prompt |
 | `63-lovable-staff-dashboard-prompt.md` | **18 Sep** Lovable prompt — Staff My dashboard aesthetic |
 | `43-lovable-dashboard-prompt.md` | Copy-paste Lovable prompt — **Dashboard tab only** |

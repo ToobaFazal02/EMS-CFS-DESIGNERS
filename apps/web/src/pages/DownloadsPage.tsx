@@ -305,27 +305,28 @@ export function DownloadsPage() {
             <span className="dl-card-icon" aria-hidden>
               <MonitorIcon />
             </span>
-            <p className="downloads-kicker">Admin · HR · Partners</p>
+            <p className="downloads-kicker">Staff · Admin · HR · Manager</p>
           </div>
-          <h3>Manager Desktop App</h3>
+          <h3>Desktop App (Windows)</h3>
           <p className="muted">
-            Windows app for Dashboard, Employees, Payments, and Expenses. Opens like a native app (no
-            browser bar). Same login as the website.
+            Native Windows app for My dashboard / My Day / Projects (staff) or full office Manager.
+            Same login as the website — <strong>not</strong> a phone app. Use this instead of Chrome
+            “Install / Open in app”.
           </p>
           <ol className="downloads-steps">
             <li>
               <span className="dl-step-num">1</span>
-              <span>Download Setup (.exe) — recommended.</span>
+              <span>Download Setup (.exe).</span>
             </li>
             <li>
               <span className="dl-step-num">2</span>
               <span>
-                Open <strong>CFS Designers</strong> from Start Menu.
+                Run the installer, then open <strong>CFS Designers</strong> from the Start Menu.
               </span>
             </li>
             <li>
               <span className="dl-step-num">3</span>
-              <span>Sign in with your office email.</span>
+              <span>Sign in with your email (staff or office account).</span>
             </li>
           </ol>
           <div className="downloads-btn-row">
@@ -339,7 +340,8 @@ export function DownloadsPage() {
             </button>
           </div>
           <p className="muted downloads-hint">
-            Setup.exe installs the Manager desktop app. Requires Windows WebView2 (usually already installed).
+            Setup.exe = Desktop app (WebView2). Phone home-screen install is Admin/HR only — staff use
+            this Desktop Setup + Employee Agent below.
           </p>
         </article>
 

@@ -278,9 +278,6 @@ export function DashboardPage() {
               </p>
             )}
             <h4 className="dash-progress-week-title">Past 7 days</h4>
-            <p className="muted page-sub" style={{ margin: "0 0 10px" }}>
-              Open an employee name to see their daily % movement (keeps the board short when the team grows).
-            </p>
             {progressWeekByEmployee.length ? (
               <div className="dash-progress-emp-list">
                 {progressWeekByEmployee.map((group) => (

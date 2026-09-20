@@ -34,9 +34,13 @@
 
 **Data:** Never wipe `/var/lib/ems/ems.db`.
 
-## Auto-update (honest)
+## How staff get apps
 
-**Yes:** click → background install for Manager Desktop + Agent (Phase E).  
-**No:** fully silent force update without click; full code-signing still optional.  
-**Safe for data:** does not touch server DB / screenshots; Agent keeps `config.json` + `agent_data`.  
-Details: `docs/pdfs/06-Click-Background-Auto-Update.pdf`
+| App | Staff? | How |
+|---|---|---|
+| **Desktop App** (Setup.exe) | **Yes** | Login → **Downloads** → Desktop App |
+| **Employee Agent** | **Yes** | Downloads → Agent zip + Admin enroll code |
+| Phone / Chrome “Install app” | **No** | Admin/HR only |
+
+Handoff steps: `docs/67-client-delivery-checklist.md` + PDF `08`.
+

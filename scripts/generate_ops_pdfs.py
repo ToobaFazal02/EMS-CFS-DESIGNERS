@@ -225,6 +225,7 @@ def pdf_index():
                 ["05-Break-Fix-Runbook.pdf", "Repair without data wipe"],
                 ["06-Click-Background-Auto-Update.pdf", "Honest auto-update status + risk"],
                 ["07-Master-EMS-AI-Build-Prompt.pdf", "Top-tier one-shot AI build prompt"],
+                ["08-Client-Delivery-Checklist.pdf", "Staff Desktop+Agent + VPS handoff steps"],
             ],
             [78 * mm, 96 * mm],
         ),
@@ -627,6 +628,40 @@ def pdf_master_prompt():
     build(OUT / "07-Master-EMS-AI-Build-Prompt.pdf", "EMS Master AI Prompt", story)
 
 
+def pdf_delivery():
+    st = styles()
+    story = cover(
+        "Client Delivery Checklist",
+        "Staff install Desktop App + Agent; Admin/HR phone PWA only; VPS + GitHub order.",
+    ) + [
+        Paragraph("Who installs what", st["h1"]),
+        table(
+            ["Who", "Install", "Forbidden"],
+            [
+                ["Staff", "Desktop Setup.exe + Agent zip (Downloads)", "Phone / Chrome Install app"],
+                ["Admin/Manager", "Desktop Setup.exe", "—"],
+                ["Admin/HR", "Phone PWA on HTTPS", "Staff must not get PWA"],
+            ],
+            [40 * mm, 85 * mm, 49 * mm],
+        ),
+        Paragraph("Delivery order", st["h1"]),
+        bullets(
+            [
+                "1) Push desktop+agent.",
+                "2) GitHub Actions → Build Manager Setup → download exe.",
+                "3) Local BUILD-EXE.bat → zip CFS-Agent-Install.zip.",
+                "4) VPS: git pull, npm build web, restart ems-api, upload both binaries to /downloads/.",
+                "5) Confirm EMS_ENV=production and AUTO_SEED_SAMPLES=false.",
+                "6) Admin installs Desktop; each staff: Downloads → Desktop + Agent + enroll + Sign In.",
+                "7) Acceptance: Live, no Advance pending for staff, notify sound, PDF OK.",
+            ],
+            st,
+        ),
+        Paragraph("Full markdown: docs/67-client-delivery-checklist.md", st["body"]),
+    ]
+    build(OUT / "08-Client-Delivery-Checklist.pdf", "EMS Client Delivery", story)
+
+
 def main():
     pdf_index()
     pdf_qa()
@@ -636,6 +671,7 @@ def main():
     pdf_breakfix()
     pdf_autoupdate()
     pdf_master_prompt()
+    pdf_delivery()
     print("Done", OUT)
 
 
